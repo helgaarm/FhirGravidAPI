@@ -1,0 +1,15 @@
+**/bin
+**/obj
+.git
+.vs
+.idea
+.vscode
+.dotnet-cli-home
+TestResults
+coverage
+*.user
+*.pfx
+*.p12
+*.jwk
+.env
+appsettings.*.local.json

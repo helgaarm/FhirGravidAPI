@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../PopulationDataFacade.Core/PopulationDataFacade.Core.csproj" />
+    <PackageReference Include="Duende.IdentityModel" />
+    <PackageReference Include="Duende.AccessTokenManagement" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

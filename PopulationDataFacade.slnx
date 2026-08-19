@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PopulationDataFacade.Api/PopulationDataFacade.Api.csproj" />
+    <Project Path="src/PopulationDataFacade.Core/PopulationDataFacade.Core.csproj" />
+    <Project Path="src/PopulationDataFacade.Infrastructure/PopulationDataFacade.Infrastructure.csproj" />
+    <Project Path="src/PopulationDataFacade.TestClient/PopulationDataFacade.TestClient.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PopulationDataFacade.Tests/PopulationDataFacade.Tests.csproj" />
+    <Project Path="tests/PopulationDataFacade.ContractTests/PopulationDataFacade.ContractTests.csproj" />
+    <Project Path="tests/PopulationDataFacade.IntegrationTests/PopulationDataFacade.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
