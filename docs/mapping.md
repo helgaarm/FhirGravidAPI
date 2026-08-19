@@ -1,5 +1,7 @@
 # DHG → FHIR mappingmatrise
 
+For a resource-oriented overview of every FHIR resource the facade can create, see [DHG API to FHIR R4 resource mapping](dhg-fhir-resource-mapping.md).
+
 Klassifisering:
 
 - **DIRECT**: eksplisitt kildefelt blir samme kliniske fakta i FHIR.
