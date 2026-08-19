@@ -16,6 +16,7 @@ public sealed class FhirAuthorizationMiddlewareResultHandler : IAuthorizationMid
     {
         if (authorizeResult.Challenged)
         {
+            context.Response.Headers.WWWAuthenticate = "DPoP";
             await FhirHttp.Result(
                     FhirHttp.Outcome("security", "A valid HelseID DPoP access token is required."),
                     StatusCodes.Status401Unauthorized)

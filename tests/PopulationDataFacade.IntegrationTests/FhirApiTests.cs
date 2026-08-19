@@ -35,6 +35,22 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
     }
 
     [Fact]
+    public async Task Metadata_uses_forwarded_https_scheme_behind_the_configured_proxy()
+    {
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/fhir/metadata");
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+
+        using var response = await client.SendAsync(request);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https://localhost/fhir/metadata",
+            json.RootElement.GetProperty("url").GetString());
+    }
+
+    [Fact]
     public async Task Patient_read_uses_protected_context_and_never_returns_nin()
     {
         using var client = factory.CreateClient();
@@ -156,6 +172,7 @@ public sealed class FhirFacadeFactory : WebApplicationFactory<Program>
     {
         var privateJwk = CreatePrivateJwk();
         builder.UseEnvironment("Testing");
+        builder.UseSetting("ReverseProxy:ForwardedHeadersEnabled", "true");
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -168,11 +185,13 @@ public sealed class FhirFacadeFactory : WebApplicationFactory<Program>
                 ["HelseId:ClientId"] = "integration-client",
                 ["HelseId:ClientAssertionJwk"] = privateJwk,
                 ["HelseId:DPoPJwk"] = privateJwk,
+                ["ReverseProxy:ForwardedHeadersEnabled"] = "true",
                 ["PatientContext:TestAliases:synthetic-1:LogicalId"] = "patient-1",
                 ["PatientContext:TestAliases:synthetic-1:NationalIdentityNumber"] = "01019012345"
             }));
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<IStartupFilter, LoopbackRemoteAddressStartupFilter>();
             services.RemoveAll<IPopulationDataService>();
             services.AddSingleton<IPopulationDataService, FixedPopulationDataService>();
             services.AddAuthentication(options =>

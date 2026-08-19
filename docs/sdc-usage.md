@@ -14,6 +14,8 @@ The client must send:
 - the protected, short-lived patient context in the configured header;
 - the same logical patient ID in the query and protected context.
 
+For manual testing, explicit test mode permits anonymous Swagger/FHIR requests and moves HelseID authentication to the facade's server-side DHG client. It is normally loopback-only Development; the repository's Azure test template provides a separate IP-restricted Staging exception. This is not an SDC deployment pattern, both variants require DHG Test, and neither can be enabled against Production.
+
 The vertical bar should be percent-encoded as `%7C` when constructing a URI. Example:
 
 ```text
