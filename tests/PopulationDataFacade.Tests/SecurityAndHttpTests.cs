@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Duende.AccessTokenManagement;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -167,6 +169,50 @@ public sealed class SecurityAndHttpTests
         Assert.Contains("HelseId:FacadeScope is required.", result.Failures);
     }
 
+    [Fact]
+    public async Task Development_test_mode_requests_a_dpop_client_credentials_token_for_dhg()
+    {
+        var key = PrivateJwk();
+        var handler = new TokenEndpointHandler();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.Configure<HelseIdOptions>(options =>
+        {
+            options.Authority = new Uri("https://helseid-sts.test.nhn.no");
+            options.ClientId = "dhg-test-client";
+            options.ClientAssertionJwk = key;
+            options.DPoPJwk = key;
+            options.DhgAudience = "nhn:maternity-record";
+            options.DhgScope = "nhn:maternity-record/api";
+        });
+        services.Configure<DevelopmentTestModeOptions>(options => options.Enabled = true);
+        services.AddClientCredentialsTokenManagement();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IHelseIdClientAssertionFactory, HelseIdClientAssertionFactory>();
+        services.AddHttpClient("HelseIdBackchannel")
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+        services.AddScoped<HelseIdAuthorizationProvider>();
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var authorizationProvider = scope.ServiceProvider.GetRequiredService<HelseIdAuthorizationProvider>();
+
+        var authorization = await authorizationProvider.AuthorizeAsync(
+            string.Empty,
+            HttpMethod.Get,
+            new Uri("https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/status"),
+            null,
+            CancellationToken.None);
+
+        Assert.Equal("server-access-token", authorization.AccessToken);
+        Assert.Contains("grant_type=client_credentials", handler.RequestBody);
+        Assert.Contains("scope=nhn%3Amaternity-record%2Fapi", handler.RequestBody);
+        Assert.Contains("resource=nhn%3Amaternity-record", handler.RequestBody);
+        Assert.DoesNotContain("subject_token", handler.RequestBody);
+        Assert.False(string.IsNullOrWhiteSpace(handler.DPoPProof));
+    }
+
     private static DhgHttpClient Client(
         HttpMessageHandler handler,
         IDhgAuthorizationProvider authorization,
@@ -235,6 +281,22 @@ public sealed class SecurityAndHttpTests
                 request.Headers.TryGetValues("nhn-source-system", out var source) ? source.Single() : null,
                 request.Headers.Authorization?.Scheme));
             return Task.FromResult(response(request));
+        }
+    }
+
+    private sealed class TokenEndpointHandler : HttpMessageHandler
+    {
+        public string RequestBody { get; private set; } = string.Empty;
+        public string? DPoPProof { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            DPoPProof = request.Headers.TryGetValues("DPoP", out var proof) ? proof.SingleOrDefault() : null;
+            return Json(HttpStatusCode.OK,
+                "{\"access_token\":\"server-access-token\",\"token_type\":\"DPoP\",\"expires_in\":300}");
         }
     }
 }

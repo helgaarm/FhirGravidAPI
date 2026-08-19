@@ -29,6 +29,14 @@ public sealed class HelseIdOptions
     public string DPoPJwk { get; set; } = string.Empty;
 }
 
+public sealed class DevelopmentTestModeOptions
+{
+    public const string SectionName = "DevelopmentTestMode";
+    public bool Enabled { get; set; }
+    public bool AllowRemoteStaging { get; set; }
+    public string Subject { get; set; } = "swagger-dhg-test-user";
+}
+
 public sealed class DhgOptionsValidator(IOptions<HelseIdOptions> helseIdOptions) : IValidateOptions<DhgOptions>
 {
     public ValidateOptionsResult Validate(string? name, DhgOptions options)

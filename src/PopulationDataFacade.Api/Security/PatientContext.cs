@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using PopulationDataFacade.Core;
+using PopulationDataFacade.Infrastructure.Configuration;
 
 namespace PopulationDataFacade.Api.Security;
 
@@ -91,7 +92,8 @@ public sealed class PatientContextTokenService : IPatientContextTokenService
 
 public sealed class PatientRequestContextFactory(
     IPatientContextTokenService tokenService,
-    IOptions<PatientContextOptions> options)
+    IOptions<PatientContextOptions> options,
+    IOptions<DevelopmentTestModeOptions> developmentTestMode)
 {
     public PatientRequestContext Create(HttpContext httpContext, string requestedPatientId)
     {
@@ -103,20 +105,27 @@ public sealed class PatientRequestContextFactory(
         if (!string.Equals(payload.LogicalId, requestedPatientId, StringComparison.Ordinal))
             throw new PopulationDataException(PopulationErrorKind.NotFound, "The requested patient was not found in this context.");
 
-        var authenticatedSubject = httpContext.User.FindFirst("sub")?.Value;
+        var authenticatedSubject = developmentTestMode.Value.Enabled
+            ? developmentTestMode.Value.Subject
+            : httpContext.User.FindFirst("sub")?.Value;
         if (string.IsNullOrWhiteSpace(authenticatedSubject) ||
             !string.Equals(payload.AuthenticatedSubject, authenticatedSubject, StringComparison.Ordinal))
             throw new PopulationDataException(PopulationErrorKind.Forbidden, "The patient context is not valid for this authenticated subject.");
 
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-        var separator = authorization.IndexOf(' ');
-        if (separator <= 0 || separator == authorization.Length - 1)
-            throw new PopulationDataException(PopulationErrorKind.Unauthorized, "An incoming HelseID access token is required.");
+        var subjectToken = string.Empty;
+        if (!developmentTestMode.Value.Enabled)
+        {
+            var authorization = httpContext.Request.Headers.Authorization.ToString();
+            var separator = authorization.IndexOf(' ');
+            if (separator <= 0 || separator == authorization.Length - 1)
+                throw new PopulationDataException(PopulationErrorKind.Unauthorized, "An incoming HelseID access token is required.");
+            subjectToken = authorization[(separator + 1)..];
+        }
 
         return new PatientRequestContext(
             payload.LogicalId,
             payload.NationalIdentityNumber,
-            authorization[(separator + 1)..],
+            subjectToken,
             httpContext.TraceIdentifier);
     }
 }

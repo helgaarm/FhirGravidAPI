@@ -22,6 +22,8 @@ Infrastructure
 Firely FHIR R4-mapping → Patient / Observation / Encounter / Bundle
 ```
 
+I eksplisitt `DevelopmentTestMode` er Swagger/FHIR-siden anonym. Den innkommende token-exchange-flyten erstattes da av en server-side HelseID `client_credentials`-forespørsel med DHG resource/scope og DPoP. Modusen er normalt sperret til lokal `Development` sammen med `Dhg:Environment=Test`. Repositoryets testmal kan eksplisitt tillate `Staging` med `AllowRemoteStaging=true`, men bare bak malens obligatoriske Container Apps CIDR-begrensning. Resten av DHG-status/record- og FHIR-flyten er uendret, og begge testvariantene avvises mot Production.
+
 API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og wire-kontrakter finnes i Infrastructure. Det gjør at FHIR-kontrakten kan testes uten runtime-mock eller alternativ datakilde.
 
 ## Prosjekter og ansvar
@@ -31,7 +33,6 @@ API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og 
 | Core | Kildeuavhengige kliniske verdityper, koder og Firely FHIR-mapping |
 | Infrastructure | DHG-kontrakt, status/record-orkestrering, HelseID, DPoP, HTTP-resiliens og kilde-mapping |
 | Api | Autentisering, autorisasjon, beskyttet pasientkontekst, FHIR-endepunkter, feilformat og observability |
-| TestClient | Reell HelseID/OIDC-klient og DPoP-bundne kall mot fasaden |
 | Tests | Wire-kontrakt, semantiske mappingregler og in-process HTTP-kontrakt |
 
 ## Konsistens og levetid

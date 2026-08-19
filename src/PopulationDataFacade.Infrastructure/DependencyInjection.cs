@@ -21,6 +21,11 @@ public static class DependencyInjection
         services.AddOptions<HelseIdOptions>()
             .Bind(configuration.GetSection(HelseIdOptions.SectionName))
             .ValidateOnStart();
+        services.AddOptions<DevelopmentTestModeOptions>()
+            .Bind(configuration.GetSection(DevelopmentTestModeOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Subject),
+                "DevelopmentTestMode:Subject is required when test mode is enabled.")
+            .ValidateOnStart();
         services.AddSingleton<IValidateOptions<DhgOptions>, DhgOptionsValidator>();
         services.AddSingleton<IValidateOptions<HelseIdOptions>, HelseIdOptionsValidator>();
 

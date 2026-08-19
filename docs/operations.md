@@ -7,9 +7,14 @@
 | `Dhg` | `Environment`, `BaseUrl`, `SourceSystem`, timeouts, connection lifetime, retryantall |
 | `HelseId` | `Authority`, facade audience/scope, DHG audience/scope, client-ID og private JWK-er |
 | `PatientContext` | headernavn, levetid og ikke-produksjonsaliaser |
+| `DevelopmentTestMode` | eksplisitt anonym Swagger/DHG Test-modus, fast test-subjekt og Azure-malens avgrensede `AllowRemoteStaging` |
+| `Swagger` | `EnabledInProduction`; standard `false`, og HelseID-policy håndheves når den er `true` i Production |
+| `ReverseProxy` | `ForwardedHeadersEnabled`; bare på bak godkjent proxy/Container Apps slik at FHIR-baser bruker opprinnelig HTTPS-skjema |
 | OpenTelemetry | standard `OTEL_*`-miljøvariabler |
 
-Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede miljøverdier er foreløpig bare `Test` og `Production`. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
+Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. `DevelopmentTestMode:Enabled=true` krever DHG Test. I lokal Development kreves loopback-only listeners og kjent loopback-peer; ikke plasser denne varianten bak proxy, tunnel eller port-forwarding. Det eneste støttede fjernunntaket er Azure Test-malen med `Staging`, eksplisitt `AllowRemoteStaging=true` og obligatorisk Container Apps CIDR-begrensning. Begge varianter avvises mot Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
+
+Swagger/OpenAPI er av som standard når host- eller DHG-miljøet er Production. Sett bare `Swagger:EnabledInProduction=true` når produksjonstilgang er nødvendig; `/swagger`, `/swagger/v1/swagger.json` og `/openapi/v1.json` krever da et autentisert HelseID-subjekt med konfigurert fasadescope. Standard nettleser-Swagger støtter ikke denne DPoP-flyten alene; produksjons-UI forutsetter en godkjent HelseID-aware backend/reverse proxy.
 
 ## Health og telemetry
 
@@ -19,7 +24,7 @@ Spor:
 
 - ASP.NET Core request
 - utgående HTTP, unntatt generisk DHG-span som filtreres for å unngå dynamisk record-ID i URL
-- `PopulationDataFacade.HelseId` token exchange
+- `PopulationDataFacade.HelseId` token exchange eller Development-only client credentials
 - `PopulationDataFacade.Dhg` med normalisert `dhg.operation=status|record`
 
 Målinger:

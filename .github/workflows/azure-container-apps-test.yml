@@ -1,0 +1,165 @@
+name: Verify and deploy Azure test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build, test, and validate deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore PopulationDataFacade.slnx
+
+      - name: Build
+        run: dotnet build PopulationDataFacade.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PopulationDataFacade.slnx --configuration Release --no-build
+
+      - name: Compile Bicep templates
+        run: |
+          az bicep build --file infra/foundation.bicep --outfile "$RUNNER_TEMP/foundation.json"
+          az bicep build --file infra/app.bicep --outfile "$RUNNER_TEMP/app.json"
+
+      - name: Build container image
+        run: docker build --tag fhir-gravid-api:verify .
+
+  deploy-test:
+    name: Deploy immutable image to Azure test
+    if: github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: azure-test
+    concurrency:
+      group: fhir-gravid-azure-test
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_NAME_PREFIX: ${{ vars.AZURE_NAME_PREFIX }}
+      AZURE_CONTAINER_REGISTRY: ${{ vars.AZURE_CONTAINER_REGISTRY }}
+      AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_ENVIRONMENT }}
+      AZURE_PULL_IDENTITY: ${{ vars.AZURE_PULL_IDENTITY }}
+      AZURE_ALLOWED_IP_CIDR: ${{ vars.AZURE_ALLOWED_IP_CIDR }}
+      DHG_BASE_URL: ${{ vars.DHG_BASE_URL }}
+      HELSEID_AUTHORITY: ${{ vars.HELSEID_AUTHORITY }}
+      HELSEID_CLIENT_ID: ${{ vars.HELSEID_CLIENT_ID }}
+      PATIENT_TEST_LOGICAL_ID: ${{ vars.PATIENT_TEST_LOGICAL_ID }}
+      HELSEID_CLIENT_ASSERTION_JWK_B64: ${{ secrets.HELSEID_CLIENT_ASSERTION_JWK_B64 }}
+      HELSEID_DPOP_JWK_B64: ${{ secrets.HELSEID_DPOP_JWK_B64 }}
+      PATIENT_TEST_NIN: ${{ secrets.PATIENT_TEST_NIN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate required GitHub environment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID
+            AZURE_RESOURCE_GROUP AZURE_LOCATION AZURE_NAME_PREFIX AZURE_CONTAINER_REGISTRY
+            AZURE_CONTAINERAPPS_ENVIRONMENT AZURE_PULL_IDENTITY AZURE_ALLOWED_IP_CIDR
+            DHG_BASE_URL HELSEID_AUTHORITY HELSEID_CLIENT_ID
+            PATIENT_TEST_LOGICAL_ID HELSEID_CLIENT_ASSERTION_JWK_B64
+            HELSEID_DPOP_JWK_B64 PATIENT_TEST_NIN
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing azure-test variables/secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+          if [[ "$AZURE_ALLOWED_IP_CIDR" == "0.0.0.0/0" || "$AZURE_ALLOWED_IP_CIDR" == "::/0" ]]; then
+            printf 'AZURE_ALLOWED_IP_CIDR must identify a controlled test network, not the entire internet.\n' >&2
+            exit 1
+          fi
+
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push immutable image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${AZURE_CONTAINER_REGISTRY}.azurecr.io/fhir-gravid-api:${GITHUB_SHA}"
+          az acr login --name "$AZURE_CONTAINER_REGISTRY"
+          docker build --tag "$image" .
+          docker push "$image"
+
+      - name: Deploy Container App without Key Vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_assertion_jwk="$(printf '%s' "$HELSEID_CLIENT_ASSERTION_JWK_B64" | base64 --decode | jq -ce 'if type == "object" then . else error("JWK must be a JSON object") end')"
+          dpop_jwk="$(printf '%s' "$HELSEID_DPOP_JWK_B64" | base64 --decode | jq -ce 'if type == "object" then . else error("JWK must be a JSON object") end')"
+          echo "::add-mask::$client_assertion_jwk"
+          echo "::add-mask::$dpop_jwk"
+
+          deployment_name="fhir-gravid-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          az deployment group create \
+            --name "$deployment_name" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/app.bicep \
+            --parameters \
+              namePrefix="$AZURE_NAME_PREFIX" \
+              location="$AZURE_LOCATION" \
+              registryName="$AZURE_CONTAINER_REGISTRY" \
+              environmentName="$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+              pullIdentityName="$AZURE_PULL_IDENTITY" \
+              imageTag="$GITHUB_SHA" \
+              revisionSuffix="r${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              dhgBaseUrl="$DHG_BASE_URL" \
+              helseIdAuthority="$HELSEID_AUTHORITY" \
+              helseIdClientId="$HELSEID_CLIENT_ID" \
+              patientTestLogicalId="$PATIENT_TEST_LOGICAL_ID" \
+              allowedIpCidr="$AZURE_ALLOWED_IP_CIDR" \
+              clientAssertionJwk="$client_assertion_jwk" \
+              dpopJwk="$dpop_jwk" \
+              patientTestNin="$PATIENT_TEST_NIN" \
+            --output none
+
+          application_url="$(az deployment group show \
+            --name "$deployment_name" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query properties.outputs.applicationUrl.value \
+            --output tsv)"
+          printf 'APPLICATION_URL=%s\n' "$application_url" >> "$GITHUB_ENV"
+          printf 'Deployed %s\n' "$application_url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record restricted-ingress verification note
+        shell: bash
+        run: |
+          printf 'External smoke tests were skipped because ingress is restricted to `%s`. Verify `/health/live`, `/health/ready`, and `/swagger/v1/swagger.json` from that network.\n' \
+            "$AZURE_ALLOWED_IP_CIDR" >> "$GITHUB_STEP_SUMMARY"

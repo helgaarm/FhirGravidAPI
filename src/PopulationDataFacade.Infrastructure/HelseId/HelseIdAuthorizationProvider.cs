@@ -55,7 +55,8 @@ public sealed class HelseIdAuthorizationProvider(
     IHttpClientFactory httpClientFactory,
     IDPoPProofService proofService,
     IHelseIdClientAssertionFactory assertionFactory,
-    IOptions<HelseIdOptions> options) : IDhgAuthorizationProvider
+    IOptions<HelseIdOptions> options,
+    IOptions<DevelopmentTestModeOptions> developmentTestMode) : IDhgAuthorizationProvider
 {
     private static readonly ActivitySource ActivitySource = new("PopulationDataFacade.HelseId");
 
@@ -66,31 +67,34 @@ public sealed class HelseIdAuthorizationProvider(
         string? dPoPNonce,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(subjectToken))
+        if (!developmentTestMode.Value.Enabled && string.IsNullOrWhiteSpace(subjectToken))
             throw new PopulationDataException(PopulationErrorKind.Unauthorized, "An incoming HelseID access token is required.");
 
         var configuration = options.Value;
         var tokenEndpoint = new Uri(configuration.Authority, "/connect/token");
         var proofKey = ParseProofKey(configuration.DPoPJwk);
 
-        using var activity = ActivitySource.StartActivity("HelseID token exchange", ActivityKind.Client);
+        var useClientCredentials = developmentTestMode.Value.Enabled;
+        using var activity = ActivitySource.StartActivity(
+            useClientCredentials ? "HelseID client credentials" : "HelseID token exchange",
+            ActivityKind.Client);
         activity?.SetTag("server.address", tokenEndpoint.Host);
-        activity?.SetTag("oauth.grant_type", "token_exchange");
+        activity?.SetTag("oauth.grant_type", useClientCredentials ? "client_credentials" : "token_exchange");
 
-        var response = await ExchangeAsync(subjectToken, tokenEndpoint, proofKey, null, cancellationToken);
+        var response = useClientCredentials
+            ? await RequestClientCredentialsAsync(tokenEndpoint, proofKey, null, cancellationToken)
+            : await ExchangeAsync(subjectToken, tokenEndpoint, proofKey, null, cancellationToken);
         if (response.IsError && response.DPoPNonce is not null &&
             response.Error is "use_dpop_nonce" or "invalid_dpop_proof")
         {
-            response = await ExchangeAsync(
-                subjectToken,
-                tokenEndpoint,
-                proofKey,
-                DPoPNonce.Parse(response.DPoPNonce),
-                cancellationToken);
+            var nonce = DPoPNonce.Parse(response.DPoPNonce);
+            response = useClientCredentials
+                ? await RequestClientCredentialsAsync(tokenEndpoint, proofKey, nonce, cancellationToken)
+                : await ExchangeAsync(subjectToken, tokenEndpoint, proofKey, nonce, cancellationToken);
         }
 
         if (response.IsError || string.IsNullOrWhiteSpace(response.AccessToken))
-            throw MapTokenError(response.Error);
+            throw MapTokenError(response.Error, useClientCredentials);
 
         var apiProof = await proofService.CreateProofTokenAsync(new DPoPProofRequest
         {
@@ -105,6 +109,35 @@ public sealed class HelseIdAuthorizationProvider(
             throw new PopulationDataException(PopulationErrorKind.ConfigurationInvalid, "A DPoP proof could not be created.");
 
         return new DhgAuthorization(response.AccessToken, apiProof.Value);
+    }
+
+    private async Task<TokenResponse> RequestClientCredentialsAsync(
+        Uri tokenEndpoint,
+        DPoPProofKey proofKey,
+        DPoPNonce? nonce,
+        CancellationToken cancellationToken)
+    {
+        var proof = await proofService.CreateProofTokenAsync(new DPoPProofRequest
+        {
+            Url = tokenEndpoint,
+            Method = HttpMethod.Post,
+            DPoPProofKey = proofKey,
+            DPoPNonce = nonce
+        }, cancellationToken);
+
+        var request = new ClientCredentialsTokenRequest
+        {
+            Address = tokenEndpoint.ToString(),
+            ClientId = options.Value.ClientId,
+            ClientAssertion = assertionFactory.Create(options.Value.Authority),
+            ClientCredentialStyle = ClientCredentialStyle.PostBody,
+            Resource = [options.Value.DhgAudience],
+            Scope = options.Value.DhgScope,
+            DPoPProofToken = proof?.ToString()
+        };
+
+        return await httpClientFactory.CreateClient("HelseIdBackchannel")
+            .RequestClientCredentialsTokenAsync(request, cancellationToken);
     }
 
     private async Task<TokenResponse> ExchangeAsync(
@@ -127,6 +160,7 @@ public sealed class HelseIdAuthorizationProvider(
             Address = tokenEndpoint.ToString(),
             ClientId = options.Value.ClientId,
             ClientAssertion = assertionFactory.Create(options.Value.Authority),
+            ClientCredentialStyle = ClientCredentialStyle.PostBody,
             SubjectToken = subjectToken,
             SubjectTokenType = "urn:ietf:params:oauth:token-type:access_token",
             Audience = options.Value.DhgAudience,
@@ -150,11 +184,12 @@ public sealed class HelseIdAuthorizationProvider(
         }
     }
 
-    private static PopulationDataException MapTokenError(string? error) => error switch
+    private static PopulationDataException MapTokenError(string? error, bool clientCredentials) => error switch
     {
         "invalid_client" => new(PopulationErrorKind.ConfigurationInvalid, "HelseID rejected the facade client authentication."),
+        "invalid_grant" or "invalid_request" when clientCredentials => new(PopulationErrorKind.ConfigurationInvalid, "HelseID rejected the DHG client-credentials request."),
         "invalid_grant" or "invalid_request" => new(PopulationErrorKind.Unauthorized, "HelseID rejected the delegated subject token."),
         "invalid_scope" or "invalid_target" => new(PopulationErrorKind.ConfigurationInvalid, "HelseID rejected the configured DHG target or scope."),
-        _ => new(PopulationErrorKind.SourceUnavailable, "HelseID token exchange failed.")
+        _ => new(PopulationErrorKind.SourceUnavailable, "HelseID token request failed.")
     };
 }

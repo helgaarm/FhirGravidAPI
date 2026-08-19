@@ -6,11 +6,14 @@ namespace PopulationDataFacade.Api.Fhir;
 
 public static class FhirEndpoints
 {
-    public static RouteGroupBuilder MapPopulationFhirApi(this IEndpointRouteBuilder endpoints)
+    public static RouteGroupBuilder MapPopulationFhirApi(
+        this IEndpointRouteBuilder endpoints,
+        bool requireAuthorization = true)
     {
         var group = endpoints.MapGroup("/fhir")
-            .RequireAuthorization("population.read")
             .WithTags("FHIR R4");
+
+        if (requireAuthorization) group.RequireAuthorization("population.read");
 
         group.MapGet("/metadata", (HttpContext context, IFhirPopulationMapper mapper) =>
                 FhirHttp.Result(mapper.CapabilityStatement(ServiceBase(context))))
