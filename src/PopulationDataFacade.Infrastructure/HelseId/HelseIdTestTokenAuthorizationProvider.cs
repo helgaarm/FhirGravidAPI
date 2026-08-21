@@ -50,7 +50,7 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
 
         var clientClaims = new Dictionary<string, object?>
         {
-            ["scope"] = configuration.Scope,
+            ["scope"] = new[] { configuration.Scope },
             ["clientId"] = helseIdOptions.Value.ClientId,
             ["orgnrParent"] = configuration.OrgnrParent,
             ["clientTenancy"] = configuration.ClientTenancy,

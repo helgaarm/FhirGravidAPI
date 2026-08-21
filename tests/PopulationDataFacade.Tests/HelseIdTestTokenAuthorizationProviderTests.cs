@@ -61,7 +61,9 @@ public sealed class HelseIdTestTokenAuthorizationProviderTests
         Assert.True(claims.GetProperty("clientTenancy").GetBoolean());
         Assert.Equal(1, claims.GetProperty("clientTenancyType").GetInt32());
         Assert.Equal("private_key_jwt", claims.GetProperty("clientAuthenticationMethodsReferences").GetString());
-        Assert.Equal("nhn:maternity-record/api", claims.GetProperty("scope").GetString());
+        var scopes = claims.GetProperty("scope");
+        Assert.Equal(JsonValueKind.Array, scopes.ValueKind);
+        Assert.Equal("nhn:maternity-record/api", Assert.Single(scopes.EnumerateArray()).GetString());
     }
 
     [Fact]

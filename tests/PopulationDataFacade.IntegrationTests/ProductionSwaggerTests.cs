@@ -46,9 +46,9 @@ public sealed class ProductionSwaggerTests
     [InlineData("/swagger/index.html")]
     [InlineData("/swagger/v1/swagger.json")]
     [InlineData("/openapi/v1.json")]
-    public async Task Dhg_production_uses_the_production_security_boundary_on_a_development_host(string path)
+    public async Task Dhg_production_uses_the_production_security_boundary_on_a_non_production_host(string path)
     {
-        await using var factory = new DhgProductionDevelopmentHostFactory();
+        await using var factory = new DhgProductionNonProductionHostFactory();
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
@@ -183,12 +183,14 @@ public sealed class ProductionSwaggerFactory(bool? enabled, bool includeGatewayS
     }
 }
 
-public sealed class DhgProductionDevelopmentHostFactory : WebApplicationFactory<Program>
+public sealed class DhgProductionNonProductionHostFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var privateJwk = ProductionSwaggerFactory.CreatePrivateJwk();
-        builder.UseEnvironment("Development");
+        // Use a non-Production, non-Development host so developer user-secrets
+        // cannot change this production-boundary integration test.
+        builder.UseEnvironment("Testing");
         builder.UseSetting("Dhg:Environment", "Production");
         builder.UseSetting("AuthGateway:SharedSecret", new string('g', 32));
         builder.ConfigureLogging(logging => logging.ClearProviders());
