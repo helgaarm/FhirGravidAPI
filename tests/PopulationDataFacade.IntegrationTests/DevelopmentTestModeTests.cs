@@ -50,16 +50,20 @@ public sealed class DevelopmentTestModeTests
         await using var factory = new DevelopmentTestModeFactory();
         using var client = factory.CreateClient();
 
-        using var contextResponse = await client.PostAsync("/test/patient-context/synthetic-1", null);
+        using var contextResponse = await client.PostAsync(
+            "/test/patient-context/synthetic-1",
+            null,
+            TestContext.Current.CancellationToken);
         contextResponse.EnsureSuccessStatusCode();
-        using var contextJson = JsonDocument.Parse(await contextResponse.Content.ReadAsStringAsync());
+        using var contextJson = JsonDocument.Parse(await contextResponse.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
         var patientId = contextJson.RootElement.GetProperty("patientId").GetString();
         var patientContext = contextJson.RootElement.GetProperty("patientContext").GetString();
 
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/fhir/Patient/{patientId}");
         request.Headers.TryAddWithoutValidation("X-Patient-Context", patientContext);
-        using var response = await client.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"resourceType\":\"Patient\"", json);
@@ -74,15 +78,19 @@ public sealed class DevelopmentTestModeTests
             allowRemoteStaging: true);
         using var client = factory.CreateClient();
 
-        using var contextResponse = await client.PostAsync("/test/patient-context/synthetic-1", null);
+        using var contextResponse = await client.PostAsync(
+            "/test/patient-context/synthetic-1",
+            null,
+            TestContext.Current.CancellationToken);
         contextResponse.EnsureSuccessStatusCode();
-        using var contextJson = JsonDocument.Parse(await contextResponse.Content.ReadAsStringAsync());
+        using var contextJson = JsonDocument.Parse(await contextResponse.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
         var patientId = contextJson.RootElement.GetProperty("patientId").GetString();
         var patientContext = contextJson.RootElement.GetProperty("patientContext").GetString();
 
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/fhir/Patient/{patientId}");
         request.Headers.TryAddWithoutValidation("X-Patient-Context", patientContext);
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -106,8 +114,10 @@ public sealed class DevelopmentTestModeTests
         await using var factory = new DevelopmentTestModeFactory();
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/swagger/v1/swagger.json");
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.GetAsync(
+            "/swagger/v1/swagger.json",
+            TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"name\": \"X-Patient-Context\"", json);
@@ -121,11 +131,12 @@ public sealed class DevelopmentTestModeTests
         _ = factory.CreateClient();
 
         var context = await factory.Server.SendAsync(request =>
-        {
-            request.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.1");
-            request.Request.Method = HttpMethod.Get.Method;
-            request.Request.Path = "/swagger/v1/swagger.json";
-        });
+            {
+                request.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.1");
+                request.Request.Method = HttpMethod.Get.Method;
+                request.Request.Path = "/swagger/v1/swagger.json";
+            },
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
@@ -136,7 +147,9 @@ public sealed class DevelopmentTestModeTests
         await using var factory = new DevelopmentTestModeFactory(simulateLoopback: false);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/swagger/v1/swagger.json");
+        using var response = await client.GetAsync(
+            "/swagger/v1/swagger.json",
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

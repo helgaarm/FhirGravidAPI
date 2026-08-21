@@ -11,7 +11,10 @@ public sealed class DhgContractTests
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "dhg-record-all-resources.json");
         await using var stream = File.OpenRead(path);
-        var record = await JsonSerializer.DeserializeAsync<DhgMaternityRecord>(stream, DhgJson.Options);
+        var record = await JsonSerializer.DeserializeAsync<DhgMaternityRecord>(
+            stream,
+            DhgJson.Options,
+            TestContext.Current.CancellationToken);
 
         Assert.NotNull(record);
         Assert.NotNull(record.Metadata);

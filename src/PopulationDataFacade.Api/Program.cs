@@ -1,5 +1,7 @@
 using System.Net;
-using Duende.AspNetCore.Authentication.JwtBearer.DPoP;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -55,7 +57,7 @@ if (forwardedHeadersEnabled)
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
         options.ForwardLimit = 1;
-        options.KnownIPNetworks.Clear();
+        options.KnownNetworks.Clear();
         options.KnownProxies.Clear();
     });
 }
@@ -79,6 +81,11 @@ builder.Services.AddScoped<PatientRequestContextFactory>();
 
 var helseId = builder.Configuration.GetSection(HelseIdOptions.SectionName).Get<HelseIdOptions>() ?? new HelseIdOptions();
 const string authenticationScheme = "HelseId";
+const string authGatewaySecretHeader = "X-Auth-Gateway-Secret";
+var authGatewaySharedSecret = builder.Configuration["AuthGateway:SharedSecret"] ?? string.Empty;
+var authGatewaySharedSecretBytes = Encoding.UTF8.GetBytes(authGatewaySharedSecret);
+if (!developmentTestMode.Enabled && authGatewaySharedSecretBytes.Length < 32)
+    throw new InvalidOperationException("AuthGateway:SharedSecret must contain at least 32 bytes outside DevelopmentTestMode.");
 if (developmentTestMode.Enabled)
 {
     builder.Services.AddAuthentication();
@@ -97,14 +104,59 @@ else
                 ValidateIssuer = true,
                 ValidateAudience = true,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromSeconds(30)
+                RequireExpirationTime = true,
+                AudienceValidator = (audiences, _, _) =>
+                {
+                    var audienceValues = audiences?.ToArray() ?? [];
+                    return audienceValues.Length == 1 &&
+                           audienceValues[0].Equals(helseId.FacadeAudience, StringComparison.Ordinal);
+                },
+                ValidTypes = ["at+jwt"],
+                ValidAlgorithms = [SecurityAlgorithms.RsaSha256, SecurityAlgorithms.RsaSsaPssSha256],
+                ClockSkew = TimeSpan.FromSeconds(3)
             };
             options.Events = new JwtBearerEvents
             {
+                OnMessageReceived = context =>
+                {
+                    var gatewaySecrets = context.Request.Headers[authGatewaySecretHeader];
+                    if (gatewaySecrets.Count != 1)
+                    {
+                        context.Fail("The request did not arrive through the authentication gateway.");
+                        return Task.CompletedTask;
+                    }
+                    var suppliedSecretBytes = Encoding.UTF8.GetBytes(gatewaySecrets[0]!);
+                    if (suppliedSecretBytes.Length != authGatewaySharedSecretBytes.Length ||
+                        !CryptographicOperations.FixedTimeEquals(suppliedSecretBytes, authGatewaySharedSecretBytes))
+                    {
+                        context.Fail("The request did not arrive through the authentication gateway.");
+                        return Task.CompletedTask;
+                    }
+
+                    var values = context.Request.Headers.Authorization;
+                    if (values.Count == 0) return Task.CompletedTask;
+                    if (values.Count != 1 ||
+                        !AuthenticationHeaderValue.TryParse(values[0], out var authorization) ||
+                        !authorization.Scheme.Equals("DPoP", StringComparison.OrdinalIgnoreCase) ||
+                        string.IsNullOrWhiteSpace(authorization.Parameter))
+                    {
+                        context.Fail("The Authorization header must contain exactly one DPoP access token.");
+                        return Task.CompletedTask;
+                    }
+
+                    context.Token = authorization.Parameter;
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = context =>
+                {
+                    context.Request.Headers.Remove(authGatewaySecretHeader);
+                    return Task.CompletedTask;
+                },
                 OnChallenge = async context =>
                 {
                     if (context.Response.HasStarted) return;
                     context.HandleResponse();
+                    context.Response.Headers.WWWAuthenticate = "DPoP";
                     await FhirHttp.Result(
                         FhirHttp.Outcome("security", "A valid HelseID DPoP access token is required."),
                         StatusCodes.Status401Unauthorized).ExecuteAsync(context.HttpContext);
@@ -115,8 +167,6 @@ else
                     .ExecuteAsync(context.HttpContext)
             };
         });
-    builder.Services.AddDistributedMemoryCache();
-    builder.Services.ConfigureDPoPTokensForScheme(authenticationScheme);
 }
 builder.Services.AddAuthorization(options =>
 {

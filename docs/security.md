@@ -2,7 +2,11 @@
 
 ## Tillitsgrenser
 
-FHIR-klienten autentiseres med et HelseID access-token. API-et validerer issuer, audience, levetid, fasadescope og DPoP sender-constraining. Access-tokenet brukes som `subject_token` i HelseID token exchange. Det nye DPoP-bundne tokenet har DHG audience `nhn:maternity-record` og scope `nhn:maternity-record/api`.
+FHIR-klienten autentiseres med et HelseID access-token og DPoP-bevis mot auth-gatewayen. Gatewayen validerer issuer, audience, levetid, fasadescope og DPoP sender-constraining før forespørselen sendes til det private API-et. Access-tokenet brukes som `subject_token` i HelseID token exchange. Det nye DPoP-bundne tokenet har DHG audience `nhn:maternity-record` og scope `nhn:maternity-record/api`.
+
+Gatewayen bruker `golang-jwt`, `keyfunc` og HelseIDs anbefalte `AxisCommunications/go-dpop`-bibliotek. Den håndhever `DPoP`-skjema, `at+jwt`, offentlig asymmetrisk JWK uten privat nøkkelmateriale, signatur og algoritme, `htm`/`htu`, 10-sekunders `iat`-vindu, unik `jti`, `ath` og bindingen mot access-tokenets `cnf.jkt`. Det private API-et validerer JWT-et på nytt med Microsofts JWT bearer-handler og krever en delt gateway-hemmelighet som sammenlignes i konstant tid. Innkommende kopier av den interne headeren fjernes alltid av gatewayen.
+
+Replay-registeret kan være atomisk Redis med kort TTL eller prosesslokalt minne. Redis er obligatorisk ved flere replikaer. Minnevarianten nekter å starte med mindre `AUTH_GATEWAY_SINGLE_REPLICA=true` er satt eksplisitt. Replay-nøkler hashes og inneholder verken access-token eller kliniske data.
 
 Unntak: eksplisitt `DevelopmentTestMode` gjør Swagger/FHIR-flaten anonym og bruker server-side HelseID `client_credentials` for DHG Test. Den normale Development-varianten krever loopback-only listener og kjent loopback-peer, må ikke ligge bak proxy/tunnel/port-forwarding og er deaktivert som standard. Repositoryets Azure Test-mal er et særskilt Staging-unntak med eksplisitt `AllowRemoteStaging=true` og obligatorisk CIDR-begrensning i Container Apps. Begge variantene feiler mot annet enn DHG Test og endrer ikke DHGs krav til HelseID, client assertion, DPoP, audience eller scope.
 
@@ -49,6 +53,8 @@ Alle eksterne URL-er må være HTTPS. Test og produksjon valideres som sammenhø
 - registrer korrekt facade audience/scope og token-exchange-relasjon i HelseID
 - lagre og roter JWK-er i HSM/Key Vault eller tilsvarende
 - konfigurer persistent kryptert Data Protection key ring
+- bruk Redis replay-register med TLS før flere replikaer tas i bruk; minnevarianten er kun tillatt ved eksplisitt én-replika-drift
+- eksponer bare gateway-porten, hold API-port 8081 privat, og roter den delte gateway-hemmeligheten som en driftshemmelighet
 - fjern alle testaliaser og sett `ASPNETCORE_ENVIRONMENT=Production`
 - behold Swagger/OpenAPI deaktivert i Production, eller dokumenter behovet, aktiver eksplisitt og verifiser HelseID-beskyttelsen
 - implementer og godkjenn produksjonsutsteder for subjektbundet pasientkontekst

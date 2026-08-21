@@ -130,7 +130,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               name: 'ASPNETCORE_HTTP_PORTS'
-              value: '8080'
+              value: '8081'
             }
             {
               name: 'Dhg__Environment'
@@ -202,6 +202,70 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Startup'
               httpGet: {
                 path: '/health/live'
+                port: 8081
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 1
+              periodSeconds: 5
+              timeoutSeconds: 2
+              failureThreshold: 30
+            }
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health/live'
+                port: 8081
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 15
+              timeoutSeconds: 2
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: 8081
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              timeoutSeconds: 2
+              failureThreshold: 3
+            }
+          ]
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+        }
+        {
+          name: 'auth-gateway'
+          image: '${registry.properties.loginServer}/fhir-gravid-auth-gateway:${imageTag}'
+          env: [
+            {
+              name: 'AUTH_GATEWAY_MODE'
+              value: 'passthrough'
+            }
+            {
+              name: 'AUTH_GATEWAY_LISTEN_ADDR'
+              value: ':8080'
+            }
+            {
+              name: 'AUTH_GATEWAY_UPSTREAM_URL'
+              value: 'http://127.0.0.1:8081'
+            }
+            {
+              name: 'AUTH_GATEWAY_EXTERNAL_SCHEME'
+              value: 'https'
+            }
+          ]
+          probes: [
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/health/live'
                 port: 8080
                 scheme: 'HTTP'
               }
@@ -236,8 +300,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             }
           ]
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('0.25')
+            memory: '0.5Gi'
           }
         }
       ]

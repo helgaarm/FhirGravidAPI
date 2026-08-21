@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using PopulationDataFacade.Api.Security;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -24,7 +24,7 @@ public sealed class PatientContextHeaderOperationFilter(
             In = ParameterLocation.Header,
             Required = true,
             Description = "Protected patient context returned by POST /test/patient-context/{alias}.",
-            Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+            Schema = new OpenApiSchema { Type = "string" }
         });
     }
 }

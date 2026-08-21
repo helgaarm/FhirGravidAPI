@@ -12,8 +12,8 @@ The facade needs:
 ## Request flow
 
 1. The client authenticates through HelseID and calls the facade with a DPoP-bound access token.
-2. The facade validates issuer, audience, lifetime, DPoP and exact read scope.
-3. The facade validates a short-lived patient context bound to the current HelseID `sub`.
+2. The auth gateway validates issuer, audience, lifetime, exact read scope, the DPoP proof, token/proof binding, and replay uniqueness.
+3. The private facade independently validates the access token, verifies the gateway credential, and validates a short-lived patient context bound to the current HelseID `sub`.
 4. The incoming access token is used only as `subject_token` in HelseID token exchange.
 5. The exchanged DHG token and a destination-bound DPoP proof are sent to DHG; the inbound token is never forwarded to DHG.
 
@@ -23,7 +23,28 @@ The repository's [Azure test deployment](azure-test-deployment.md) is the only s
 
 ## Required configuration
 
-See `HelseId` and `PatientContext` in the API `appsettings.json`. Supply `ClientId`, `ClientAssertionJwk`, `DPoPJwk`, and synthetic Test aliases through an approved secret/configuration provider. Startup rejects empty facade scope, missing private keys, unsupported DHG environment names, and Test/Production mixing.
+See `HelseId`, `AuthGateway`, and `PatientContext` in the API `appsettings.json`. Supply `ClientId`, `ClientAssertionJwk`, `DPoPJwk`, the gateway shared secret, and synthetic Test aliases through an approved secret/configuration provider. Startup rejects empty facade scope, missing private keys, unsupported DHG environment names, and Test/Production mixing.
+
+> **Mandatory TLS boundary:** `auth-gateway` listens with plaintext HTTP. It does not terminate TLS. A trusted HTTPS ingress or reverse proxy must terminate TLS before forwarding over a private loopback/pod-local connection to port 8080. Never publish port 8080 directly to an untrusted network. `AUTH_GATEWAY_EXTERNAL_SCHEME=https` only defines the canonical URL used for DPoP validation and forwarded metadata; it does not enable TLS.
+
+For authenticated operation, expose only the trusted HTTPS ingress and configure both containers with the same random secret of at least 32 bytes. The TLS terminator must preserve the canonical `Host` value configured in `AUTH_GATEWAY_EXTERNAL_HOST`; the gateway rejects other Host values and rebuilds forwarding headers itself. The API listens on loopback port 8081 in the container deployment. A single-replica deployment may explicitly use `AUTH_GATEWAY_REPLAY_STORE=memory` with `AUTH_GATEWAY_SINGLE_REPLICA=true`; every multi-replica deployment must use `AUTH_GATEWAY_REPLAY_STORE=redis` with a TLS `AUTH_GATEWAY_REDIS_URL` so replay rejection is atomic across replicas.
+
+```text
+AUTH_GATEWAY_MODE=authenticate
+AUTH_GATEWAY_UPSTREAM_URL=http://127.0.0.1:8081
+AUTH_GATEWAY_EXTERNAL_SCHEME=https
+AUTH_GATEWAY_EXTERNAL_HOST=<canonical-public-facade-host>
+AUTH_GATEWAY_SHARED_SECRET=<random-32-byte-or-longer-secret>
+AUTH_GATEWAY_REPLAY_STORE=redis
+AUTH_GATEWAY_REDIS_URL=rediss://<credentials>@<redis-host>:6380/0
+HELSEID_AUTHORITY=https://helseid-sts.nhn.no
+HELSEID_AUDIENCE=nhn:population-data-facade
+HELSEID_SCOPE=nhn:population-data-facade/read
+
+AuthGateway__SharedSecret=<the-same-random-secret>
+```
+
+`AUTH_GATEWAY_EXTERNAL_SCHEME` and `AUTH_GATEWAY_EXTERNAL_HOST` are fixed configuration rather than caller-controlled forwarded headers because DPoP `htu` validation must use the canonical public request origin. The DPoP proof must target `https://<AUTH_GATEWAY_EXTERNAL_HOST>/<path-and-query>`. Requests carrying another `Host` value are rejected. The configured upstream must be an HTTP loopback origin; the gateway refuses non-loopback targets.
 
 ## Test and production status
 

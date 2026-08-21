@@ -29,8 +29,7 @@ public static class DependencyInjection
         services.AddSingleton<IValidateOptions<DhgOptions>, DhgOptionsValidator>();
         services.AddSingleton<IValidateOptions<HelseIdOptions>, HelseIdOptionsValidator>();
 
-        // Registers Duende's maintained DPoP proof implementation. Token exchange itself
-        // stays request-scoped and is deliberately not put in a facade-level token cache.
+        // Token exchange stays request-scoped and is deliberately not put in a facade-level token cache.
         services.AddClientCredentialsTokenManagement();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IHelseIdClientAssertionFactory, HelseIdClientAssertionFactory>();

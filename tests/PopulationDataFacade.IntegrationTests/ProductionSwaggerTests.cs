@@ -16,6 +16,16 @@ namespace PopulationDataFacade.IntegrationTests;
 
 public sealed class ProductionSwaggerTests
 {
+    [Fact]
+    public void Production_startup_requires_the_auth_gateway_shared_secret()
+    {
+        using var factory = new ProductionSwaggerFactory(enabled: null, includeGatewaySecret: false);
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains("AuthGateway:SharedSecret must contain at least 32 bytes", exception.ToString());
+    }
+
     [Theory]
     [InlineData("/swagger")]
     [InlineData("/swagger/")]
@@ -27,7 +37,7 @@ public sealed class ProductionSwaggerTests
         await using var factory = new ProductionSwaggerFactory(enabled: null);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync(path);
+        using var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -41,7 +51,7 @@ public sealed class ProductionSwaggerTests
         await using var factory = new DhgProductionDevelopmentHostFactory();
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync(path);
+        using var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -57,7 +67,7 @@ public sealed class ProductionSwaggerTests
         await using var factory = new ProductionSwaggerFactory(enabled: true);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync(path);
+        using var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains(response.Headers.WwwAuthenticate, challenge => challenge.Scheme == "DPoP");
@@ -76,7 +86,7 @@ public sealed class ProductionSwaggerTests
         request.Headers.TryAddWithoutValidation("X-Test-Subject", "swagger-production-user");
         request.Headers.TryAddWithoutValidation("X-Test-Scope", "nhn:population-data-facade/read");
 
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -96,7 +106,7 @@ public sealed class ProductionSwaggerTests
         request.Headers.TryAddWithoutValidation("X-Test-Subject", "swagger-production-user");
         request.Headers.TryAddWithoutValidation("X-Test-Scope", "nhn:population-data-facade/read");
 
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.True((int)response.StatusCode is >= 300 and < 400);
         Assert.EndsWith("index.html", response.Headers.Location?.ToString(), StringComparison.Ordinal);
@@ -117,18 +127,20 @@ public sealed class ProductionSwaggerTests
         request.Headers.TryAddWithoutValidation("X-Test-Subject", "swagger-production-user");
         request.Headers.TryAddWithoutValidation("X-Test-Scope", "unrelated/scope");
 
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }
 
-public sealed class ProductionSwaggerFactory(bool? enabled) : WebApplicationFactory<Program>
+public sealed class ProductionSwaggerFactory(bool? enabled, bool includeGatewaySecret = true) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var privateJwk = CreatePrivateJwk();
         builder.UseEnvironment("Production");
+        if (includeGatewaySecret)
+            builder.UseSetting("AuthGateway:SharedSecret", new string('g', 32));
         if (enabled.HasValue)
             builder.UseSetting("Swagger:EnabledInProduction", enabled.Value.ToString());
         builder.ConfigureLogging(logging => logging.ClearProviders());
@@ -145,6 +157,8 @@ public sealed class ProductionSwaggerFactory(bool? enabled) : WebApplicationFact
                 ["HelseId:ClientAssertionJwk"] = privateJwk,
                 ["HelseId:DPoPJwk"] = privateJwk
             };
+            if (includeGatewaySecret)
+                settings["AuthGateway:SharedSecret"] = new string('g', 32);
             if (enabled.HasValue)
                 settings["Swagger:EnabledInProduction"] = enabled.Value.ToString();
             configuration.AddInMemoryCollection(settings);
@@ -176,6 +190,7 @@ public sealed class DhgProductionDevelopmentHostFactory : WebApplicationFactory<
         var privateJwk = ProductionSwaggerFactory.CreatePrivateJwk();
         builder.UseEnvironment("Development");
         builder.UseSetting("Dhg:Environment", "Production");
+        builder.UseSetting("AuthGateway:SharedSecret", new string('g', 32));
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -189,7 +204,8 @@ public sealed class DhgProductionDevelopmentHostFactory : WebApplicationFactory<
                 ["HelseId:DhgScope"] = "nhn:maternity-record/api",
                 ["HelseId:ClientId"] = "integration-client",
                 ["HelseId:ClientAssertionJwk"] = privateJwk,
-                ["HelseId:DPoPJwk"] = privateJwk
+                ["HelseId:DPoPJwk"] = privateJwk,
+                ["AuthGateway:SharedSecret"] = new string('g', 32)
             }));
     }
 }

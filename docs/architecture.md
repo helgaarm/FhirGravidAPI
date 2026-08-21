@@ -6,8 +6,11 @@
 FHIR-klient
   │ HelseID DPoP access-token + beskyttet pasientkontekst
   ▼
+auth-gateway
+  │ validerer HelseID token, DPoP, scope og replay; videresender med intern credential
+  ▼
 PopulationDataFacade.Api
-  │ validerer token/scope/kontekst, kjenner ikke DHG JSON
+  │ validerer gateway-credential, JWT og kontekst; kjenner ikke DHG JSON
   ▼
 IPopulationDataService / Core-modell
   │
@@ -30,9 +33,10 @@ API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og 
 
 | Prosjekt | Ansvar |
 |---|---|
+| auth-gateway | HelseID access-token, DPoP, scope, replay og privat reverse proxy-grense |
 | Core | Kildeuavhengige kliniske verdityper, koder og Firely FHIR-mapping |
 | Infrastructure | DHG-kontrakt, status/record-orkestrering, HelseID, DPoP, HTTP-resiliens og kilde-mapping |
-| Api | Autentisering, autorisasjon, beskyttet pasientkontekst, FHIR-endepunkter, feilformat og observability |
+| Api | Uavhengig JWT-/gateway-validering, autorisasjon, beskyttet pasientkontekst, FHIR-endepunkter, feilformat og observability |
 | Tests | Wire-kontrakt, semantiske mappingregler og in-process HTTP-kontrakt |
 
 ## Konsistens og levetid
