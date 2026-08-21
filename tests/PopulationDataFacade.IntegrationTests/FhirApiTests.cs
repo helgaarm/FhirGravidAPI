@@ -32,6 +32,7 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("\"resourceType\":\"CapabilityStatement\"", json);
+        Assert.DoesNotContain("\"name\":\"identifier\"", json);
     }
 
     [Fact]

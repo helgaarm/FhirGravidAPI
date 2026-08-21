@@ -11,6 +11,50 @@ public sealed class PatientContextHeaderOperationFilter(
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var path = context.ApiDescription.RelativePath;
+        var developmentNinSearch =
+            context.ApiDescription.HttpMethod?.Equals("POST", StringComparison.OrdinalIgnoreCase) == true &&
+            path?.EndsWith("/_search", StringComparison.OrdinalIgnoreCase) == true;
+        if (developmentNinSearch)
+        {
+            var identifierName = path!.StartsWith("fhir/Patient/", StringComparison.OrdinalIgnoreCase)
+                ? "identifier"
+                : "patient.identifier";
+            var properties = new Dictionary<string, OpenApiSchema>
+            {
+                [identifierName] = new()
+                {
+                    Type = "string",
+                    Description = "Approved configured synthetic NIN. Sent in the form body and never returned."
+                }
+            };
+            if (path.StartsWith("fhir/Observation/", StringComparison.OrdinalIgnoreCase))
+            {
+                properties["code"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Description = "Optional system|code Observation filter."
+                };
+            }
+
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Required = true,
+                Content = new Dictionary<string, OpenApiMediaType>
+                {
+                    ["application/x-www-form-urlencoded"] = new()
+                    {
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "object",
+                            Properties = properties,
+                            Required = new HashSet<string> { identifierName }
+                        }
+                    }
+                }
+            };
+            return;
+        }
+
         if (path is null ||
             (!path.StartsWith("fhir/Patient/", StringComparison.OrdinalIgnoreCase) &&
              !path.StartsWith("fhir/Observation", StringComparison.OrdinalIgnoreCase) &&

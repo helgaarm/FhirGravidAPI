@@ -8,7 +8,7 @@ public interface IFhirPopulationMapper
     IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null);
     IReadOnlyList<Encounter> MapEncounters(PopulationSnapshot snapshot);
     Bundle SearchBundle(IEnumerable<Resource> resources, Uri? serviceBase = null);
-    CapabilityStatement CapabilityStatement(Uri serviceBase);
+    CapabilityStatement CapabilityStatement(Uri serviceBase, bool includeDevelopmentNinSearch = false);
 }
 
 public sealed class FhirPopulationMapper : IFhirPopulationMapper
@@ -85,7 +85,9 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         return bundle;
     }
 
-    public CapabilityStatement CapabilityStatement(Uri serviceBase) => new()
+    public CapabilityStatement CapabilityStatement(
+        Uri serviceBase,
+        bool includeDevelopmentNinSearch = false) => new()
     {
         Id = "population-data-facade-capability",
         Url = new Uri(serviceBase, "fhir/metadata").ToString(),
@@ -106,9 +108,24 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                 Mode = Hl7.Fhir.Model.CapabilityStatement.RestfulCapabilityMode.Server,
                 Resource =
                 [
-                    ResourceCapability(ResourceType.Patient, Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read),
-                    ResourceCapability(ResourceType.Observation, Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType),
-                    ResourceCapability(ResourceType.Encounter, Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType)
+                    ResourceCapability(
+                        ResourceType.Patient,
+                        includeDevelopmentNinSearch,
+                        includeDevelopmentNinSearch
+                            ?
+                            [
+                                Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read,
+                                Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType
+                            ]
+                            : [Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read]),
+                    ResourceCapability(
+                        ResourceType.Observation,
+                        false,
+                        Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType),
+                    ResourceCapability(
+                        ResourceType.Encounter,
+                        false,
+                        Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType)
                 ]
             }
         ]
@@ -164,10 +181,13 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
 
     private static CapabilityStatement.ResourceComponent ResourceCapability(
         ResourceType resourceType,
-        CapabilityStatement.TypeRestfulInteraction interaction) => new()
+        bool includePatientIdentifier,
+        params CapabilityStatement.TypeRestfulInteraction[] interactions) => new()
     {
         Type = resourceType.ToString(),
-        Interaction = [new CapabilityStatement.ResourceInteractionComponent { Code = interaction }],
+        Interaction = interactions
+            .Select(interaction => new CapabilityStatement.ResourceInteractionComponent { Code = interaction })
+            .ToList(),
         SearchParam = resourceType is ResourceType.Observation
             ?
             [
@@ -194,7 +214,17 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                         Definition = "http://hl7.org/fhir/SearchParameter/clinical-patient"
                     }
                 ]
-                : []
+                : resourceType is ResourceType.Patient && includePatientIdentifier
+                    ?
+                    [
+                        new CapabilityStatement.SearchParamComponent
+                        {
+                            Name = "identifier",
+                            Type = SearchParamType.Token,
+                            Definition = "http://hl7.org/fhir/SearchParameter/Patient-identifier"
+                        }
+                    ]
+                    : []
     };
 
     private static Meta? Meta(DateTimeOffset? lastUpdated) => lastUpdated is null

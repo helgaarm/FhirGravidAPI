@@ -14,6 +14,49 @@ Every DPoP proof is request-specific: its `htu` and `htm` must match the final `
 
 For the explicit anonymous local Development-test mode only, set `$facadeBase` to the API launch URL (normally `https://localhost:7184`) and omit the `Authorization` and `DPoP` headers. That direct-API pattern is not valid for authenticated or production operation.
 
+## Create the local test patient selection
+
+The logical patient ID is configured by the operator and is not the NIN or a value derived from DHG. Configure the `synthetic_1` alias as described in [Patient ID and protected context for testing](../docs/patient-context-testing.md), then obtain both values used below:
+
+```powershell
+$selection = Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/test/patient-context/synthetic_1"
+
+$logicalPatientId = $selection.patientId
+$patientContext = $selection.patientContext
+```
+
+The context is short-lived. Never substitute the NIN for `$logicalPatientId`.
+
+## Local POST search by configured synthetic NIN
+
+Only the explicit local `DevelopmentTestMode` supports searching directly with an approved synthetic NIN. Read it interactively so it is not written into the command line, and send it in a form body rather than a URL. These three POST searches do not use `$headers` or `X-Patient-Context`:
+
+```powershell
+$approvedSyntheticNin = Read-Host "Approved configured synthetic NIN"
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/fhir/Patient/_search" `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{ identifier = $approvedSyntheticNin }
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/fhir/Observation/_search" `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/fhir/Encounter/_search" `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+```
+
+The NIN must match one configured alias. The returned resources use that alias's logical ID and never include the NIN. This convenience is unavailable in remote Staging and Production. Never put the NIN in a GET query string.
+
 ## Capability statement
 
 `GET /fhir/metadata` is anonymous:

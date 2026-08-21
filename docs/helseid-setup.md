@@ -71,6 +71,8 @@ AuthGateway__SharedSecret=<the-same-random-secret>
 
 The test alias endpoint is non-Production only and normally requires the same read policy as FHIR. In explicit test mode it is anonymous and binds the context to the configured fixed test subject.
 
+For the exact alias → logical `patientId` → protected context → FHIR request sequence, including local user-secrets configuration and common errors, see [Patient ID and protected context for testing](patient-context-testing.md).
+
 Production is blocked until an approved patient-context authority and interoperability contract are implemented. That decision must cover authorization basis, issuer identity, subject/purpose binding, key storage/rotation, replay controls, audit, multi-instance Data Protection, and revocation/expiry.
 
 An external smoke test must be explicitly opted in and use only an approved synthetic patient. The repository currently has no such credentialed smoke harness.

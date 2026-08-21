@@ -29,6 +29,8 @@ Fødselsnummer tas aldri fra URL, query eller FHIR-logisk ID. En formålsbundet 
 
 Alias-endepunktet er kun støtte for konfigurerte syntetiske DHG Test-personer og finnes ikke i Production. Det krever normalt samme autorisasjon som FHIR-flaten; i eksplisitt Development-testmodus er det anonymt og binder konteksten til det faste konfigurerte test-subjektet. Det returnerer aldri fødselsnummeret.
 
+Kun på en lokal `DevelopmentTestMode`-host kan en konfigurert syntetisk testperson også velges med FHIR POST `_search`. Fødselsnummeret må ligge i en liten `application/x-www-form-urlencoded` body, må matche nøyaktig én konfigurert alias og returneres aldri. GET-query med fødselsnummer støttes ikke. POST-rutene registreres ikke i remote Staging, QA eller Production, og request body tas ikke inn i applikasjonens logger eller telemetry.
+
 Det finnes foreløpig ingen godkjent produksjonsutsteder for pasientkontekst. Produksjon skal ikke åpnes før tillitsprotokoll, autorisasjonsgrunnlag, nøkkelstyring, rotasjon og replay-kontroll er arkitekturgodkjent og testet.
 
 For flere instanser må Data Protection-nøkkelringen lagres i en godkjent, delt og kryptert nøkkeltjeneste. Standard lokal nøkkelring er bare egnet for lokal utvikling eller én instans.

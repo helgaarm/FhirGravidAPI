@@ -71,8 +71,14 @@ builder.Services.AddOptions<PatientContextOptions>()
     .Validate(options => options.TestAliases.All(alias =>
             !string.IsNullOrWhiteSpace(alias.Key) &&
             !string.IsNullOrWhiteSpace(alias.Value.LogicalId) &&
-            !string.IsNullOrWhiteSpace(alias.Value.NationalIdentityNumber)),
-        "Every PatientContext:TestAliases entry must define an alias, LogicalId, and NationalIdentityNumber.")
+            !string.IsNullOrWhiteSpace(alias.Value.NationalIdentityNumber) &&
+            PatientContextOptions.IsNationalIdentityNumberFormat(alias.Value.NationalIdentityNumber)),
+        "Every PatientContext:TestAliases entry must define an alias, LogicalId, and an 11-digit NationalIdentityNumber.")
+    .Validate(options => options.TestAliases.Values
+            .Select(patient => patient.NationalIdentityNumber)
+            .Distinct(StringComparer.Ordinal)
+            .Count() == options.TestAliases.Count,
+        "Every PatientContext:TestAliases entry must use a unique NationalIdentityNumber.")
     .Validate(options => !productionSecurityBoundary || options.TestAliases.Count == 0,
         "PatientContext:TestAliases must be empty when the host or DHG environment is Production.")
     .ValidateOnStart();
@@ -286,7 +292,9 @@ if (swaggerEnabled)
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
-app.MapPopulationFhirApi(requireAuthorization: !developmentTestMode.Enabled);
+app.MapPopulationFhirApi(
+    requireAuthorization: !developmentTestMode.Enabled,
+    enableDevelopmentNinSearch: localDevelopmentTestMode);
 
 var patientContextEndpoint = app.MapPost("/test/patient-context/{alias}", (
         string alias,
@@ -304,7 +312,8 @@ var patientContextEndpoint = app.MapPost("/test/patient-context/{alias}", (
         return Results.Json(new { patientId = patient.LogicalId, patientContext = token });
     })
     .WithTags("Test support")
-    .WithDescription("Issues a short-lived protected context for a configured synthetic DHG Test patient. Disabled in production.");
+    .WithDescription(
+        "Looks up a configured synthetic DHG Test alias and returns its logical FHIR patientId plus a short-lived protected patientContext. The patientId is not the NIN. Disabled in production.");
 
 if (!developmentTestMode.Enabled)
     patientContextEndpoint.RequireAuthorization("population.read");

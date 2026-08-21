@@ -157,7 +157,7 @@ curl.exe -f "$baseUrl/health/ready"
 Start-Process "$baseUrl/swagger"
 ```
 
-In Swagger, issue a context for `synthetic_1`, copy `patientId` and `patientContext`, then use the context header on a FHIR call. Incoming Swagger/FHIR calls do not need HelseID in this test-only deployment; the facade obtains a fresh request-bound HelseID TEST authorization server-side for each DHG call.
+In Swagger, issue a context for `synthetic_1`, copy `patientId` and `patientContext`, then use the exact logical `patientId` in the FHIR route/query and the protected value in `X-Patient-Context`. `patientId` comes from the configured `PATIENT_TEST_LOGICAL_ID`; it is not the NIN and is not read from DHG. The complete walkthrough is in [Patient ID and protected context for testing](patient-context-testing.md). Incoming Swagger/FHIR calls do not need HelseID in this test-only deployment; the facade obtains a fresh request-bound HelseID TEST authorization server-side for each DHG call.
 
 Readiness currently confirms only that the process is running. A successful readiness response is not proof that HelseID or DHG is reachable. The first authorized DHG-backed FHIR operation is the external integration test.
 

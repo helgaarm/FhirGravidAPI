@@ -19,6 +19,16 @@ GET /fhir/Observation?patient={id}[&code={system}|{code}]
 GET /fhir/Encounter?patient={id}
 ```
 
+Kun i lokal `DevelopmentTestMode` finnes i tillegg FHIR POST-søk med et godkjent, konfigurert syntetisk fødselsnummer i `application/x-www-form-urlencoded` request body:
+
+```text
+POST /fhir/Patient/_search                 identifier={synthetic-nin}
+POST /fhir/Observation/_search     patient.identifier={synthetic-nin}[&code={system}|{code}]
+POST /fhir/Encounter/_search       patient.identifier={synthetic-nin}
+```
+
+Disse lokale søkene krever ikke `X-Patient-Context`. GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings kan havne i nettleserhistorikk, proxylogger og telemetry. POST-søkene er ikke tilgjengelige i Azure Staging, QA eller Production. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for Swagger- og PowerShell-eksempler.
+
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
 ## Forutsetninger
@@ -46,6 +56,8 @@ $env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<syntet
 ```
 
 Alias-konfigurasjon er kun tillatt utenfor Production. Endepunktet `POST /test/patient-context/{alias}` er deaktivert i Production. Normalt bindes konteksten til det autentiserte HelseID-subjektet og kan ikke gjenbrukes av en annen innlogget bruker; Development-testmodus binder den i stedet til et fast konfigurert test-subjekt. En godkjent produksjonsmekanisme for utstedelse og tillit er ikke implementert; dette er en eksplisitt produksjonsblokker.
+
+`LogicalId` er den ikke-sensitive FHIR-ID-en operatøren velger, for eksempel `patient-test-1`. Den genereres ikke fra DHG eller fødselsnummeret. Alias-endepunktet returnerer denne verdien som `patientId` og pakker koblingen mellom logisk ID, syntetisk fødselsnummer, subjekt og utløp i `patientContext`. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for hele flyten.
 
 ### Anonym Swagger mot DHG Test
 
@@ -90,8 +102,10 @@ Da kan linjen som setter `HelseIdTestToken__AuthKey` utelates fra miljøblokken.
 I Swagger:
 
 1. Kall `POST /test/patient-context/{alias}` med `synthetic_1`.
-2. Kopier `patientContext` og `patientId` fra svaret.
-3. Kall ønsket FHIR-operasjon, bruk `patientId`, og lim `patientContext` inn i `X-Patient-Context`-feltet Swagger viser.
+2. Kopier `patientId` (den konfigurerte logiske FHIR-ID-en, ikke fødselsnummeret) og `patientContext` fra svaret.
+3. Kall ønsket FHIR-operasjon, bruk nøyaktig denne `patientId`-verdien i route/query, og lim `patientContext` inn i `X-Patient-Context`-feltet Swagger viser.
+
+Som en lokal testforenkling kan de tre POST `_search`-operasjonene brukes direkte med et fødselsnummer som allerede finnes i `PatientContext:TestAliases`. Fødselsnummeret legges i form body, ikke i URL, og Swagger viser derfor ikke `X-Patient-Context` for disse operasjonene. De returnerte FHIR-ressursene bruker fortsatt konfigurert `LogicalId` og inneholder aldri fødselsnummeret.
 
 Modusen avvises ved oppstart utenfor lokal Development eller den eksplisitt tillatte, IP-begrensede Azure Staging-malen, og alltid mot annet enn DHG Test. Den må aldri aktiveres i QA eller Production.
 
@@ -127,6 +141,26 @@ go test ./...
 Pop-Location
 ```
 
+### Første kjøring og treg restore
+
+Repositoryet bruker .NET 9. `dotnet run` utfører normalt både restore og build automatisk. Første kjøring kan derfor ta merkbart lengre tid mens NuGet-pakker lastes ned, alle prosjektene kompileres og Windows eventuelt skanner nye build-filer. En påfølgende restore skal normalt være rask når pakkene allerede finnes i lokal cache.
+
+Kjør restore eksplisitt én gang for å skille NuGet-steget fra kompileringen:
+
+```powershell
+dotnet --version
+dotnet restore PopulationDataFacade.slnx --locked-mode --verbosity minimal
+dotnet run --project src/PopulationDataFacade.Api --no-restore
+```
+
+`dotnet --version` skal vise en `9.0.x`-versjon. Når API-et allerede er bygget og kildekoden er uendret, kan også build-steget hoppes over:
+
+```powershell
+dotnet run --project src/PopulationDataFacade.Api --no-restore --no-build
+```
+
+Ikke bruk `--no-build` etter endringer i kode, prosjektfiler eller pakker. Hvis restore blir stående lenge på `Determining projects to restore...`, kjør kommandoen på nytt med `--verbosity normal` og kontroller tilgangen til den konfigurerte NuGet-kilden. `NU1900` eller `Unable to load the service index` betyr at NuGet ikke når pakke- eller sårbarhetstjenesten; kontroller nettverk, DNS og eventuell proxy. Tiden etter en fullført restore er build-tid, ikke restore-tid.
+
 Kjør API-et med den eksplisitte anonyme Development-testkonfigurasjonen ovenfor, eller bruk den autentiserte to-prosessflyten. Launch-profilen starter API-et normalt på `https://localhost:7184`; dette er en direkte lokal Development-adresse, ikke den offentlige adressen for autentisert drift. Swagger UI og OpenAPI-dokumentet er tilgjengelig uten innlogging i ikke-produksjonsmiljøer på henholdsvis `/swagger` og `/openapi/v1.json`. I Production er de deaktivert som standard og HelseID-beskyttet når de aktiveres eksplisitt.
 
 ## Drift
@@ -139,7 +173,7 @@ Kjør API-et med den eksplisitte anonyme Development-testkonfigurasjonen ovenfor
 
 Logger inneholder aldri access-token, privat nøkkel, fødselsnummer eller klinisk payload. DHG-kall bruker `nhn-patient-nin` kun som utgående header. Kun idempotente GET-kall retries ved timeout, 429 og relevante 5xx-feil; `Retry-After` respekteres.
 
-Se [Azure testdeployment](docs/azure-test-deployment.md), [arkitektur](docs/architecture.md), [DHG→FHIR-ressursmapping](docs/dhg-fhir-resource-mapping.md), [mappingmatrise](docs/mapping.md), [DHG-kildeliste](docs/dhg-source-inventory.md), [populasjonsdekning](docs/dhg-population-coverage.md), [SDC-bruk](docs/sdc-usage.md), [HelseID-oppsett](docs/helseid-setup.md), [sikkerhetsarkitektur](docs/security-architecture.md), [drift](docs/operations.md) og [FHIR-eksempler](examples/fhir-queries.md) før produksjonssetting.
+Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [Azure testdeployment](docs/azure-test-deployment.md), [arkitektur](docs/architecture.md), [DHG→FHIR-ressursmapping](docs/dhg-fhir-resource-mapping.md), [mappingmatrise](docs/mapping.md), [DHG-kildeliste](docs/dhg-source-inventory.md), [populasjonsdekning](docs/dhg-population-coverage.md), [SDC-bruk](docs/sdc-usage.md), [HelseID-oppsett](docs/helseid-setup.md), [sikkerhetsarkitektur](docs/security-architecture.md), [drift](docs/operations.md) og [FHIR-eksempler](examples/fhir-queries.md) før produksjonssetting.
 
 ## Bevisste avgrensninger
 

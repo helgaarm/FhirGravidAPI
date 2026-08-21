@@ -8,7 +8,8 @@ public static class FhirEndpoints
 {
     public static RouteGroupBuilder MapPopulationFhirApi(
         this IEndpointRouteBuilder endpoints,
-        bool requireAuthorization = true)
+        bool requireAuthorization = true,
+        bool enableDevelopmentNinSearch = false)
     {
         var group = endpoints.MapGroup("/fhir")
             .WithTags("FHIR R4");
@@ -16,7 +17,7 @@ public static class FhirEndpoints
         if (requireAuthorization) group.RequireAuthorization("population.read");
 
         group.MapGet("/metadata", (HttpContext context, IFhirPopulationMapper mapper) =>
-                FhirHttp.Result(mapper.CapabilityStatement(ServiceBase(context))))
+                FhirHttp.Result(mapper.CapabilityStatement(ServiceBase(context), enableDevelopmentNinSearch)))
             .AllowAnonymous()
             .WithName("CapabilityStatement")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
@@ -34,7 +35,77 @@ public static class FhirEndpoints
             .WithName("SearchEncounters")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
 
+        if (enableDevelopmentNinSearch)
+        {
+            group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
+                .WithName("DevelopmentSearchPatientByIdentifier")
+                .WithDescription("Local Development Test only. Searches a configured synthetic patient by NIN supplied in the form body; the NIN is never returned.")
+                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+
+            group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
+                .WithName("DevelopmentSearchObservationsByPatientIdentifier")
+                .WithDescription("Local Development Test only. Searches by a configured synthetic patient NIN supplied in the form body; the NIN is never returned.")
+                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+
+            group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
+                .WithName("DevelopmentSearchEncountersByPatientIdentifier")
+                .WithDescription("Local Development Test only. Searches by a configured synthetic patient NIN supplied in the form body; the NIN is never returned.")
+                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+        }
+
         return group;
+    }
+
+    private static async Task<IResult> SearchPatientByIdentifierAsync(
+        HttpContext httpContext,
+        PatientRequestContextFactory contextFactory,
+        IPopulationDataService service,
+        IFhirPopulationMapper mapper,
+        CancellationToken cancellationToken)
+    {
+        var form = await ReadSearchFormAsync(httpContext, cancellationToken, "identifier");
+        var requestContext = contextFactory.CreateForConfiguredTestNin(
+            httpContext,
+            RequiredSingleValue(form, "identifier"));
+        var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
+        return FhirHttp.Result(mapper.SearchBundle([mapper.MapPatient(snapshot.Patient)], ServiceBase(httpContext)));
+    }
+
+    private static async Task<IResult> SearchObservationsByPatientIdentifierAsync(
+        HttpContext httpContext,
+        PatientRequestContextFactory contextFactory,
+        IPopulationDataService service,
+        IFhirPopulationMapper mapper,
+        CancellationToken cancellationToken)
+    {
+        var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier", "code");
+        var requestContext = contextFactory.CreateForConfiguredTestNin(
+            httpContext,
+            RequiredSingleValue(form, "patient.identifier"));
+        var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
+        var resources = mapper.MapObservations(snapshot, ParseCode(OptionalSingleValue(form, "code"))).Cast<Resource>();
+        return FhirHttp.Result(mapper.SearchBundle(resources, ServiceBase(httpContext)));
+    }
+
+    private static async Task<IResult> SearchEncountersByPatientIdentifierAsync(
+        HttpContext httpContext,
+        PatientRequestContextFactory contextFactory,
+        IPopulationDataService service,
+        IFhirPopulationMapper mapper,
+        CancellationToken cancellationToken)
+    {
+        var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier");
+        var requestContext = contextFactory.CreateForConfiguredTestNin(
+            httpContext,
+            RequiredSingleValue(form, "patient.identifier"));
+        var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
+        return FhirHttp.Result(mapper.SearchBundle(mapper.MapEncounters(snapshot).Cast<Resource>(), ServiceBase(httpContext)));
     }
 
     private static async Task<IResult> GetPatientAsync(
@@ -95,6 +166,77 @@ public static class FhirEndpoints
         if (separator <= 0 || separator == code.Length - 1)
             throw new PopulationDataException(PopulationErrorKind.InvalidPatientContext, "Code must use the system|code token form.");
         return new PopulationCode(code[..separator], code[(separator + 1)..], string.Empty);
+    }
+
+    private static async Task<IFormCollection> ReadSearchFormAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken,
+        params string[] allowedParameters)
+    {
+        const long maximumFormBytes = 4096;
+        var contentType = httpContext.Request.ContentType;
+        var parameterSeparator = contentType?.IndexOf(';') ?? -1;
+        var mediaType = parameterSeparator >= 0
+            ? contentType![..parameterSeparator].Trim()
+            : contentType?.Trim();
+        if (!string.Equals(
+                mediaType,
+                "application/x-www-form-urlencoded",
+                StringComparison.OrdinalIgnoreCase))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "FHIR POST search requires application/x-www-form-urlencoded content.");
+        if (httpContext.Request.ContentLength is > maximumFormBytes)
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "The FHIR POST search form is too large.");
+
+        IFormCollection form;
+        try
+        {
+            form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "The FHIR POST search form is invalid.",
+                exception);
+        }
+
+        var parsedCharacterCount = form.Sum(field =>
+            field.Key.Length + field.Value.Sum(value => value?.Length ?? 0));
+        if (parsedCharacterCount > maximumFormBytes)
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "The FHIR POST search form is too large.");
+        if (form.Files.Count != 0 ||
+            form.Keys.Any(key => !allowedParameters.Contains(key, StringComparer.Ordinal)))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "The FHIR POST search form contains an unsupported parameter.");
+        return form;
+    }
+
+    private static string RequiredSingleValue(IFormCollection form, string name)
+    {
+        if (!form.TryGetValue(name, out var values) ||
+            values.Count != 1 ||
+            string.IsNullOrWhiteSpace(values[0]))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                $"The {name} search parameter is required exactly once.");
+        return values[0]!;
+    }
+
+    private static string? OptionalSingleValue(IFormCollection form, string name)
+    {
+        if (!form.TryGetValue(name, out var values)) return null;
+        if (values.Count != 1 || string.IsNullOrWhiteSpace(values[0]))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                $"The {name} search parameter must be supplied at most once with a value.");
+        return values[0];
     }
 
     private static Uri ServiceBase(HttpContext context) =>

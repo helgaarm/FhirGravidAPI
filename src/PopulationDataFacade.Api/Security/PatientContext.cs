@@ -12,6 +12,9 @@ public sealed class PatientContextOptions
     public string HeaderName { get; set; } = "X-Patient-Context";
     public TimeSpan Lifetime { get; set; } = TimeSpan.FromMinutes(10);
     public Dictionary<string, SyntheticPatientOptions> TestAliases { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public static bool IsNationalIdentityNumberFormat(string value) =>
+        value.Length == 11 && value.All(char.IsAsciiDigit);
 }
 
 public sealed class SyntheticPatientOptions
@@ -93,7 +96,8 @@ public sealed class PatientContextTokenService : IPatientContextTokenService
 public sealed class PatientRequestContextFactory(
     IPatientContextTokenService tokenService,
     IOptions<PatientContextOptions> options,
-    IOptions<DevelopmentTestModeOptions> developmentTestMode)
+    IOptions<DevelopmentTestModeOptions> developmentTestMode,
+    IHostEnvironment hostEnvironment)
 {
     public PatientRequestContext Create(HttpContext httpContext, string requestedPatientId)
     {
@@ -126,6 +130,36 @@ public sealed class PatientRequestContextFactory(
             payload.LogicalId,
             payload.NationalIdentityNumber,
             subjectToken,
+            httpContext.TraceIdentifier);
+    }
+
+    public PatientRequestContext CreateForConfiguredTestNin(
+        HttpContext httpContext,
+        string nationalIdentityNumber)
+    {
+        if (!developmentTestMode.Value.Enabled || !hostEnvironment.IsDevelopment())
+            throw new PopulationDataException(
+                PopulationErrorKind.Forbidden,
+                "NIN-based form search is available only in local Development Test mode.");
+        if (!PatientContextOptions.IsNationalIdentityNumberFormat(nationalIdentityNumber))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "The patient identifier must contain exactly 11 digits.");
+
+        var patient = options.Value.TestAliases.Values.SingleOrDefault(candidate =>
+            string.Equals(
+                candidate.NationalIdentityNumber,
+                nationalIdentityNumber,
+                StringComparison.Ordinal));
+        if (patient is null)
+            throw new PopulationDataException(
+                PopulationErrorKind.NotFound,
+                "The configured synthetic patient identifier was not found.");
+
+        return new PatientRequestContext(
+            patient.LogicalId,
+            patient.NationalIdentityNumber,
+            string.Empty,
             httpContext.TraceIdentifier);
     }
 }
