@@ -1,6 +1,6 @@
 # Azure test deployment from GitHub
 
-This repository contains a test-only deployment path for Azure Container Apps. Pushes and pull requests build, test, compile both Bicep templates, and build the container. Deployment is deliberately manual (`workflow_dispatch`) and cannot start until the protected GitHub environment contains the required HelseID Test values.
+This repository contains a test-only deployment path for Azure Container Apps. Pushes and pull requests restore the locked .NET graph, run dependency/license gates, build and test both .NET and Go, compile and structurally validate both Bicep templates, build both containers, and smoke-test the two-container loopback topology. Deployment is deliberately manual (`workflow_dispatch`) and cannot start until the protected GitHub environment contains the required HelseID Test values.
 
 The solution does not use Azure Key Vault. Private JWKs and the synthetic test NIN are stored as GitHub Environment secrets, passed to Bicep as secure parameters, and installed as Container App secrets. GitHub authenticates to Azure through OIDC, so no Azure client secret is stored in GitHub.
 
@@ -10,6 +10,8 @@ The Azure template always runs with these constraints:
 
 - host environment `Staging` and `Dhg:Environment=Test`;
 - anonymous incoming Swagger/FHIR test mode, while outgoing DHG calls still use a DPoP-bound HelseID client-credentials token;
+- ingress targets the auth-gateway container on port 8080; the API is private on the replica's loopback port 8081;
+- the gateway runs in explicit `passthrough` mode only because this template also enables the constrained anonymous Development test mode;
 - one mandatory trusted ingress CIDR (`AZURE_ALLOWED_IP_CIDR`);
 - HTTPS-only external ingress;
 - one replica, with private Data Protection keys kept only in that replica;
@@ -149,9 +151,11 @@ Never put private JWK JSON, NIN, tokens, or Azure client secrets in repository f
 
 ## 5. Deploy and test
 
-Open **Actions → Verify and deploy Azure test → Run workflow**. The job first repeats the complete verification, authenticates with OIDC, pushes an SHA-tagged image, and deploys the Container App. It stops with a list of missing configuration names when HelseID has not yet been configured.
+Open **Actions → Verify and deploy Azure test → Run workflow**. The job first repeats the complete verification, authenticates with OIDC, pushes SHA-tagged API and auth-gateway images, and deploys the Container App. It stops with a list of missing configuration names when HelseID has not yet been configured.
 
-Because ingress is restricted, the GitHub-hosted runner cannot perform external smoke tests. Container Apps performs startup, liveness, and readiness probes internally. From the trusted CIDR, verify:
+CI smoke-tests the built images locally in passthrough mode and verifies that ingress reaches the gateway on 8080, the gateway reaches the private API on 8081, both images run as non-root users, readiness succeeds, and `/fhir/metadata` returns a CapabilityStatement. This proves the packaged topology but does not contact HelseID or DHG.
+
+Because deployed ingress is restricted, the GitHub-hosted runner cannot perform an authenticated external DHG smoke test. Container Apps performs startup, liveness, and readiness probes internally. From the trusted CIDR, verify:
 
 ```powershell
 $baseUrl = "https://<container-app-fqdn>"

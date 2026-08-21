@@ -3,7 +3,9 @@
 ## Trust boundaries
 
 ```text
-FHIR client -- HelseID DPoP token + subject-bound context --> Facade API
+FHIR client -- HelseID DPoP token + subject-bound context --> Auth gateway
+Auth gateway -- validated request + private shared credential --> Facade API
+Auth gateway -- discovery/JWKS --> HelseID
 Facade API -- subject token exchange + private_key_jwt/DPoP --> HelseID
 Facade Infrastructure -- exchanged DPoP token + NIN header --> DHG
 Facade -- redacted low-cardinality signals --> telemetry backend
@@ -15,7 +17,10 @@ The FHIR layer never receives DHG JSON paths or an alternative data source. NIN 
 
 ## Controls implemented
 
-- issuer, audience, lifetime, DPoP and exact-scope validation;
+- inbound HelseID access-token and DPoP validation in the Go auth gateway using `golang-jwt`, `keyfunc`, and NHN's recommended `AxisCommunications/go-dpop` library;
+- exact `at+jwt` type, issuer, single audience, expiry, not-before, scope, proof signature, `htm`/`htu`, ten-second freshness, `ath`, `cnf.jkt`, asymmetric public JWK, and unique `jti` checks;
+- independent JWT validation in the private .NET API, which also requires a constant-time-checked shared gateway credential;
+- gateway stripping of caller-supplied internal credentials and deployment ingress targeting only the gateway port;
 - FHIR `OperationOutcome` for authorization and application failures;
 - subject-bound, time-limited Data Protection patient context;
 - consent, deceased, active-record, record-ID and `ACTIVE` status gates before mapping;
@@ -31,6 +36,8 @@ The FHIR layer never receives DHG JSON paths or an alternative data source. NIN 
 
 - implement and approve the production patient-context authority;
 - configure a shared encrypted Data Protection key ring for more than one instance;
+- configure the Redis atomic replay store before running more than one instance; the memory store refuses to start unless single-replica operation is explicitly declared;
+- generate and rotate a random gateway shared credential of at least 32 bytes, and keep the API port private to the sidecar network;
 - approve exact HelseID/DHG host allowlists and deployment egress policy;
 - configure trusted proxies/canonical public FHIR URL and allowed hosts;
 - add meaningful readiness semantics and controlled external synthetic monitoring;

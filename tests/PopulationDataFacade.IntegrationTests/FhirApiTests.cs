@@ -26,8 +26,8 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
     {
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/fhir/metadata");
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.GetAsync("/fhir/metadata", TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
@@ -41,8 +41,9 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         using var request = new HttpRequestMessage(HttpMethod.Get, "/fhir/metadata");
         request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
 
-        using var response = await client.SendAsync(request);
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(
@@ -57,8 +58,8 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         var context = await IssueContextAsync(client);
         using var request = Authorized(HttpMethod.Get, $"/fhir/Patient/{context.PatientId}", context.Token);
 
-        using var response = await client.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"resourceType\":\"Patient\"", json);
@@ -76,8 +77,9 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
             $"/fhir/Observation?patient={context.PatientId}&code=urn%3Atest%7Cunknown",
             context.Token);
 
-        using var response = await client.SendAsync(request);
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("searchset", json.RootElement.GetProperty("type").GetString());
@@ -91,8 +93,8 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         var context = await IssueContextAsync(client);
         using var request = Authorized(HttpMethod.Get, "/fhir/Patient/another-patient", context.Token);
 
-        using var response = await client.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Contains("\"resourceType\":\"OperationOutcome\"", json);
@@ -109,8 +111,8 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
             context.Token,
             subject: "another-user");
 
-        using var response = await client.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Contains("\"resourceType\":\"OperationOutcome\"", json);
@@ -121,7 +123,9 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
     {
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/fhir/Patient/patient-1");
+        using var response = await client.GetAsync(
+            "/fhir/Patient/patient-1",
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
@@ -133,7 +137,7 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         using var client = factory.CreateClient();
         using var request = Authorized(HttpMethod.Get, "/fhir/Patient/patient-1", scope: "other.scope");
 
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
@@ -142,9 +146,10 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
     private static async Task<(string PatientId, string Token)> IssueContextAsync(HttpClient client)
     {
         using var request = Authorized(HttpMethod.Post, "/test/patient-context/synthetic-1");
-        using var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
         return (
             json.RootElement.GetProperty("patientId").GetString()!,
             json.RootElement.GetProperty("patientContext").GetString()!);
@@ -172,6 +177,7 @@ public sealed class FhirFacadeFactory : WebApplicationFactory<Program>
     {
         var privateJwk = CreatePrivateJwk();
         builder.UseEnvironment("Testing");
+        builder.UseSetting("AuthGateway:SharedSecret", new string('g', 32));
         builder.UseSetting("ReverseProxy:ForwardedHeadersEnabled", "true");
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
@@ -185,6 +191,7 @@ public sealed class FhirFacadeFactory : WebApplicationFactory<Program>
                 ["HelseId:ClientId"] = "integration-client",
                 ["HelseId:ClientAssertionJwk"] = privateJwk,
                 ["HelseId:DPoPJwk"] = privateJwk,
+                ["AuthGateway:SharedSecret"] = new string('g', 32),
                 ["ReverseProxy:ForwardedHeadersEnabled"] = "true",
                 ["PatientContext:TestAliases:synthetic-1:LogicalId"] = "patient-1",
                 ["PatientContext:TestAliases:synthetic-1:NationalIdentityNumber"] = "01019012345"

@@ -33,7 +33,7 @@ public sealed class DhgPopulationDataServiceTests
         var service = new DhgPopulationDataService(client, new DhgPopulationSnapshotFactory());
 
         var error = await Assert.ThrowsAsync<PopulationDataException>(() =>
-            service.GetSnapshotAsync(Context(), CancellationToken.None));
+            service.GetSnapshotAsync(Context(), TestContext.Current.CancellationToken));
 
         Assert.Equal(expectedKind, error.Kind);
         Assert.Empty(client.RequestedRecordIds);
@@ -47,7 +47,7 @@ public sealed class DhgPopulationDataServiceTests
         var service = new DhgPopulationDataService(client, new DhgPopulationSnapshotFactory());
 
         var error = await Assert.ThrowsAsync<PopulationDataException>(() =>
-            service.GetSnapshotAsync(Context(), CancellationToken.None));
+            service.GetSnapshotAsync(Context(), TestContext.Current.CancellationToken));
 
         Assert.Equal(PopulationErrorKind.SourceContractInvalid, error.Kind);
         Assert.Equal([RecordId], client.RequestedRecordIds);
@@ -59,7 +59,7 @@ public sealed class DhgPopulationDataServiceTests
         var client = ActiveClient();
         var service = new DhgPopulationDataService(client, new DhgPopulationSnapshotFactory());
 
-        var snapshot = await service.GetSnapshotAsync(Context(), CancellationToken.None);
+        var snapshot = await service.GetSnapshotAsync(Context(), TestContext.Current.CancellationToken);
 
         Assert.True(snapshot.HasActiveMaternityRecord);
         Assert.Equal("patient-1", snapshot.Patient.LogicalId);

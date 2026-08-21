@@ -1,10 +1,11 @@
 # FHIR Population Data Facade for DHG
 
-En skrivebeskyttet .NET 10-fasade som henter det aktive digitale helsekortet fra Norsk helsenetts DHG API og eksponerer et avgrenset FHIR R4-grensesnitt. DHG er eneste datakilde ved kjøring. Fasaden inneholder ingen syntetiske fallback-data, ingen spørreskjemakobling og ingen klinisk datacache.
+En skrivebeskyttet .NET 9-fasade som henter det aktive digitale helsekortet fra Norsk helsenetts DHG API og eksponerer et avgrenset FHIR R4-grensesnitt. DHG er eneste datakilde ved kjøring. Fasaden inneholder ingen syntetiske fallback-data, ingen spørreskjemakobling og ingen klinisk datacache.
 
 ## Løsningen
 
-- `PopulationDataFacade.Api` validerer normalt HelseID access-token og DPoP, håndhever scope, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt testmodus kan gjøre Swagger/FHIR anonymt lokalt, eller i repositoryets IP-begrensede Azure Staging-mal, mens fasaden bruker server-side HelseID client credentials mot DHG Test.
+- `auth-gateway` er den eksterne inngangen og validerer HelseID access-token, DPoP, scope og replay med åpne Go-biblioteker før den proxier til det private API-et.
+- `PopulationDataFacade.Api` krever gatewayens interne credential, validerer JWT-et på nytt, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt testmodus kan gjøre Swagger/FHIR anonymt lokalt, eller i repositoryets IP-begrensede Azure Staging-mal, mens fasaden bruker server-side HelseID client credentials mot DHG Test.
 - `PopulationDataFacade.Core` inneholder kildeuavhengige populasjonsmodeller og FHIR-mapping.
 - `PopulationDataFacade.Infrastructure` inneholder eksakte DHG-kontrakter, HelseID token exchange, DPoP-bevis, robust HTTP-klient og DHG-til-populasjon-mapping.
 - `tests` inneholder kontrakt-, mapping- og HTTP-integrasjonstester.
@@ -22,7 +23,8 @@ Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `s
 
 ## Forutsetninger
 
-- .NET SDK 10.0.100 eller nyere kompatibel 10.0-SDK
+- .NET SDK 9.0.317 eller nyere kompatibel 9.0-SDK
+- Go 1.25 eller nyere for lokal bygging/testing av auth-gatewayen
 - klient registrert i HelseID Test for token exchange til `nhn:maternity-record`
 - API-registrering for fasadens audience og scope
 - to private JWK-er: én til `private_key_jwt`, én til DPoP
@@ -38,6 +40,7 @@ Ikke legg private nøkler eller fødselsnummer i `appsettings.json`. Bruk secret
 $env:HelseId__ClientId = "<actor-client-id>"
 $env:HelseId__ClientAssertionJwk = "<private-jwk-json>"
 $env:HelseId__DPoPJwk = "<annen-private-jwk-json>"
+$env:AuthGateway__SharedSecret = "<tilfeldig-hemmelighet-minst-32-bytes>"
 $env:PatientContext__TestAliases__synthetic_1__LogicalId = "patient-test-1"
 $env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<syntetisk-fnr>"
 ```
@@ -69,6 +72,12 @@ I Swagger:
 
 Modusen avvises ved oppstart utenfor lokal Development eller den eksplisitt tillatte, IP-begrensede Azure Staging-malen, og alltid mot annet enn DHG Test. Den må aldri aktiveres i QA eller Production.
 
+### Autentisert lokal gateway
+
+Autentisert kjøring består av to prosesser. Start først det private API-et på loopback-port 8081 med `DevelopmentTestMode` avslått, `ReverseProxy__ForwardedHeadersEnabled=true`, HelseID/DHG-konfigurasjon og `AuthGateway__SharedSecret` satt. Start deretter `auth-gateway` på loopback-port 8080 med den samme hemmeligheten, fasadens audience/scope, kanonisk ekstern host og eksplisitt replay-store. For én lokal instans kan `AUTH_GATEWAY_REPLAY_STORE=memory` og `AUTH_GATEWAY_SINGLE_REPLICA=true` brukes.
+
+Gatewayen terminerer ikke TLS. Plasser derfor en betrodd lokal HTTPS-reverse proxy foran `http://127.0.0.1:8080`, bevar den kanoniske `Host`-verdien, og la DPoP-bevisets `htu` peke på den eksterne HTTPS-URL-en. Port 8080 må aldri eksponeres direkte over et ubeskyttet nett. Full konfigurasjon og sikkerhetskrav står i [HelseID-oppsettet](docs/helseid-setup.md).
+
 ### Swagger i Production
 
 Swagger og begge OpenAPI-dokumentene er deaktivert som standard i Production. Dersom de er nødvendige i et kontrollert produksjonsmiljø, må de aktiveres eksplisitt:
@@ -87,13 +96,15 @@ Konfigurasjonen valideres ved oppstart. `Dhg:Environment` må være `Test` eller
 ## Bygg og kjør
 
 ```powershell
-dotnet restore PopulationDataFacade.slnx
+dotnet restore PopulationDataFacade.slnx --locked-mode
 dotnet build PopulationDataFacade.slnx --no-restore
 dotnet test PopulationDataFacade.slnx --no-build
-dotnet run --project src/PopulationDataFacade.Api
+Push-Location auth-gateway
+go test ./...
+Pop-Location
 ```
 
-API-et starter normalt på `https://localhost:7184`. Swagger UI og OpenAPI-dokumentet er tilgjengelig uten innlogging i ikke-produksjonsmiljøer på henholdsvis `/swagger` og `/openapi/v1.json`. I Production er de deaktivert som standard og HelseID-beskyttet når de aktiveres eksplisitt. Kliniske FHIR-operasjoner krever normalt HelseID/DPoP; når den eksplisitte Development-testmodusen er aktiv, er de anonyme og fasaden autentiserer i stedet server-side mot DHG Test.
+Kjør API-et med den eksplisitte anonyme Development-testkonfigurasjonen ovenfor, eller bruk den autentiserte to-prosessflyten. Launch-profilen starter API-et normalt på `https://localhost:7184`; dette er en direkte lokal Development-adresse, ikke den offentlige adressen for autentisert drift. Swagger UI og OpenAPI-dokumentet er tilgjengelig uten innlogging i ikke-produksjonsmiljøer på henholdsvis `/swagger` og `/openapi/v1.json`. I Production er de deaktivert som standard og HelseID-beskyttet når de aktiveres eksplisitt.
 
 ## Drift
 
@@ -115,3 +126,7 @@ Se [Azure testdeployment](docs/azure-test-deployment.md), [arkitektur](docs/arch
 - ingen historisk rekonstruksjon utover eksplisitte DHG-felter
 - ingen persistent caching av kliniske DHG-data
 - `birthStatus` og kontakt-/demografifelter eksponeres ikke i første FHIR-flate; begrunnelsen står i mappingmatrisen
+
+## Lisens
+
+Repositoryets originale kildekode er lisensiert under [MIT-lisensen](LICENSE). Tredjepartsavhengigheter beholder sine egne vilkår; se [tredjepartsavhengigheter og lisenser](THIRD-PARTY-NOTICES.md). CI avviser runtime-avhengigheter utenfor prosjektets gjennomgåtte MIT-, Apache-2.0-, BSD-2-Clause- og BSD-3-Clause-lisenser.

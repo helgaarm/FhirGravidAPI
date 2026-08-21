@@ -2,7 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../PopulationDataFacade.Core/PopulationDataFacade.Core.csproj" />
     <ProjectReference Include="../PopulationDataFacade.Infrastructure/PopulationDataFacade.Infrastructure.csproj" />
-    <PackageReference Include="Duende.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
