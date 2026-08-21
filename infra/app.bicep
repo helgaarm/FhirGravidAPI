@@ -46,12 +46,25 @@ param patientTestLogicalId string
 param allowedIpCidr string
 
 @secure()
-@description('Private JWK used for HelseID private_key_jwt client assertions.')
-param clientAssertionJwk string
+@description('Auth key for the HelseID TEST token utility. TEST deployment only.')
+param helseIdTestTokenAuthKey string
 
-@secure()
-@description('Separate private JWK used for DPoP proofs.')
-param dpopJwk string
+@description('Nine-digit synthetic organization number included in HelseID TEST client claims.')
+@minLength(9)
+@maxLength(9)
+param helseIdTestTokenOrgnrParent string
+
+@description('HelseID TEST client tenancy type approved for this test client.')
+@allowed([
+  0
+  1
+  2
+])
+param helseIdTestTokenClientTenancyType int
+
+@description('Client name included in the synthetic HelseID TEST client claims.')
+@minLength(1)
+param helseIdTestTokenClientName string
 
 @secure()
 @description('National identity number for an approved synthetic DHG Test patient.')
@@ -104,12 +117,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
       ]
       secrets: [
         {
-          name: 'helseid-client-assertion-jwk'
-          value: clientAssertionJwk
-        }
-        {
-          name: 'helseid-dpop-jwk'
-          value: dpopJwk
+          name: 'helseid-test-token-auth-key'
+          value: helseIdTestTokenAuthKey
         }
         {
           name: 'patient-test-nin'
@@ -165,12 +174,36 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
               value: helseIdClientId
             }
             {
-              name: 'HelseId__ClientAssertionJwk'
-              secretRef: 'helseid-client-assertion-jwk'
+              name: 'HelseIdTestToken__Enabled'
+              value: 'true'
             }
             {
-              name: 'HelseId__DPoPJwk'
-              secretRef: 'helseid-dpop-jwk'
+              name: 'HelseIdTestToken__AuthKey'
+              secretRef: 'helseid-test-token-auth-key'
+            }
+            {
+              name: 'HelseIdTestToken__Audience'
+              value: 'nhn:maternity-record'
+            }
+            {
+              name: 'HelseIdTestToken__Scope'
+              value: 'nhn:maternity-record/api'
+            }
+            {
+              name: 'HelseIdTestToken__OrgnrParent'
+              value: helseIdTestTokenOrgnrParent
+            }
+            {
+              name: 'HelseIdTestToken__ClientTenancy'
+              value: 'true'
+            }
+            {
+              name: 'HelseIdTestToken__ClientTenancyType'
+              value: string(helseIdTestTokenClientTenancyType)
+            }
+            {
+              name: 'HelseIdTestToken__ClientName'
+              value: helseIdTestTokenClientName
             }
             {
               name: 'PatientContext__TestAliases__synthetic_1__LogicalId'

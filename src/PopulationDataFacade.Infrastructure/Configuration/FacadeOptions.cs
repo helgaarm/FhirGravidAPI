@@ -37,6 +37,20 @@ public sealed class DevelopmentTestModeOptions
     public string Subject { get; set; } = "swagger-dhg-test-user";
 }
 
+public sealed class HelseIdTestTokenOptions
+{
+    public const string SectionName = "HelseIdTestToken";
+    public bool Enabled { get; set; }
+    public Uri Endpoint { get; set; } = new("https://helseid-ttt.test.nhn.no/v2/create-test-token-with-key");
+    public string AuthKey { get; set; } = string.Empty;
+    public string Audience { get; set; } = "nhn:maternity-record";
+    public string Scope { get; set; } = "nhn:maternity-record/api";
+    public string OrgnrParent { get; set; } = string.Empty;
+    public bool ClientTenancy { get; set; } = true;
+    public int? ClientTenancyType { get; set; }
+    public string ClientName { get; set; } = "PopulationDataFacade";
+}
+
 public sealed class DhgOptionsValidator(IOptions<HelseIdOptions> helseIdOptions) : IValidateOptions<DhgOptions>
 {
     public ValidateOptionsResult Validate(string? name, DhgOptions options)
@@ -72,6 +86,16 @@ public sealed class DhgOptionsValidator(IOptions<HelseIdOptions> helseIdOptions)
 
 public sealed class HelseIdOptionsValidator : IValidateOptions<HelseIdOptions>
 {
+    private readonly Func<bool> useTestTokenUtility;
+
+    public HelseIdOptionsValidator(bool useTestTokenUtility = false)
+        : this(() => useTestTokenUtility)
+    {
+    }
+
+    public HelseIdOptionsValidator(Func<bool> useTestTokenUtility) =>
+        this.useTestTokenUtility = useTestTokenUtility;
+
     public ValidateOptionsResult Validate(string? name, HelseIdOptions options)
     {
         var failures = new List<string>();
@@ -82,9 +106,9 @@ public sealed class HelseIdOptionsValidator : IValidateOptions<HelseIdOptions>
         if (options.DhgAudience != "nhn:maternity-record") failures.Add("HelseId:DhgAudience must be nhn:maternity-record.");
         if (options.DhgScope != "nhn:maternity-record/api") failures.Add("HelseId:DhgScope must be nhn:maternity-record/api.");
         if (string.IsNullOrWhiteSpace(options.ClientId)) failures.Add("HelseId:ClientId must be supplied from secure configuration.");
-        if (!HasPrivateSigningKey(options.ClientAssertionJwk))
+        if (!useTestTokenUtility() && !HasPrivateSigningKey(options.ClientAssertionJwk))
             failures.Add("HelseId:ClientAssertionJwk must be a valid asymmetric private JWK supplied from a secret store.");
-        if (!HasPrivateDPoPKey(options.DPoPJwk))
+        if (!useTestTokenUtility() && !HasPrivateDPoPKey(options.DPoPJwk))
             failures.Add("HelseId:DPoPJwk must be a valid private DPoP JWK supplied from a secret store.");
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
@@ -112,5 +136,56 @@ public sealed class HelseIdOptionsValidator : IValidateOptions<HelseIdOptions>
         {
             return false;
         }
+    }
+}
+
+public sealed class HelseIdTestTokenOptionsValidator : IValidateOptions<HelseIdTestTokenOptions>
+{
+    private readonly Func<bool> developmentTestModeEnabled;
+    private readonly Func<string> dhgEnvironment;
+
+    public HelseIdTestTokenOptionsValidator(bool developmentTestModeEnabled, string dhgEnvironment)
+        : this(() => developmentTestModeEnabled, () => dhgEnvironment)
+    {
+    }
+
+    public HelseIdTestTokenOptionsValidator(
+        Func<bool> developmentTestModeEnabled,
+        Func<string> dhgEnvironment)
+    {
+        this.developmentTestModeEnabled = developmentTestModeEnabled;
+        this.dhgEnvironment = dhgEnvironment;
+    }
+
+    public ValidateOptionsResult Validate(string? name, HelseIdTestTokenOptions options)
+    {
+        if (!options.Enabled) return ValidateOptionsResult.Success;
+
+        var failures = new List<string>();
+        if (!developmentTestModeEnabled())
+            failures.Add("HelseIdTestToken can be enabled only together with DevelopmentTestMode.");
+        if (!dhgEnvironment().Equals("Test", StringComparison.OrdinalIgnoreCase))
+            failures.Add("HelseIdTestToken can be enabled only for DHG Test.");
+        if (options.Endpoint is null || !options.Endpoint.IsAbsoluteUri || options.Endpoint.Scheme != Uri.UriSchemeHttps ||
+            options.Endpoint.UserInfo.Length != 0 || options.Endpoint.Query.Length != 0 ||
+            options.Endpoint.Fragment.Length != 0 ||
+            !options.Endpoint.Host.EndsWith(".test.nhn.no", StringComparison.OrdinalIgnoreCase))
+            failures.Add("HelseIdTestToken:Endpoint must be a credential-free HelseID Test HTTPS URL without query or fragment.");
+        if (string.IsNullOrWhiteSpace(options.AuthKey))
+            failures.Add("HelseIdTestToken:AuthKey must be supplied from secure configuration.");
+        if (options.Audience != "nhn:maternity-record")
+            failures.Add("HelseIdTestToken:Audience must be nhn:maternity-record.");
+        if (options.Scope != "nhn:maternity-record/api")
+            failures.Add("HelseIdTestToken:Scope must be nhn:maternity-record/api.");
+        if (options.OrgnrParent.Length != 9 || options.OrgnrParent.Any(character => !char.IsAsciiDigit(character)))
+            failures.Add("HelseIdTestToken:OrgnrParent must contain exactly nine digits.");
+        if (!options.ClientTenancy)
+            failures.Add("HelseIdTestToken:ClientTenancy must be true.");
+        if (options.ClientTenancyType is < 0 or > 2)
+            failures.Add("HelseIdTestToken:ClientTenancyType must be 0, 1, or 2 when supplied.");
+        if (string.IsNullOrWhiteSpace(options.ClientName))
+            failures.Add("HelseIdTestToken:ClientName is required.");
+
+        return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

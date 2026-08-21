@@ -70,6 +70,19 @@ public sealed class DevelopmentTestModeTests
     }
 
     [Fact]
+    public async Task HelseId_TEST_token_mode_starts_without_private_JWKs()
+    {
+        await using var factory = new DevelopmentTestModeFactory(useTestTokenUtility: true);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/swagger/v1/swagger.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Explicit_remote_staging_mode_accepts_non_loopback_requests()
     {
         await using var factory = new DevelopmentTestModeFactory(
@@ -183,7 +196,8 @@ public sealed class InvalidDevelopmentListenerFactory : WebApplicationFactory<Pr
 public sealed class DevelopmentTestModeFactory(
     bool simulateLoopback = true,
     string hostEnvironment = "Development",
-    bool allowRemoteStaging = false) : WebApplicationFactory<Program>
+    bool allowRemoteStaging = false,
+    bool useTestTokenUtility = false) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -207,8 +221,12 @@ public sealed class DevelopmentTestModeFactory(
                 ["HelseId:DhgAudience"] = "nhn:maternity-record",
                 ["HelseId:DhgScope"] = "nhn:maternity-record/api",
                 ["HelseId:ClientId"] = "integration-client",
-                ["HelseId:ClientAssertionJwk"] = privateJwk,
-                ["HelseId:DPoPJwk"] = privateJwk,
+                ["HelseId:ClientAssertionJwk"] = useTestTokenUtility ? string.Empty : privateJwk,
+                ["HelseId:DPoPJwk"] = useTestTokenUtility ? string.Empty : privateJwk,
+                ["HelseIdTestToken:Enabled"] = useTestTokenUtility.ToString(),
+                ["HelseIdTestToken:AuthKey"] = useTestTokenUtility ? "integration-test-auth-key" : string.Empty,
+                ["HelseIdTestToken:OrgnrParent"] = useTestTokenUtility ? "123456789" : string.Empty,
+                ["HelseIdTestToken:ClientTenancyType"] = "1",
                 ["PatientContext:TestAliases:synthetic-1:LogicalId"] = "patient-1",
                 ["PatientContext:TestAliases:synthetic-1:NationalIdentityNumber"] = "01019012345"
             }));

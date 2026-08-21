@@ -5,9 +5,9 @@ En skrivebeskyttet .NET 9-fasade som henter det aktive digitale helsekortet fra 
 ## Løsningen
 
 - `auth-gateway` er den eksterne inngangen og validerer HelseID access-token, DPoP, scope og replay med åpne Go-biblioteker før den proxier til det private API-et.
-- `PopulationDataFacade.Api` krever gatewayens interne credential, validerer JWT-et på nytt, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt testmodus kan gjøre Swagger/FHIR anonymt lokalt, eller i repositoryets IP-begrensede Azure Staging-mal, mens fasaden bruker server-side HelseID client credentials mot DHG Test.
+- `PopulationDataFacade.Api` krever gatewayens interne credential, validerer JWT-et på nytt, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt testmodus kan gjøre Swagger/FHIR anonymt lokalt, eller i repositoryets IP-begrensede Azure Staging-mal, mens fasaden skaffer HelseID-autorisasjon server-side mot DHG Test.
 - `PopulationDataFacade.Core` inneholder kildeuavhengige populasjonsmodeller og FHIR-mapping.
-- `PopulationDataFacade.Infrastructure` inneholder eksakte DHG-kontrakter, HelseID token exchange, DPoP-bevis, robust HTTP-klient og DHG-til-populasjon-mapping.
+- `PopulationDataFacade.Infrastructure` inneholder eksakte DHG-kontrakter, HelseID token exchange, DPoP-bevis, den avgrensede HelseID TEST-tokenflyten, robust HTTP-klient og DHG-til-populasjon-mapping.
 - `tests` inneholder kontrakt-, mapping- og HTTP-integrasjonstester.
 
 Støttede FHIR-operasjoner:
@@ -27,7 +27,7 @@ Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `s
 - Go 1.25 eller nyere for lokal bygging/testing av auth-gatewayen
 - klient registrert i HelseID Test for token exchange til `nhn:maternity-record`
 - API-registrering for fasadens audience og scope
-- to private JWK-er: én til `private_key_jwt`, én til DPoP
+- to private JWK-er: én til `private_key_jwt`, én til DPoP; alternativt kan lokal Development-test bruke HelseID TEST-tokenverktøyet som beskrevet under
 - syntetisk testperson som finnes i DHG Test
 
 De faktiske testendepunktene og DHG-kravene er dokumentert av NHN i [DHG miljøer](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/environmentsmd), [DHG autorisasjon](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/authorizationmd) og [HelseID token exchange](https://utviklerportal.nhn.no/informasjonstjenester/helseid/bruksmoenstre-og-eksempelkode/bruk-av-helseid/docs/teknisk-referanse/token_exchange_enmd).
@@ -49,7 +49,7 @@ Alias-konfigurasjon er kun tillatt utenfor Production. Endepunktet `POST /test/p
 
 ### Anonym Swagger mot DHG Test
 
-Som standard er denne modusen bare for lokal testing. Den kan starte i `Development` med `Dhg:Environment=Test`; eksplisitte wildcard-/ikke-loopback-listenere avvises, og forespørsler uten en kjent loopback-peer avvises. Modusen må da ikke publiseres gjennom reverse proxy, tunnel eller port-forwarding. Innkommende Swagger/FHIR-kall er anonyme, mens fasaden bruker `client_credentials`, client assertion og DPoP server-side for DHG-kall. HelseID-klienten må være godkjent for de DHG Test-operasjonene som skal prøves.
+Som standard er denne modusen bare for lokal testing. Den kan starte i `Development` med `Dhg:Environment=Test`; eksplisitte wildcard-/ikke-loopback-listenere avvises, og forespørsler uten en kjent loopback-peer avvises. Modusen må da ikke publiseres gjennom reverse proxy, tunnel eller port-forwarding. Innkommende Swagger/FHIR-kall er anonyme. Utgående DHG-autorisasjon bruker normalt `client_credentials`, client assertion og DPoP server-side, men kan eksplisitt bruke HelseID TEST-tokenverktøyet i samme mønster som smartOppgave. HelseID-klienten må være godkjent for de DHG Test-operasjonene som skal prøves.
 
 Det finnes ett eksplisitt unntak for repositoryets Azure Test-mal: `Staging` kan bruke `DevelopmentTestMode:AllowRemoteStaging=true` mot DHG Test når Container Apps samtidig begrenser ingress til en obligatorisk, kontrollert CIDR. Dette er ikke en generell applikasjonsinnstilling og skal bare settes av [Azure testdeploymentet](docs/azure-test-deployment.md). Testmodus avvises fortsatt når host eller DHG er Production.
 
@@ -63,6 +63,29 @@ $env:PatientContext__TestAliases__synthetic_1__LogicalId = "patient-test-1"
 $env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<approved-synthetic-nin>"
 dotnet run --project src/PopulationDataFacade.Api
 ```
+
+For å bruke HelseID TEST-tokenverktøyet i stedet for private JWK-er i denne modusen:
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:DevelopmentTestMode__Enabled = "true"
+$env:HelseIdTestToken__Enabled = "true"
+$env:HelseIdTestToken__AuthKey = "<secret-auth-key>"
+$env:HelseIdTestToken__OrgnrParent = "<syntetisk-test-orgnr-9-siffer>"
+$env:HelseIdTestToken__ClientTenancyType = "1"
+$env:HelseId__ClientId = "<dhg-test-client-id>"
+$env:PatientContext__TestAliases__synthetic_1__LogicalId = "patient-test-1"
+$env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<approved-synthetic-nin>"
+dotnet run --project src/PopulationDataFacade.Api
+```
+
+For lokal Development er .NET user-secrets tryggere enn å skrive auth key i en fil i repositoryet:
+
+```powershell
+dotnet user-secrets set "HelseIdTestToken:AuthKey" "<secret-auth-key>" --project src/PopulationDataFacade.Api
+```
+
+Da kan linjen som setter `HelseIdTestToken__AuthKey` utelates fra miljøblokken. Alternativt kan hemmeligheten eksporteres som miljøvariabel eller leveres av en godkjent secret store. Ikke lagre `accessTokenJwt` eller `dPoPProof`: fasaden henter et nytt par for hvert DHG-kall fordi beviset bindes til eksakt HTTP-metode og URL. Ren .NET laster ikke `.env`-filer automatisk; en eventuell lokal `.env` må importeres til prosessmiljøet av utviklerverktøyet.
 
 I Swagger:
 
@@ -91,7 +114,7 @@ Når dette er aktivert, krever `/swagger`, `/swagger/v1/swagger.json` og `/opena
 
 En vanlig Swagger UI i nettleseren er ikke i seg selv en HelseID/DPoP-klient. Produksjons-UI må derfor ligge bak en godkjent HelseID-aware backend/reverse proxy som håndterer innlogging og DPoP server-side for alle UI- og API-kall. Uten en slik komponent bør bare OpenAPI-dokumentet hentes med et DPoP-kompatibelt verktøy; access-token skal ikke limes inn i nettleseren.
 
-Konfigurasjonen valideres ved oppstart. `Dhg:Environment` må være `Test` eller `Production`; ukjente verdier og blandede Test/Production-endepunkter avvises. DHG audience/scope er låst til dokumenterte verdier, facade scope må være satt, og JWK-ene må inneholde asymmetrisk privat nøkkelmateriale.
+Konfigurasjonen valideres ved oppstart. `Dhg:Environment` må være `Test` eller `Production`; ukjente verdier og blandede Test/Production-endepunkter avvises. DHG audience/scope er låst til dokumenterte verdier, og facade scope må være satt. Normalflyten krever asymmetrisk privat JWK-materiale. TEST-tokenverktøyet kan bare erstatte disse nøklene når både `DevelopmentTestMode` og `HelseIdTestToken` er eksplisitt aktivert mot DHG Test.
 
 ## Bygg og kjør
 

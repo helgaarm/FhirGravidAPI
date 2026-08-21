@@ -2,14 +2,14 @@
 
 This repository contains a test-only deployment path for Azure Container Apps. Pushes and pull requests restore the locked .NET graph, run dependency/license gates, build and test both .NET and Go, compile and structurally validate both Bicep templates, build both containers, and smoke-test the two-container loopback topology. Deployment is deliberately manual (`workflow_dispatch`) and cannot start until the protected GitHub environment contains the required HelseID Test values.
 
-The solution does not use Azure Key Vault. Private JWKs and the synthetic test NIN are stored as GitHub Environment secrets, passed to Bicep as secure parameters, and installed as Container App secrets. GitHub authenticates to Azure through OIDC, so no Azure client secret is stored in GitHub.
+The solution does not use Azure Key Vault. The HelseID TEST token-utility auth key and the synthetic test NIN are stored as GitHub Environment secrets, passed to Bicep as secure parameters, and installed as Container App secrets. GitHub authenticates to Azure through OIDC, so no Azure client secret is stored in GitHub. The returned `accessTokenJwt` and `dPoPProof` are never stored in GitHub or Azure configuration.
 
 ## Security boundary
 
 The Azure template always runs with these constraints:
 
 - host environment `Staging` and `Dhg:Environment=Test`;
-- anonymous incoming Swagger/FHIR test mode, while outgoing DHG calls still use a DPoP-bound HelseID client-credentials token;
+- anonymous incoming Swagger/FHIR test mode, while every outgoing DHG call obtains a fresh, request-bound token/proof pair from the HelseID TEST token utility;
 - ingress targets the auth-gateway container on port 8080; the API is private on the replica's loopback port 8081;
 - the gateway runs in explicit `passthrough` mode only because this template also enables the constrained anonymous Development test mode;
 - one mandatory trusted ingress CIDR (`AZURE_ALLOWED_IP_CIDR`);
@@ -24,7 +24,7 @@ The Container Apps ingress restriction is part of the remote test-mode security 
 
 ## 1. Decide the network before creating the environment
 
-Confirm that the selected Azure region/network can reach both the DHG Test base URL and HelseID Test. The published DHG endpoint may require Helsenett connectivity. If it is not reachable over the public internet, provide a delegated Container Apps infrastructure subnet with the approved VPN, route, firewall, or proxy path when deploying `foundation.bicep`.
+Confirm that the selected Azure region/network can reach both the DHG Test base URL and `https://helseid-ttt.test.nhn.no`. The published DHG endpoint may require Helsenett connectivity. If either required endpoint is not reachable over the public internet, provide a delegated Container Apps infrastructure subnet with the approved VPN, route, firewall, or proxy path when deploying `foundation.bicep`.
 
 The Container Apps environment network type cannot be changed in place. Do not create the foundation with an empty `infrastructureSubnetId` until connectivity has been confirmed.
 
@@ -121,33 +121,26 @@ Add these environment variables:
 | `DHG_BASE_URL` | Confirmed reachable DHG Test API base URL |
 | `HELSEID_AUTHORITY` | HelseID Test authority |
 | `HELSEID_CLIENT_ID` | HelseID client authorized for DHG Test |
+| `HELSEID_TEST_TOKEN_ORGNR_PARENT` | Approved nine-digit synthetic organization number for the test client claims |
+| `HELSEID_TEST_TOKEN_CLIENT_TENANCY_TYPE` | Approved tenancy type: `0`, `1`, or `2` |
+| `HELSEID_TEST_TOKEN_CLIENT_NAME` | Approved client name included in the synthetic client claims |
 | `PATIENT_TEST_LOGICAL_ID` | Logical FHIR id for the approved synthetic patient |
 
 Add these environment secrets before the first deployment:
 
 | Secret | Value |
 | --- | --- |
-| `HELSEID_CLIENT_ASSERTION_JWK_B64` | Base64-encoded private client-assertion JWK JSON |
-| `HELSEID_DPOP_JWK_B64` | Base64-encoded, separate private DPoP JWK JSON |
+| `HELSEID_TEST_TOKEN_AUTH_KEY` | Secret auth key issued for the HelseID TEST token utility |
 | `PATIENT_TEST_NIN` | NIN of the approved synthetic DHG Test patient |
 
-Base64 is used only to transport structured JSON reliably through GitHub Actions; it is not encryption. GitHub Environment protection is the security control. Encode each JWK in PowerShell without printing it:
+Enter each secret interactively so it is not placed in command history:
 
 ```powershell
-$clientAssertionB64 = [Convert]::ToBase64String(
-  [Text.Encoding]::UTF8.GetBytes((Get-Content .\client-assertion.private.jwk -Raw)))
-$clientAssertionB64 | gh secret set HELSEID_CLIENT_ASSERTION_JWK_B64 --env azure-test
-Remove-Variable clientAssertionB64
-
-$dpopB64 = [Convert]::ToBase64String(
-  [Text.Encoding]::UTF8.GetBytes((Get-Content .\dpop.private.jwk -Raw)))
-$dpopB64 | gh secret set HELSEID_DPOP_JWK_B64 --env azure-test
-Remove-Variable dpopB64
-
+gh secret set HELSEID_TEST_TOKEN_AUTH_KEY --env azure-test
 gh secret set PATIENT_TEST_NIN --env azure-test
 ```
 
-Never put private JWK JSON, NIN, tokens, or Azure client secrets in repository files, workflow variables, command history, or issue text.
+Never put the TEST auth key, NIN, access token, DPoP proof, private JWK JSON, or Azure client secrets in repository files, workflow variables, command history, or issue text.
 
 ## 5. Deploy and test
 
@@ -164,14 +157,14 @@ curl.exe -f "$baseUrl/health/ready"
 Start-Process "$baseUrl/swagger"
 ```
 
-In Swagger, issue a context for `synthetic_1`, copy `patientId` and `patientContext`, then use the context header on a FHIR call. Incoming Swagger/FHIR calls do not need HelseID in this test-only deployment; the facade obtains HelseID credentials server-side for DHG.
+In Swagger, issue a context for `synthetic_1`, copy `patientId` and `patientContext`, then use the context header on a FHIR call. Incoming Swagger/FHIR calls do not need HelseID in this test-only deployment; the facade obtains a fresh request-bound HelseID TEST authorization server-side for each DHG call.
 
 Readiness currently confirms only that the process is running. A successful readiness response is not proof that HelseID or DHG is reachable. The first authorized DHG-backed FHIR operation is the external integration test.
 
 ## Operational limitations
 
 - Data Protection keys are not persisted because this test deployment uses neither Key Vault nor external storage. A restart or new revision invalidates already issued ten-minute patient contexts; issue a new context.
-- Container App secrets are application-scoped and changing a secret alone does not restart a revision. The workflow forces a new single-active revision on every manual run, so rotate the GitHub secret and redeploy when a private key or NIN is replaced.
+- Container App secrets are application-scoped and changing a secret alone does not restart a revision. The workflow forces a new single-active revision on every manual run, so rotate the GitHub secret and redeploy when the TEST auth key or NIN is replaced.
 - The deployment uses one replica. Do not increase the replica count without a shared Data Protection key store and a new architecture decision.
 - Do not treat this setup as a production pattern. Production needs approved network design, secret lifecycle, persistent Data Protection, HelseID ingress integration, monitoring, and privacy/security review.
 

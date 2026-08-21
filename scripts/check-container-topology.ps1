@@ -40,4 +40,30 @@ if ($gatewayUpstream -ne "http://127.0.0.1:8081") {
     throw "Gateway upstream must remain the loopback-only API origin http://127.0.0.1:8081."
 }
 
-Write-Host "Container topology policy passed: HTTPS ingress -> gateway:8080 -> loopback API:8081."
+$apiEnvironment = @($api.env)
+$testTokenEnabled = $apiEnvironment |
+    Where-Object { $_.name -eq "HelseIdTestToken__Enabled" } |
+    Select-Object -ExpandProperty value -First 1
+$testTokenAuthKey = $apiEnvironment |
+    Where-Object { $_.name -eq "HelseIdTestToken__AuthKey" } |
+    Select-Object -First 1
+if ($testTokenEnabled -ne "true" -or
+    $null -eq $testTokenAuthKey -or
+    $testTokenAuthKey.secretRef -ne "helseid-test-token-auth-key") {
+    throw "Azure Test must enable the HelseID TEST token provider and obtain its auth key from a Container App secret."
+}
+
+$legacyJwkEnvironment = @($apiEnvironment |
+    Where-Object { $_.name -in @("HelseId__ClientAssertionJwk", "HelseId__DPoPJwk") })
+if ($legacyJwkEnvironment.Count -ne 0) {
+    throw "Azure Test must not inject private JWKs when the HelseID TEST token provider is enabled."
+}
+
+$testTokenSecret = @($application.properties.configuration.secrets) |
+    Where-Object { $_.name -eq "helseid-test-token-auth-key" } |
+    Select-Object -First 1
+if ($null -eq $testTokenSecret) {
+    throw "Container App configuration must define the HelseID TEST token auth-key secret."
+}
+
+Write-Host "Container topology policy passed: HTTPS ingress -> gateway:8080 -> loopback API:8081 with secret-backed HelseID TEST authorization."

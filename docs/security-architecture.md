@@ -11,7 +11,7 @@ Facade Infrastructure -- exchanged DPoP token + NIN header --> DHG
 Facade -- redacted low-cardinality signals --> telemetry backend
 ```
 
-Development test mode changes only the first two arrows: the Swagger/FHIR caller is anonymous, and the facade requests a DPoP-bound DHG token from HelseID with server-side `client_credentials`. It is disabled by default. Its normal Development variant requires loopback-only listeners and a known loopback peer; proxy/tunnel/port-forward exposure is prohibited. The repository's Azure test template is an explicit Staging exception that requires `AllowRemoteStaging=true` and an ingress CIDR enforced by Container Apps. Both variants require DHG Test and are rejected against Production.
+Development test mode changes only the first two arrows: the Swagger/FHIR caller is anonymous, and the facade obtains a DPoP-bound DHG authorization server-side. It normally uses `client_credentials`; an additional disabled-by-default HelseID TEST-token provider can instead mint a fresh token/proof pair for each exact DHG request, matching smartOppgave's test flow. The normal Development variant requires loopback-only listeners and a known loopback peer; proxy/tunnel/port-forward exposure is prohibited. The repository's Azure test template is an explicit Staging exception that requires `AllowRemoteStaging=true` and an ingress CIDR enforced by Container Apps. Both variants require DHG Test and are rejected against Production.
 
 The FHIR layer never receives DHG JSON paths or an alternative data source. NIN exists only inside the protected context and the required outbound DHG header; it is never a FHIR logical ID, URL parameter, log field, or telemetry tag.
 

@@ -8,7 +8,7 @@ Gatewayen bruker `golang-jwt`, `keyfunc` og HelseIDs anbefalte `AxisCommunicatio
 
 Replay-registeret kan være atomisk Redis med kort TTL eller prosesslokalt minne. Redis er obligatorisk ved flere replikaer. Minnevarianten nekter å starte med mindre `AUTH_GATEWAY_SINGLE_REPLICA=true` er satt eksplisitt. Replay-nøkler hashes og inneholder verken access-token eller kliniske data.
 
-Unntak: eksplisitt `DevelopmentTestMode` gjør Swagger/FHIR-flaten anonym og bruker server-side HelseID `client_credentials` for DHG Test. Den normale Development-varianten krever loopback-only listener og kjent loopback-peer, må ikke ligge bak proxy/tunnel/port-forwarding og er deaktivert som standard. Repositoryets Azure Test-mal er et særskilt Staging-unntak med eksplisitt `AllowRemoteStaging=true` og obligatorisk CIDR-begrensning i Container Apps. Begge variantene feiler mot annet enn DHG Test og endrer ikke DHGs krav til HelseID, client assertion, DPoP, audience eller scope.
+Unntak: eksplisitt `DevelopmentTestMode` gjør Swagger/FHIR-flaten anonym og bruker normalt server-side HelseID `client_credentials` for DHG Test. En separat `HelseIdTestToken:Enabled`-bryter kan i denne modusen bruke HelseID TEST-tokenverktøyet med en server-side auth key, slik smartOppgave gjør. Verktøyet kalles på nytt for hvert DHG-kall og returnerer et access-token og DPoP-bevis bundet til eksakt metode og URL; verdiene caches, persisteres og logges aldri. Den normale Development-varianten krever loopback-only listener og kjent loopback-peer, må ikke ligge bak proxy/tunnel/port-forwarding og er deaktivert som standard. Repositoryets Azure Test-mal er et særskilt Staging-unntak med eksplisitt `AllowRemoteStaging=true` og obligatorisk CIDR-begrensning i Container Apps. Begge variantene feiler mot annet enn DHG Test og endrer ikke DHGs krav til HelseID, DPoP, audience eller scope.
 
 Swagger/OpenAPI er deaktivert som standard når enten host-miljøet eller DHG-miljøet er Production. Hvis `Swagger:EnabledInProduction=true`, håndheves den ordinære HelseID `population.read`-policyen for Swagger UI, Swashbuckle-dokumentet og ASP.NET OpenAPI-dokumentet. Anonyme kall får `401`, og autentiserte kall uten korrekt fasadescope får `403`. Fordi HelseID krever DPoP og webklientintegrasjon i backend, krever praktisk bruk av produksjons-UI en godkjent HelseID-aware backend/reverse proxy; token skal ikke eksponeres eller limes inn i nettleseren.
 
@@ -38,6 +38,7 @@ For flere instanser må Data Protection-nøkkelringen lagres i en godkjent, delt
 Følgende skal aldri ligge i kildekode, container-image, telemetry eller logger:
 
 - access-/refresh-token og DPoP proof
+- HelseID TEST-tokenverktøyets auth key
 - private JWK-er
 - fødselsnummer
 - DHG response body eller klinisk FHIR payload

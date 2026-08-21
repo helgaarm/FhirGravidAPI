@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>PopulationDataFacade.Api-2ef8f39a-5bd2-4a31-8abc-8921706566a7</UserSecretsId>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../PopulationDataFacade.Core/PopulationDataFacade.Core.csproj" />
     <ProjectReference Include="../PopulationDataFacade.Infrastructure/PopulationDataFacade.Infrastructure.csproj" />
