@@ -1,47 +1,67 @@
-# Security architecture
+# Security-arkitektur
 
 ## Trust boundaries
 
-```text
-FHIR client -- HelseID DPoP token + subject-bound context --> Auth gateway
-Auth gateway -- validated request + private shared credential --> Facade API
-Auth gateway -- discovery/JWKS --> HelseID
-Facade API -- subject token exchange + private_key_jwt/DPoP --> HelseID
-Facade Infrastructure -- exchanged DPoP token + NIN header --> DHG
-Facade -- redacted low-cardinality signals --> telemetry backend
+```mermaid
+flowchart LR
+    subgraph Caller [Caller-controlled zone]
+        Client["FHIR client"]
+    end
+
+    subgraph Facade [Facade runtime]
+        Gateway["auth-gateway"]
+        Api["Private Facade API"]
+        Infrastructure["Facade Infrastructure"]
+    end
+
+    subgraph External [Approved external services]
+        HelseID["HelseID"]
+        DHG["DHG API"]
+        Telemetry["Telemetry backend"]
+    end
+
+    Client -->|"HelseID DPoP token<br/>+ context eller POST form body"| Gateway
+    Gateway -->|"Validated request<br/>+ private shared credential"| Api
+    Gateway -->|"Discovery / JWKS"| HelseID
+    Api --> Infrastructure
+    Infrastructure -->|"Subject token exchange<br/>+ private_key_jwt / DPoP"| HelseID
+    Infrastructure -->|"Exchanged DPoP token<br/>+ NIN header"| DHG
+    Api -->|"Redacted low-cardinality signals"| Telemetry
 ```
 
-Development test mode changes only the first two arrows: the Swagger/FHIR caller is anonymous, and the facade obtains a DPoP-bound DHG authorization server-side. It normally uses `client_credentials`; an additional disabled-by-default HelseID TEST-token provider can instead mint a fresh token/proof pair for each exact DHG request, matching smartOppgave's test flow. The normal Development variant requires loopback-only listeners and a known loopback peer; proxy/tunnel/port-forward exposure is prohibited. The repository's Azure test template is an explicit Staging exception that requires `AllowRemoteStaging=true` and an ingress CIDR enforced by Container Apps. Both variants require DHG Test and are rejected against Production.
+Development test mode endrer bare de to første pilene: Swagger/FHIR-caller er anonym, og fasaden henter DPoP-bound DHG authorization server-side. Normalt brukes `client_credentials`; en ekstra HelseID TEST-token provider som er disabled by default, kan i stedet opprette et nytt token/proof-par for hver eksakte DHG request, i samsvar med smartOppgaves test flow. Modusen krever lokal Development, loopback-only listeners og en kjent loopback peer; eksponering via proxy, tunnel eller port forwarding er forbudt. Den krever DHG Test og avvises i alle andre environments og mot Production.
 
-The FHIR layer never receives DHG JSON paths or an alternative data source. NIN exists only inside the protected context and the required outbound DHG header; it is never a FHIR logical ID, URL parameter, log field, or telemetry tag.
+FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. NIN kan mottas transient i en liten POST form body og inngår derfra i request context før det sendes i påkrevd outbound DHG header. I autentisert drift krever POST-ruten HelseID `population.read` og danner en deterministisk pseudonym FHIR-ID med en separat HMAC-SHA-256 key. I lokal `DevelopmentTestMode` må NIN i stedet matche et konfigurert syntetisk alias. NIN er aldri en FHIR identifier, URL parameter, response field, log field eller telemetry tag.
 
-## Controls implemented
+## Implementerte controls
 
-- inbound HelseID access-token and DPoP validation in the Go auth gateway using `golang-jwt`, `keyfunc`, and NHN's recommended `AxisCommunications/go-dpop` library;
-- exact `at+jwt` type, issuer, single audience, expiry, not-before, scope, proof signature, `htm`/`htu`, ten-second freshness, `ath`, `cnf.jkt`, asymmetric public JWK, and unique `jti` checks;
-- independent JWT validation in the private .NET API, which also requires a constant-time-checked shared gateway credential;
-- gateway stripping of caller-supplied internal credentials and deployment ingress targeting only the gateway port;
-- FHIR `OperationOutcome` for authorization and application failures;
-- subject-bound, time-limited Data Protection patient context;
-- consent, deceased, active-record, record-ID and `ACTIVE` status gates before mapping;
-- HTTPS-only configuration and closed Test/Production environment validation;
-- separate configured client-assertion and DPoP key roles;
-- no persistent clinical cache or runtime fallback data;
-- no-store FHIR responses;
-- normalized DHG activity tags and suppression of generic DHG URL spans;
-- controlled correlation IDs and no raw upstream error body in client responses.
-- production Swagger/OpenAPI disabled by default whenever the host or DHG environment is Production and protected by the normal HelseID read policy when explicitly enabled; interactive UI use requires an approved HelseID-aware backend/proxy because standard Swagger UI does not implement the required DPoP handling.
+- inbound HelseID access-token- og DPoP-validation i Go auth gateway med `golang-jwt`, `keyfunc` og NHNs anbefalte `AxisCommunications/go-dpop` library
+- eksakte kontroller av `at+jwt` type, issuer, single audience, expiry, not-before, scope, proof signature, `htm`/`htu`, ti sekunders freshness, `ath`, `cnf.jkt`, asymmetric public JWK og unik `jti`
+- uavhengig JWT validation i privat .NET API, som også krever en delt gateway credential kontrollert i constant time
+- gateway-stripping av caller-supplied internal credentials og deployment ingress rettet bare mot gateway-porten
+- FHIR `OperationOutcome` for authorization- og application failures
+- subject-bound, time-limited Data Protection patient context
+- HelseID-beskyttet POST `_search` med NIN bare i form body og stabil HMAC-pseudonym `Patient.id`; GET-query med NIN avvises
+- gates for consent, deceased, active record, record ID og `ACTIVE` status før mapping
+- HTTPS-only configuration og lukket Test/Production environment validation
+- separate konfigurerte roller for client assertion key og DPoP key
+- ingen persistent clinical cache eller runtime fallback data
+- no-store FHIR responses
+- normaliserte DHG activity tags og undertrykking av generiske DHG URL spans
+- kontrollerte correlation IDs og ingen raw upstream error body i client responses
+- Production Swagger/OpenAPI er disabled by default når host- eller DHG environment er Production, og beskyttes av normal HelseID read policy når det aktiveres eksplisitt; interactive UI krever en godkjent HelseID-aware backend/proxy fordi standard Swagger UI ikke implementerer nødvendig DPoP-håndtering
 
 ## Production gates
 
-- implement and approve the production patient-context authority;
-- configure a shared encrypted Data Protection key ring for more than one instance;
-- configure the Redis atomic replay store before running more than one instance; the memory store refuses to start unless single-replica operation is explicitly declared;
-- generate and rotate a random gateway shared credential of at least 32 bytes, and keep the API port private to the sidecar network;
-- approve exact HelseID/DHG host allowlists and deployment egress policy;
-- configure trusted proxies/canonical public FHIR URL and allowed hosts;
-- add meaningful readiness semantics and controlled external synthetic monitoring;
-- complete real HelseID Test/DHG Test interoperability, penetration, privacy and clinical terminology review;
-- establish locked restore, CI security gates, immutable image policy and rollback evidence.
+- implementer og godkjenn production patient-context authority før de kontekstbaserte GET-operasjonene tas i bruk; HelseID-beskyttet POST `_search` er en separat implementert selection flow
+- lagre og roter `PatientContext:PatientIdHmacKey` som en separat, delt driftshemmelighet; rotasjon endrer pseudonyme patient IDs og må koordineres
+- konfigurer en delt kryptert Data Protection key ring for mer enn én instance
+- konfigurer Redis atomic replay store før mer enn én instance kjøres; memory store nekter startup med mindre single-replica operation er eksplisitt deklarert
+- generer og roter en tilfeldig delt gateway credential på minst 32 bytes, og hold API-porten privat i sidecar network
+- godkjenn eksakte HelseID/DHG host allowlists og deployment egress policy
+- konfigurer trusted proxies, canonical public FHIR URL og allowed hosts
+- legg til meningsfull readiness semantics og kontrollert ekstern synthetic monitoring
+- fullfør reell HelseID Test/DHG Test interoperability, penetration-, privacy- og clinical terminology review
+- etabler locked restore, CI security gates, immutable image policy og rollback evidence
 
-See [security.md](security.md) for operational details and [helseid-setup.md](helseid-setup.md) for identity configuration.
+Se [security.md](security.md) for operative detaljer og [helseid-setup.md](helseid-setup.md) for identity configuration.

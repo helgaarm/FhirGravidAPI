@@ -1,86 +1,103 @@
-# DHG API to FHIR R4 resource mapping
+# Mapping fra DHG API til FHIR R4 resources
 
-## Purpose and status
+## Formål og status
 
-This document describes the FHIR R4 resources the facade currently creates from the active Digitalt helsekort for gravide (DHG) record. It is an implementation contract, not a list of hypothetical resources. A FHIR resource is created only when the stated source data and gating conditions are satisfied.
+Dette dokumentet beskriver FHIR R4 resources som fasaden nå oppretter fra aktiv Digitalt helsekort for gravide (DHG)-record. Det er en implementation contract, ikke en liste over hypotetiske resources. En FHIR resource opprettes bare når angitte source data og gating conditions er oppfylt.
 
-The detailed field-classification rationale remains in [mapping.md](mapping.md). Consumer-visible coverage and stable query concepts are documented in [dhg-population-coverage.md](dhg-population-coverage.md).
+Detaljert begrunnelse for field classification finnes fortsatt i [mapping.md](mapping.md). Consumer-visible coverage og stabile query concepts er dokumentert i [dhg-population-coverage.md](dhg-population-coverage.md).
 
-## Source flow and gating
+## Source flow og gating
 
-The facade uses two DHG operations for every patient-data request:
+Fasaden bruker to DHG operations for hver patient-data request:
 
-| DHG operation/field | Use in the facade | FHIR output |
+| DHG operation/field | Bruk i fasaden | FHIR output |
 |---|---|---|
-| `GET /status` | Checks consent, deceased status, active-record status and obtains `latestRecordId` | No direct resource |
-| `hasGivenConsent` | Must be explicitly `true` before `/record` is called | Otherwise `OperationOutcome` / HTTP 403 |
-| `deceased` | Must not be `true` | Otherwise `OperationOutcome` / HTTP 403 |
-| `hasActiveMaternityRecord` | Must be explicitly `true` | Otherwise `OperationOutcome` / HTTP 404 |
-| `latestRecordId` | Selects the current maternity record | Never exposed as a FHIR identifier or telemetry value |
-| `lastChangedDateTime` | Snapshot-level freshness information | Not currently emitted as a separate resource |
-| `GET /record/{latestRecordId}` | Supplies the maternity-record content | Mapped as described below |
-| `metadata.recordId` | Must equal `latestRecordId` | Mismatch produces `OperationOutcome` / HTTP 503 |
-| `metadata.recordStatus.status` | Must equal `ACTIVE` | Otherwise `OperationOutcome` / HTTP 404 |
+| `GET /status` | Kontrollerer consent, deceased status og active-record status, og henter `latestRecordId` | Ingen direkte resource |
+| `hasGivenConsent` | Må eksplisitt være `true` før `/record` kalles | Ellers `OperationOutcome` / HTTP 403 |
+| `deceased` | Må ikke være `true` | Ellers `OperationOutcome` / HTTP 403 |
+| `hasActiveMaternityRecord` | Må eksplisitt være `true` | Ellers `OperationOutcome` / HTTP 404 |
+| `latestRecordId` | Velger gjeldende maternity record | Eksponeres aldri som FHIR identifier eller telemetry value |
+| `lastChangedDateTime` | Freshness information på snapshot-level | Emittes for øyeblikket ikke som egen resource |
+| `GET /record/{latestRecordId}` | Leverer innholdet i maternity record | Mappes som beskrevet nedenfor |
+| `metadata.recordId` | Må være lik `latestRecordId` | Mismatch gir `OperationOutcome` / HTTP 503 |
+| `metadata.recordStatus.status` | Må være lik `ACTIVE` | Ellers `OperationOutcome` / HTTP 404 |
 
-There is no fallback data source and no persistent clinical cache.
+Det finnes ingen fallback data source og ingen persistent clinical cache.
 
-## FHIR resource inventory
+```mermaid
+flowchart TD
+    Request["Patient-data request"] --> Status["GET /status"]
+    Status --> Consent{"hasGivenConsent == true?"}
+    Consent -->|"Nei"| Forbidden["OperationOutcome / HTTP 403"]
+    Consent -->|"Ja"| Deceased{"deceased == true?"}
+    Deceased -->|"Ja"| Forbidden
+    Deceased -->|"Nei"| Active{"hasActiveMaternityRecord == true?"}
+    Active -->|"Nei"| NotFound["OperationOutcome / HTTP 404"]
+    Active -->|"Ja"| Record["GET /record/{latestRecordId}"]
+    Record --> IdMatch{"metadata.recordId == latestRecordId?"}
+    IdMatch -->|"Nei"| Unavailable["OperationOutcome / HTTP 503"]
+    IdMatch -->|"Ja"| RecordActive{"metadata.recordStatus.status == ACTIVE?"}
+    RecordActive -->|"Nei"| NotFound
+    RecordActive -->|"Ja"| Map["DHG DTO → PopulationSnapshot → FHIR resources"]
+```
 
-| FHIR resource | Cardinality per successful request | Source | Endpoint |
+## Oversikt over FHIR resources
+
+| FHIR resource | Cardinality per vellykket request | Source | Endpoint |
 |---|---:|---|---|
-| `CapabilityStatement` | 1 | Static facade capability | `GET /fhir/metadata` |
-| `Patient` | 1 | Logical patient context plus the safe subset of `mother` | `GET /fhir/Patient/{id}` |
-| `Observation` | 0..* | Explicit DHG clinical fields | `GET /fhir/Observation?patient={id}[&code={system}\|{code}]` |
-| `Encounter` | 0..* | Dated, non-error antenatal appointments | `GET /fhir/Encounter?patient={id}` |
-| `Bundle` | 1 | Search wrapper for Observation or Encounter results | Observation and Encounter search endpoints |
-| `OperationOutcome` | 0..1 | Controlled facade, HelseID or DHG error translation | Handled failures on the mapped FHIR endpoints |
+| `CapabilityStatement` | 1 | Statisk facade capability | `GET /fhir/metadata` |
+| `Patient` | 1 | Logical patient context eller HMAC-pseudonym ID og safe subset av `mother` | `GET /fhir/Patient/{id}` eller POST `_search` |
+| `Observation` | 0..* | Eksplisitte DHG clinical fields | `GET /fhir/Observation?patient={id}[&code={system}\|{code}]` eller POST `_search` |
+| `Encounter` | 0..* | Daterte antenatal appointments uten error | `GET /fhir/Encounter?patient={id}` eller POST `_search` |
+| `Bundle` | 1 | Search wrapper for Observation- eller Encounter-results | Observation- og Encounter search endpoints |
+| `OperationOutcome` | 0..1 | Kontrollert oversettelse av facade-, HelseID- eller DHG-errors | Håndterte failures på mappede FHIR endpoints |
 
-Only `Patient`, `Observation`, and `Encounter` are clinical resources in the current capability statement.
+Bare `Patient`, `Observation` og `Encounter` er clinical resources i gjeldende CapabilityStatement. POST `_search` med NIN i form body krever HelseID i autentisert drift og bruker en HMAC-pseudonym patient ID; lokal `DevelopmentTestMode` bruker konfigurert test-alias. Selection-måten endrer ikke clinical resource mapping.
 
-## Common mapping rules
+## Felles mapping rules
 
-- A DHG resource with `metadata.enteredInError=true` creates no FHIR resource.
-- A nullable DHG boolean creates no Observation when `null`; explicit `false` becomes `valueBoolean=false`.
-- Source `metadata.lastUpdated` becomes `meta.lastUpdated` when present.
-- Source measurement dates become `effectiveDate`; date-time values become `effectiveDateTime` when supported.
-- Every Observation references `Patient/{logical-id}`.
-- Appointment-derived Observations also reference their generated Encounter.
-- Observation status is `unknown` because DHG does not provide a FHIR-equivalent result status.
-- Encounter status is `unknown` because DHG does not distinguish planned from completed appointments.
-- Stable facade-owned concepts use `urn:nhn:population-data`.
-- Verified NLK concepts use `urn:oid:2.16.578.1.12.4.1.1.7280`; verified Volven systems use their corresponding `urn:oid:` value.
-- Quantities use UCUM `http://unitsofmeasure.org`.
-- FHIR IDs normally use a DHG resource metadata ID plus a suffix, sanitized to the FHIR ID character and length rules. Missing metadata IDs fall back to `dhg`; repeated list items also include their source-array position. Those list-item IDs therefore remain stable only while the source order remains stable.
+- En DHG resource med `metadata.enteredInError=true` oppretter ingen FHIR resource.
+- En nullable DHG boolean oppretter ingen Observation når verdien er `null`. Eksplisitt `false` blir `valueBoolean=false`.
+- Source `metadata.lastUpdated` blir `meta.lastUpdated` når verdien finnes.
+- Source measurement dates blir `effectiveDate`. Date-time values blir `effectiveDateTime` når det støttes.
+- Hver Observation refererer til `Patient/{logical-id}`.
+- Appointment-derived Observations refererer også til deres genererte Encounter.
+- Observation status er `unknown`, fordi DHG ikke oppgir en FHIR-equivalent result status.
+- Encounter status er `unknown`, fordi DHG ikke skiller planned fra completed appointments.
+- Stabile facade-owned concepts bruker `urn:nhn:population-data`.
+- Verifiserte NLK concepts bruker `urn:oid:2.16.578.1.12.4.1.1.7280`. Verifiserte Volven systems bruker tilhørende `urn:oid:`-verdi.
+- Quantities bruker UCUM `http://unitsofmeasure.org`.
+- FHIR IDs bruker normalt DHG resource metadata ID med et suffix, sanitert etter FHIR-reglene for tegn og lengde i ID. Manglende metadata IDs bruker `dhg` som fallback. Gjentatte list items inkluderer også position i source array. Slike list-item IDs er derfor bare stabile så lenge source order er stabil.
 
 ## Patient
 
-| DHG/context source | FHIR element | Rule |
+| DHG/context source | FHIR element | Regel |
 |---|---|---|
-| Protected patient context logical ID | `Patient.id` | Never derived from NIN |
-| `mother.metadata.lastUpdated` or record update time | `Patient.meta.lastUpdated` | Present only when source time exists |
-| `mother.language` | `Patient.communication.language` | Source system/code/display preserved; marked preferred |
-| `mother.needsLanguageInterpreter` | Extension `urn:nhn:population-data:StructureDefinition/needs-language-interpreter` | `valueBoolean`; omitted when null |
+| Logical ID fra protected patient context, lokalt alias eller HMAC-pseudonymisering | `Patient.id` | Aldri NIN eller en rå hash |
+| `mother.metadata.lastUpdated` eller record update time | `Patient.meta.lastUpdated` | Finnes bare når source time finnes |
+| `mother.language` | `Patient.communication.language` | Source system/code/display bevares; markeres preferred |
+| `mother.needsLanguageInterpreter` | Extension `urn:nhn:population-data:StructureDefinition/needs-language-interpreter` | `valueBoolean`; utelates ved null |
 
-The Patient does not contain NIN, name, address, birth date, country of birth, employment information, GP or other contact data. `Patient.active` is not asserted because DHG does not provide that fact.
+Patient inneholder ikke NIN, navn, adresse, fødselsdato, fødeland, employment information, GP eller andre contact data. `Patient.active` angis ikke, fordi DHG ikke leverer dette fact.
 
 ## Encounter
 
-One Encounter is created for each non-error `antenatalAppointments[]` item that has `appointmentDate`.
+Det opprettes én Encounter for hvert `antenatalAppointments[]` item uten error som har `appointmentDate`.
 
 | DHG field | FHIR element | Mapping |
 |---|---|---|
-| appointment metadata ID | `Encounter.id` | Stable sanitized ID |
+| appointment metadata ID | `Encounter.id` | Stabil sanitert ID |
 | appointment metadata update time | `Encounter.meta.lastUpdated` | Source timestamp |
-| `appointmentDate` | `Encounter.period.start` and `.end` | Same calendar date |
+| `appointmentDate` | `Encounter.period.start` og `.end` | Samme calendar date |
 | logical patient ID | `Encounter.subject` | `Patient/{logical-id}` |
 | — | `Encounter.class` | `AMB` / ambulatory |
-| no equivalent source status | `Encounter.status` | `unknown` |
+| ingen tilsvarende source status | `Encounter.status` | `unknown` |
 
-## Observations by DHG area
+## Observations etter DHG-område
 
-Unless another system is shown, the Observation code uses `urn:nhn:population-data`.
+Når ikke et annet system er oppgitt, bruker Observation code `urn:nhn:population-data`.
 
-### Current pregnancy
+### Gjeldende svangerskap
 
 | DHG field | Observation code | FHIR value |
 |---|---|---|
@@ -94,9 +111,9 @@ Unless another system is shown, the Observation code uses `urn:nhn:population-da
 | `birthPreparationTalk` | `birth-preparation-talk` | `valueBoolean` |
 | `breastfeedingGuidance` | `breastfeeding-guidance` | `valueBoolean` |
 
-`dueDateCorrectedDate` is not exposed because the clinical precedence and reason are not sufficiently defined for this facade.
+`dueDateCorrectedDate` eksponeres ikke, fordi clinical precedence og reason ikke er tilstrekkelig definert for denne fasaden.
 
-### Previous pregnancies
+### Tidligere svangerskap
 
 | DHG field | Observation code | FHIR value |
 |---|---|---|
@@ -107,9 +124,9 @@ Unless another system is shown, the Observation code uses `urn:nhn:population-da
 | `numberOfEctopicPregnancies` | `ectopic-pregnancies` | `valueInteger` |
 | `note` | `previous-pregnancy-note` | `valueString`, unparsed |
 
-No induced-abortion value is inferred from the counters.
+Ingen induced-abortion value utledes fra tellerne.
 
-### Genetic disorders and medical conditions
+### Genetic disorders og medical conditions
 
 | DHG field group | Observation code | FHIR value |
 |---|---|---|
@@ -118,12 +135,12 @@ No induced-abortion value is inferred from the counters.
 | `hipDysplasia` | `hip-dysplasia` | `valueBoolean` |
 | `other` | `other-genetic-disorder` | `valueBoolean` |
 | genetic `note` | `genetic-note` | `valueString`, unparsed |
-| each explicit `medicalConditions` boolean | `medical-condition-{field}` | `valueBoolean` |
+| hver eksplisitt `medicalConditions` boolean | `medical-condition-{field}` | `valueBoolean` |
 | medical `note` | `medical-conditions-note` | `valueString`, unparsed |
 
-Medical-condition suffixes are `nothing-particular`, `heart-disease`, `high-blood-pressure`, `kidney-urinary-tract`, `diabetes`, `allergies-asthma`, `epilepsy`, `thrombosis`, `autoimmune-disease`, `gynecological-conditions`, `mental-health`, and `other`. The combined `allergiesAsthma` fact is never split into separate diagnoses.
+Medical-condition suffixes er `nothing-particular`, `heart-disease`, `high-blood-pressure`, `kidney-urinary-tract`, `diabetes`, `allergies-asthma`, `epilepsy`, `thrombosis`, `autoimmune-disease`, `gynecological-conditions`, `mental-health` og `other`. Det kombinerte `allergiesAsthma` fact splittes aldri i separate diagnoses.
 
-### Medication and folate
+### Medication og folate
 
 | DHG field | Observation code | FHIR value/category |
 |---|---|---|
@@ -132,16 +149,16 @@ Medical-condition suffixes are `nothing-particular`, `heart-disease`, `high-bloo
 | `folate.takenBefore` | `folate-before-pregnancy` | `valueBoolean` |
 | `folate.takenDuring` | `folate-during-pregnancy` | `valueBoolean` |
 
-The medication note can be retained as an annotation on the frequency Observation, but it is never parsed into a medicine name, dose, `Medication`, or `MedicationStatement`.
+Medication note kan beholdes som annotation på frequency Observation, men parses aldri til medicine name, dose, `Medication` eller `MedicationStatement`.
 
 ### Lifestyle factors
 
-Each `lifestyleFactors.stimuli[]` item with a source code creates one `social-history` Observation:
+Hvert `lifestyleFactors.stimuli[]` item med en source code oppretter én `social-history` Observation:
 
-- `Observation.code` and `valueCodeableConcept` preserve the source stimulus code, normally Volven 8536.
-- Components preserve first-consultation and week-36 frequency codes, normally Volven 8537.
-- Daily counts become integer components.
-- The source note may be retained as an unparsed annotation.
+- `Observation.code` og `valueCodeableConcept` bevarer source stimulus code, normalt Volven 8536.
+- Components bevarer frequency codes for first consultation og week 36, normalt Volven 8537.
+- Daily counts blir integer components.
+- Source note kan beholdes som unparsed annotation.
 
 ### Clinical tests
 
@@ -163,25 +180,25 @@ Each `lifestyleFactors.stimuli[]` item with a source code creates one `social-hi
 | `hepatitisC` | NLK `NPU12033` | `valueBoolean` |
 | `mrsaVreEsbl` | facade `mrsa-vre-esbl` | `valueBoolean` |
 | `bHbA1c` | NLK `NPU27300` | `valueQuantity`, UCUM `mmol/mol` |
-| `glucoseTolerance.fastingGlucoseLevel` | facade `glucose-tolerance-fasting` | `valueQuantity`, UCUM `mmol/L`; test date as `effectiveDate` |
-| `glucoseTolerance.post2hGlucoseLevel` | facade `glucose-tolerance-2h` | `valueQuantity`, UCUM `mmol/L`; test date as `effectiveDate` |
+| `glucoseTolerance.fastingGlucoseLevel` | facade `glucose-tolerance-fasting` | `valueQuantity`, UCUM `mmol/L`; test date som `effectiveDate` |
+| `glucoseTolerance.post2hGlucoseLevel` | facade `glucose-tolerance-2h` | `valueQuantity`, UCUM `mmol/L`; test date som `effectiveDate` |
 | `gonorrhea` | facade `gonorrhea` | `valueBoolean` |
 | `cytomegaloVirus` | facade `cytomegalovirus` | `valueBoolean` |
 | `asymptomaticBacteriuria` | facade `asymptomatic-bacteriuria` | `valueBoolean` |
 | `groupBStreptococci` | NLK `NPU18725` | `valueBoolean` |
 
-The general clinical-tests note is not attached to individual results. Facade codes are used where the DHG boolean does not identify one unambiguous laboratory analysis.
+Generell clinical-tests note knyttes ikke til enkeltresultater. Facade codes brukes der DHG boolean ikke identifiserer én entydig laboratory analysis.
 
 ### Rhesus D negative pathway
 
 | DHG field | Observation code | FHIR value |
 |---|---|---|
 | `consentFetalRhesusTyping` | `rhd-consent-fetal-typing` | `valueBoolean` |
-| `fetusRhDPositiveAtWeek24` | `fetus-rhd-week-24` | `valueBoolean`; `dateForResult` as `effectiveDate` |
+| `fetusRhDPositiveAtWeek24` | `fetus-rhd-week-24` | `valueBoolean`; `dateForResult` som `effectiveDate` |
 | `dateForResult` | `fetus-rhd-result-date` | `valueDate` |
 | `prophylaxisAtWeek28` | `rhd-prophylaxis-week-28` | `valueBoolean` |
 
-### Measurements before pregnancy and symphysis-fundal height
+### Measurements før pregnancy og symphysis-fundal height
 
 | DHG field | Observation code | FHIR value/category |
 |---|---|---|
@@ -192,48 +209,48 @@ The general clinical-tests note is not attached to individual results. Facade co
 | SFH `measurementDate` | — | Observation `effectiveDate` |
 | SFH `pregnancyWeek` | component `gestational-weeks` | component `valueInteger` |
 
-### Antenatal appointment observations
+### Observations fra antenatal appointments
 
-Every item below is dated with `appointmentDate` and references the corresponding Encounter.
+Hvert item nedenfor dateres med `appointmentDate` og refererer til tilhørende Encounter.
 
 | DHG field | Observation code | FHIR value/category |
 |---|---|---|
-| `pregnancyWeek` + `daysAfterFullPregnancyWeek` | `gestational-age-at-appointment` | `valueString` `week+day` plus integer components, `survey` |
-| latest dated appointment with gestational age | `recorded-gestational-age` | Same representation; maximum one per snapshot |
+| `pregnancyWeek` + `daysAfterFullPregnancyWeek` | `gestational-age-at-appointment` | `valueString` `week+day` med integer components, `survey` |
+| siste daterte appointment med gestational age | `recorded-gestational-age` | Samme representation; maksimalt én per snapshot |
 | `motherWeight` | `mother-weight` | `valueQuantity` UCUM `kg`, `vital-signs` |
-| parseable `bloodPressure` | `blood-pressure` | Original `valueString` plus systolic/diastolic Quantity components in `mm[Hg]`, `vital-signs` |
-| `proteinInUrineTestResult` | NLK `NPU04206` | `valueCodeableConcept` from Volven 8340, `laboratory` |
+| parseable `bloodPressure` | `blood-pressure` | Opprinnelig `valueString` med systolic/diastolic Quantity components i `mm[Hg]`, `vital-signs` |
+| `proteinInUrineTestResult` | NLK `NPU04206` | `valueCodeableConcept` fra Volven 8340, `laboratory` |
 | `edema` | `edema` | `valueInteger`, `exam` |
-| each fetus `fetalHeartRate` | `fetal-heart-rate` | `valueQuantity` UCUM `/min`, `vital-signs` |
-| each fetus `fetalPresentationLie` | `fetal-presentation-lie` | `valueCodeableConcept` preserving source code, `exam` |
-| each fetus `motherFeelsBabyMovements` | `mother-feels-baby-movements` | `valueBoolean`, `exam` |
+| hvert fetus `fetalHeartRate` | `fetal-heart-rate` | `valueQuantity` UCUM `/min`, `vital-signs` |
+| hvert fetus `fetalPresentationLie` | `fetal-presentation-lie` | `valueCodeableConcept` som bevarer source code, `exam` |
+| hvert fetus `motherFeelsBabyMovements` | `mother-feels-baby-movements` | `valueBoolean`, `exam` |
 
-Appointment medication flag, employment rate, appointment note and fetus note are not currently exposed because their safe consumer semantics are not defined.
+Appointment medication flag, employment rate, appointment note og fetus note eksponeres ikke nå, fordi deres sikre consumer semantics ikke er definert.
 
 ## Search Bundles
 
-Observation and Encounter searches always return a FHIR `Bundle` with:
+Observation- og Encounter-searches returnerer alltid en FHIR `Bundle` med:
 
 - `type=searchset`;
-- `total` equal to the number of matching resources;
-- one `entry` per resource with `search.mode=match`;
-- an absolute `fullUrl` derived from the request-observed scheme, host and path base;
-- `timestamp` set to the facade response time, not the DHG source freshness time;
-- `total=0` and no entries when a supported query has no registered value.
+- `total` lik antall matchende resources;
+- én `entry` per resource med `search.mode=match`;
+- en absolute `fullUrl` avledet fra request-observed scheme, host og path base;
+- `timestamp` satt til fasadens response time, ikke DHG source freshness time;
+- `total=0` uten entries når en støttet query ikke har en registrert verdi.
 
-The optional Observation `code` filter uses exact `system|code` matching. Absence of an Observation is not equivalent to `false`.
+Valgfritt Observation `code` filter bruker eksakt `system|code` matching. Fravær av en Observation er ikke det samme som `false`. POST `_search` velger pasient ved NIN i form body. Autentisert drift lager en HMAC-pseudonym logical ID, mens lokal `DevelopmentTestMode` bruker konfigurert test-alias. NIN inngår aldri i returnert Bundle eller resource identifiers.
 
-## Resources deliberately not created
+## Resources som bevisst ikke opprettes
 
-| Potential FHIR resource | Current decision |
+| Potensiell FHIR resource | Gjeldende beslutning |
 |---|---|
-| `Questionnaire`, `QuestionnaireResponse` | Not part of the generic facade; no questionnaire/linkId coupling |
-| `$populate` output | Not implemented; an external SDC engine queries the facade |
-| `Medication`, `MedicationStatement` | Medication note is not parsed into clinical medication facts |
-| `Condition` | DHG booleans/notes are not promoted to diagnoses |
-| `Practitioner`, `PractitionerRole`, `Organization` | `pointsOfContact` is outside the population-data surface |
-| Demographic extensions/resources | No demographics source is allowed and sensitive mother fields are not exposed |
-| Birth/postpartum resources | `birthStatus` is outside the active-pregnancy first release |
-| `Provenance` | `lastUpdatedBy` identity/organization details are not exposed |
+| `Questionnaire`, `QuestionnaireResponse` | Ikke en del av den generiske fasaden; ingen questionnaire/linkId coupling |
+| `$populate` output | Ikke implementert; en ekstern SDC engine spør fasaden |
+| `Medication`, `MedicationStatement` | Medication note parses ikke til clinical medication facts |
+| `Condition` | DHG booleans/notes promoted ikke til diagnoses |
+| `Practitioner`, `PractitionerRole`, `Organization` | `pointsOfContact` er utenfor population-data surface |
+| Demographic extensions/resources | Ingen demographics source er tillatt, og sensitive mother fields eksponeres ikke |
+| Birth/postpartum resources | `birthStatus` er utenfor første release for active pregnancy |
+| `Provenance` | Identity/organization-details fra `lastUpdatedBy` eksponeres ikke |
 
-Adding any new resource type requires an explicit approved mapping, capability-statement update, privacy/clinical review, documentation update and semantic tests.
+Tillegg av en ny resource type krever eksplisitt godkjent mapping, oppdatering av CapabilityStatement, privacy/clinical review, documentation update og semantic tests.

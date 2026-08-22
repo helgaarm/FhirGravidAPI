@@ -39,7 +39,7 @@ public static class DependencyInjection
                 () => configuration.GetValue<bool>($"{DevelopmentTestModeOptions.SectionName}:Enabled"),
                 () => configuration[$"{DhgOptions.SectionName}:Environment"] ?? "Test"));
 
-        // Token exchange stays request-scoped and is deliberately not put in a facade-level token cache.
+        // Token exchange forblir request-scoped og legges med hensikt ikke i en facade-level token cache.
         services.AddClientCredentialsTokenManagement();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IHelseIdClientAssertionFactory, HelseIdClientAssertionFactory>();

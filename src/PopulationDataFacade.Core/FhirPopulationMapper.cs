@@ -8,7 +8,7 @@ public interface IFhirPopulationMapper
     IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null);
     IReadOnlyList<Encounter> MapEncounters(PopulationSnapshot snapshot);
     Bundle SearchBundle(IEnumerable<Resource> resources, Uri? serviceBase = null);
-    CapabilityStatement CapabilityStatement(Uri serviceBase, bool includeDevelopmentNinSearch = false);
+    CapabilityStatement CapabilityStatement(Uri serviceBase);
 }
 
 public sealed class FhirPopulationMapper : IFhirPopulationMapper
@@ -85,9 +85,7 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         return bundle;
     }
 
-    public CapabilityStatement CapabilityStatement(
-        Uri serviceBase,
-        bool includeDevelopmentNinSearch = false) => new()
+    public CapabilityStatement CapabilityStatement(Uri serviceBase) => new()
     {
         Id = "population-data-facade-capability",
         Url = new Uri(serviceBase, "fhir/metadata").ToString(),
@@ -106,18 +104,14 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             new Hl7.Fhir.Model.CapabilityStatement.RestComponent
             {
                 Mode = Hl7.Fhir.Model.CapabilityStatement.RestfulCapabilityMode.Server,
+                Documentation = "GET operations use a protected logical patient context. POST _search accepts NIN only in an application/x-www-form-urlencoded request body; it requires HelseID outside local DevelopmentTestMode. NIN in a GET URL is not supported.",
                 Resource =
                 [
                     ResourceCapability(
                         ResourceType.Patient,
-                        includeDevelopmentNinSearch,
-                        includeDevelopmentNinSearch
-                            ?
-                            [
-                                Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read,
-                                Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType
-                            ]
-                            : [Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read]),
+                        true,
+                        Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.Read,
+                        Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType),
                     ResourceCapability(
                         ResourceType.Observation,
                         false,
@@ -199,6 +193,11 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                 },
                 new CapabilityStatement.SearchParamComponent
                 {
+                    Name = "patient.identifier",
+                    Type = SearchParamType.Token
+                },
+                new CapabilityStatement.SearchParamComponent
+                {
                     Name = "code",
                     Type = SearchParamType.Token,
                     Definition = "http://hl7.org/fhir/SearchParameter/clinical-code"
@@ -212,6 +211,11 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                         Name = "patient",
                         Type = SearchParamType.Reference,
                         Definition = "http://hl7.org/fhir/SearchParameter/clinical-patient"
+                    },
+                    new CapabilityStatement.SearchParamComponent
+                    {
+                        Name = "patient.identifier",
+                        Type = SearchParamType.Token
                     }
                 ]
                 : resourceType is ResourceType.Patient && includePatientIdentifier

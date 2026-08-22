@@ -10,9 +10,9 @@ using PopulationDataFacade.Infrastructure.Dhg;
 namespace PopulationDataFacade.Infrastructure.HelseId;
 
 /// <summary>
-/// TEST-only adapter for HelseID's test-token utility. It asks the utility for
-/// a fresh access token and proof bound to each exact DHG request, matching the
-/// established smartOppgave test flow. It never persists or logs either value.
+/// TEST-only adapter for HelseIDs test-token utility. Den ber utility om et nytt
+/// access token og proof bundet til hver eksakte DHG request, i samsvar med etablert
+/// smartOppgave test flow. Ingen av verdiene persisteres eller logges.
 /// </summary>
 public sealed class HelseIdTestTokenAuthorizationProvider(
     IHttpClientFactory httpClientFactory,

@@ -1,6 +1,6 @@
 # DHG → FHIR mappingmatrise
 
-For a resource-oriented overview of every FHIR resource the facade can create, see [DHG API to FHIR R4 resource mapping](dhg-fhir-resource-mapping.md).
+For en resource-oriented oversikt over alle FHIR resources fasaden kan opprette, se [Mapping fra DHG API til FHIR R4 resources](dhg-fhir-resource-mapping.md).
 
 Klassifisering:
 

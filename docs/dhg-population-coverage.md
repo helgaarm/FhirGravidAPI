@@ -1,21 +1,21 @@
-# DHG population coverage contract
+# DHG-kontrakt for population coverage
 
-The facade exposes only `Patient`, `Observation`, and `Encounter`. It does not implement `$populate`, Questionnaire processing, demographics lookup, GP lookup, Grunndata, or another clinical source.
+Fasaden eksponerer bare `Patient`, `Observation` og `Encounter`. Den implementerer ikke `$populate`, Questionnaire processing, demographics lookup, GP lookup, Grunndata eller andre kliniske sources.
 
 ## Consumer contract
 
-- `Patient/{id}` is minimal and contains no NIN, name, address, birth date, GP, or contact information.
-- Observation search requires `patient={logical-id}` and optionally accepts one `code={system}|{code}` token.
-- A missing/null DHG value produces no Observation. Explicit `false` produces `valueBoolean: false`.
-- `metadata.enteredInError=true` produces no FHIR resource.
-- `meta.lastUpdated` comes from DHG source metadata when available.
-- `recorded-gestational-age` occurs at most once and represents the last dated, non-error appointment containing week or day data.
-- `gestational-age-at-appointment` retains dated appointment history.
-- Empty searches return a FHIR `searchset` Bundle with `total=0`.
+- `Patient/{id}` er minimal og inneholder ikke NIN, navn, adresse, fødselsdato, GP eller kontaktinformasjon.
+- GET Observation search krever `patient={logical-id}` og aksepterer valgfritt ett `code={system}|{code}` token. POST `_search` bruker `patient.identifier` i form body; det krever HelseID utenfor lokal `DevelopmentTestMode`, hvor bare en konfigurert syntetisk testperson tillates.
+- En manglende/null DHG-verdi produserer ingen Observation. Eksplisitt `false` produserer `valueBoolean: false`.
+- `metadata.enteredInError=true` produserer ingen FHIR resource.
+- `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.
+- `recorded-gestational-age` forekommer maksimalt én gang og representerer den siste daterte appointment uten error som inneholder uke- eller dagdata.
+- `gestational-age-at-appointment` beholder datert appointment-historikk.
+- Etter vellykket patient selection returnerer search uten kliniske treff en FHIR `searchset` Bundle med `total=0`. En ukjent lokal syntetisk identifier returnerer i test-support-kontrakten `404`; i autentisert drift bestemmes manglende tilgang/record av DHGs status- og consent-kontroller.
 
-## Stable facade concepts
+## Stabile facade concepts
 
-Facade-owned concepts use `urn:nhn:population-data`. Examples include:
+Facade-owned concepts bruker `urn:nhn:population-data`. Eksempler:
 
 - `needs-language-interpreter`
 - `due-date-last-period`
@@ -30,14 +30,14 @@ Facade-owned concepts use `urn:nhn:population-data`. Examples include:
 - `toxoplasmosis-positive`
 - `fetus-rhd-result-date`
 
-The complete current field classification is in [mapping.md](mapping.md). Query examples are in [examples/fhir-queries.md](../examples/fhir-queries.md).
+Fullstendig gjeldende feltklassifisering finnes i [mapping.md](mapping.md). Query-eksempler finnes i [examples/fhir-queries.md](../examples/fhir-queries.md).
 
-## Explicitly unsupported or partial
+## Eksplisitt unsupported eller partial
 
-- No medicine name or dose is inferred from a medication note.
-- No induced abortion, diagnosis, or other clinical fact is calculated as a residual or extracted from free text.
-- Contact/demographic and birth-status data are not exposed in the first surface.
-- Unknown source fields are tolerated but not automatically exposed.
-- Blood pressure is exposed only when the documented `systolic/diastolic` form is safely parseable.
+- Legemiddelnavn eller dose infereres ikke fra en medication note.
+- Indusert abort, diagnose eller andre kliniske fakta beregnes ikke som residual og trekkes ikke ut fra free text.
+- Contact/demographic- og birth-status-data eksponeres ikke i første API surface.
+- Ukjente source-felt tolereres, men eksponeres ikke automatisk.
+- Blodtrykk eksponeres bare når dokumentert `systolic/diastolic`-format kan parses sikkert.
 
-Terminology and unit approval by the designated clinical owner remains a release gate even where implementation tests pass.
+Godkjenning av terminology og units fra utpekt clinical owner er fortsatt en release gate, også når implementasjonstestene passerer.

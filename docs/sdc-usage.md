@@ -1,6 +1,6 @@
-# SDC population usage
+# Bruk av SDC population
 
-This facade is a generic read-only FHIR population source. It deliberately has no Questionnaire IDs, linkIds, QuestionnaireResponse logic, or `$populate` endpoint. An SDC engine decides which stable facts to request.
+Denne fasaden er en generisk read-only FHIR population source. Den har med hensikt ingen Questionnaire IDs, linkIds, QuestionnaireResponse-logikk eller `$populate` endpoint. En SDC engine avgjør hvilke stabile fakta som skal etterspørres.
 
 ## Query pattern
 
@@ -8,26 +8,26 @@ This facade is a generic read-only FHIR population source. It deliberately has n
 GET /fhir/Observation?patient={logical-patient-id}&code={system}|{code}
 ```
 
-The client must send:
+Klienten må sende:
 
-- a valid HelseID DPoP access token with the configured facade read scope;
-- the protected, short-lived patient context in the configured header;
-- the same logical patient ID in the query and protected context.
+- et gyldig HelseID DPoP access token med konfigurert facade read scope
+- beskyttet, kortlivet patient context i konfigurert header
+- samme logical patient ID i query og beskyttet context
 
-For manual testing, explicit test mode permits anonymous Swagger/FHIR requests and moves HelseID authentication to the facade's server-side DHG client. It is normally loopback-only Development; the repository's Azure test template provides a separate IP-restricted Staging exception. This is not an SDC deployment pattern, both variants require DHG Test, and neither can be enabled against Production.
+For manuell testing tillater eksplisitt test mode anonyme Swagger/FHIR requests og flytter HelseID authentication til fasadens server-side DHG client. Modusen er begrenset til loopback-only Development med DHG Test. Dette er ikke et SDC deployment pattern og kan ikke aktiveres i Staging, QA eller Production.
 
-The vertical bar should be percent-encoded as `%7C` when constructing a URI. Example:
+Når en URI bygges, skal vertical bar representeres med percent-encoding som `%7C`. Eksempel:
 
 ```text
 /fhir/Observation?patient=patient-test-1&code=urn%3Anhn%3Apopulation-data%7Cpre-pregnancy-bmi
 ```
 
-## Result interpretation
+## Tolkning av resultater
 
-- `Bundle.total=0` means the fact is not registered in the active DHG record; it does not mean false.
-- `valueBoolean=false` is an explicit negative value and must not be collapsed into absence.
-- Unsupported concepts are absent from the facade's published coverage contract; consumers must not treat them as queried-but-empty.
-- `recorded-gestational-age` has at most one result. Historical values use `gestational-age-at-appointment` and reference their Encounter.
-- Errors are FHIR `OperationOutcome`; consumers should branch on HTTP status and `issue.code`, not parse diagnostics text.
+- `Bundle.total=0` betyr at faktumet ikke er registrert i active DHG record; det betyr ikke false.
+- `valueBoolean=false` er en eksplisitt negativ verdi og må ikke slås sammen med fravær.
+- Unsupported concepts finnes ikke i fasadens publiserte coverage contract; consumers må ikke behandle dem som queried-but-empty.
+- `recorded-gestational-age` har maksimalt ett resultat. Historiske verdier bruker `gestational-age-at-appointment` og refererer til sin Encounter.
+- Errors er FHIR `OperationOutcome`; consumers skal velge branch basert på HTTP status og `issue.code`, ikke parse diagnostics text.
 
-Use [the coverage contract](dhg-population-coverage.md) and [ready-to-run examples](../examples/fhir-queries.md) when configuring a consumer.
+Bruk [coverage contract](dhg-population-coverage.md) og [kjøreklare eksempler](../examples/fhir-queries.md) når en consumer konfigureres.

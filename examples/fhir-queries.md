@@ -1,6 +1,6 @@
-# FHIR query examples
+# Eksempler på FHIR queries
 
-These examples use placeholders only. Never place a NIN, access token, DPoP proof, private key, or patient-context value in source control or shell history. In authenticated mode, use the canonical HTTPS address of the trusted TLS ingress in front of `auth-gateway`; do not call the private API port or expose the gateway's plaintext port 8080.
+Disse eksemplene bruker bare placeholders. Legg aldri NIN, access token, DPoP proof, private key eller patient-context value i source control eller shell history. I authenticated mode skal du bruke den canonical HTTPS address til trusted TLS ingress foran `auth-gateway`. Ikke kall den private API port eller eksponer gatewayens plaintext port 8080.
 
 ```powershell
 $facadeBase = "https://facade.example.test"
@@ -10,13 +10,13 @@ $dpopProof = "<request-specific-dpop-proof>"
 $patientContext = "<short-lived-protected-context>"
 ```
 
-Every DPoP proof is request-specific: its `htu` and `htm` must match the final `$facadeBase` URL and HTTP method. The canonical Host must match `AUTH_GATEWAY_EXTERNAL_HOST`.
+Hvert DPoP proof er request-specific: `htu` og `htm` må samsvare med den endelige `$facadeBase` URL-en og HTTP method. Canonical Host må samsvare med `AUTH_GATEWAY_EXTERNAL_HOST`.
 
-For the explicit anonymous local Development-test mode only, set `$facadeBase` to the API launch URL (normally `https://localhost:7184`) and omit the `Authorization` and `DPoP` headers. That direct-API pattern is not valid for authenticated or production operation.
+Bare for eksplisitt anonymous local Development-test mode setter du `$facadeBase` til API launch URL (normalt `https://localhost:7184`) og utelater `Authorization`- og `DPoP`-headers. Dette direct-API pattern er ikke gyldig for authenticated eller production operation.
 
-## Create the local test patient selection
+## Opprett lokal testpasient-selection
 
-The logical patient ID is configured by the operator and is not the NIN or a value derived from DHG. Configure the `synthetic_1` alias as described in [Patient ID and protected context for testing](../docs/patient-context-testing.md), then obtain both values used below:
+Logical patient ID konfigureres av operatøren og er ikke NIN eller en verdi avledet fra DHG. Konfigurer aliaset `synthetic_1` som beskrevet i [Pasient-ID og protected context for testing](../docs/patient-context-testing.md), og hent deretter begge verdiene som brukes nedenfor:
 
 ```powershell
 $selection = Invoke-RestMethod `
@@ -27,39 +27,58 @@ $logicalPatientId = $selection.patientId
 $patientContext = $selection.patientContext
 ```
 
-The context is short-lived. Never substitute the NIN for `$logicalPatientId`.
+Context er short-lived. Erstatt aldri `$logicalPatientId` med NIN.
 
-## Local POST search by configured synthetic NIN
+## POST search med NIN
 
-Only the explicit local `DevelopmentTestMode` supports searching directly with an approved synthetic NIN. Read it interactively so it is not written into the command line, and send it in a form body rather than a URL. These three POST searches do not use `$headers` or `X-Patient-Context`:
+Les NIN inn interaktivt slik at det ikke skrives på command line, og send det i en form body i stedet for en URL. Disse tre POST searches bruker ikke `X-Patient-Context`:
 
 ```powershell
-$approvedSyntheticNin = Read-Host "Approved configured synthetic NIN"
+$patientNin = Read-Host "NIN"
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Patient/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ identifier = $approvedSyntheticNin }
+  -Body @{ identifier = $patientNin }
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Observation/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+  -Body @{ "patient.identifier" = $patientNin }
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Encounter/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+  -Body @{ "patient.identifier" = $patientNin }
 ```
 
-The NIN must match one configured alias. The returned resources use that alias's logical ID and never include the NIN. This convenience is unavailable in remote Staging and Production. Never put the NIN in a GET query string.
+I lokal `DevelopmentTestMode` utelates auth headers, NIN må samsvare med ett konfigurert alias, og returnerte resources bruker aliasets logical ID.
 
-## Capability statement
+I autentisert drift og Production skal hvert kall i stedet ha HelseID-headerne nedenfor. `$dpopProof` må opprettes spesielt for den aktuelle POST-URL-en og kan ikke gjenbrukes mellom de tre eksemplene:
 
-`GET /fhir/metadata` is anonymous:
+```powershell
+$authenticatedSearchHeaders = @{
+  Authorization = "DPoP $accessToken"
+  DPoP = $dpopProof
+  Accept = "application/fhir+json"
+}
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/fhir/Patient/_search" `
+  -Headers $authenticatedSearchHeaders `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{ identifier = $patientNin }
+```
+
+Det autentiserte tokenet må oppfylle fasadens `population.read`-policy. Responsen bruker en stabil HMAC-pseudonym patient ID og inneholder aldri NIN. Legg aldri NIN i en GET query string.
+
+## CapabilityStatement
+
+`GET /fhir/metadata` er anonymous:
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/metadata" -Headers @{ Accept = "application/fhir+json" }
@@ -79,20 +98,20 @@ Invoke-RestMethod -Uri "$facadeBase/fhir/Patient/$logicalPatientId" -Headers $he
 
 ## Observation search
 
-All populated observations:
+Alle populated observations:
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId" -Headers $headers
 ```
 
-A stable facade fact (`system|code` is URI-encoded by `EscapeDataString`):
+Et stabilt facade fact (`system|code` URI-encodes av `EscapeDataString`):
 
 ```powershell
 $token = [Uri]::EscapeDataString("urn:nhn:population-data|pre-pregnancy-bmi")
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" -Headers $headers
 ```
 
-Latest recorded gestational age:
+Sist registrerte gestational age:
 
 ```powershell
 $token = [Uri]::EscapeDataString("urn:nhn:population-data|recorded-gestational-age")
@@ -105,4 +124,4 @@ Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&c
 Invoke-RestMethod -Uri "$facadeBase/fhir/Encounter?patient=$logicalPatientId" -Headers $headers
 ```
 
-An empty supported search returns a `searchset` Bundle with `total=0`. Authentication, patient-context, source, or contract failures return a FHIR `OperationOutcome` with an appropriate HTTP status.
+Et tomt, støttet search returnerer en `searchset` Bundle med `total=0`. Feil knyttet til authentication, patient-context, source eller contract returnerer et FHIR `OperationOutcome` med passende HTTP status.

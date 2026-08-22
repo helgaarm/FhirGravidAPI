@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
@@ -11,10 +12,27 @@ public sealed class PatientContextOptions
     public const string SectionName = "PatientContext";
     public string HeaderName { get; set; } = "X-Patient-Context";
     public TimeSpan Lifetime { get; set; } = TimeSpan.FromMinutes(10);
+    public string PatientIdHmacKey { get; set; } = string.Empty;
     public Dictionary<string, SyntheticPatientOptions> TestAliases { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public static bool IsNationalIdentityNumberFormat(string value) =>
         value.Length == 11 && value.All(char.IsAsciiDigit);
+
+    public static bool IsPatientIdHmacKeyValid(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try
+        {
+            var key = Convert.FromBase64String(value);
+            var valid = key.Length >= 32;
+            CryptographicOperations.ZeroMemory(key);
+            return valid;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 }
 
 public sealed class SyntheticPatientOptions
@@ -34,6 +52,56 @@ public sealed record PatientContextPayload(
     string NationalIdentityNumber,
     string AuthenticatedSubject,
     DateTimeOffset ExpiresAt);
+
+public interface IPatientIdPseudonymizer
+{
+    string CreateLogicalId(string nationalIdentityNumber);
+}
+
+public sealed class PatientIdPseudonymizer : IPatientIdPseudonymizer, IDisposable
+{
+    private readonly byte[] key;
+
+    public PatientIdPseudonymizer(IOptions<PatientContextOptions> options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Value.PatientIdHmacKey))
+        {
+            key = [];
+            return;
+        }
+
+        try
+        {
+            key = Convert.FromBase64String(options.Value.PatientIdHmacKey);
+        }
+        catch (FormatException)
+        {
+            key = [];
+        }
+    }
+
+    public string CreateLogicalId(string nationalIdentityNumber)
+    {
+        if (key.Length < 32)
+            throw new InvalidOperationException(
+                "PatientContext:PatientIdHmacKey must be a Base64-encoded secret of at least 32 bytes.");
+        Span<byte> identifierBytes = stackalloc byte[nationalIdentityNumber.Length];
+        for (var index = 0; index < nationalIdentityNumber.Length; index++)
+            identifierBytes[index] = (byte)nationalIdentityNumber[index];
+
+        Span<byte> hash = stackalloc byte[32];
+        HMACSHA256.HashData(key, identifierBytes, hash);
+        CryptographicOperations.ZeroMemory(identifierBytes);
+        var encoded = Convert.ToBase64String(hash)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '.');
+        CryptographicOperations.ZeroMemory(hash);
+        return $"patient-{encoded}";
+    }
+
+    public void Dispose() => CryptographicOperations.ZeroMemory(key);
+}
 
 public sealed class PatientContextTokenService : IPatientContextTokenService
 {
@@ -95,6 +163,7 @@ public sealed class PatientContextTokenService : IPatientContextTokenService
 
 public sealed class PatientRequestContextFactory(
     IPatientContextTokenService tokenService,
+    IPatientIdPseudonymizer patientIdPseudonymizer,
     IOptions<PatientContextOptions> options,
     IOptions<DevelopmentTestModeOptions> developmentTestMode,
     IHostEnvironment hostEnvironment)
@@ -118,13 +187,7 @@ public sealed class PatientRequestContextFactory(
 
         var subjectToken = string.Empty;
         if (!developmentTestMode.Value.Enabled)
-        {
-            var authorization = httpContext.Request.Headers.Authorization.ToString();
-            var separator = authorization.IndexOf(' ');
-            if (separator <= 0 || separator == authorization.Length - 1)
-                throw new PopulationDataException(PopulationErrorKind.Unauthorized, "An incoming HelseID access token is required.");
-            subjectToken = authorization[(separator + 1)..];
-        }
+            subjectToken = ReadSubjectToken(httpContext);
 
         return new PatientRequestContext(
             payload.LogicalId,
@@ -133,18 +196,38 @@ public sealed class PatientRequestContextFactory(
             httpContext.TraceIdentifier);
     }
 
-    public PatientRequestContext CreateForConfiguredTestNin(
+    public PatientRequestContext CreateForNinSearch(
         HttpContext httpContext,
         string nationalIdentityNumber)
     {
-        if (!developmentTestMode.Value.Enabled || !hostEnvironment.IsDevelopment())
-            throw new PopulationDataException(
-                PopulationErrorKind.Forbidden,
-                "NIN-based form search is available only in local Development Test mode.");
         if (!PatientContextOptions.IsNationalIdentityNumberFormat(nationalIdentityNumber))
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
                 "The patient identifier must contain exactly 11 digits.");
+
+        if (developmentTestMode.Value.Enabled)
+            return CreateForConfiguredTestNin(httpContext, nationalIdentityNumber);
+
+        if (string.IsNullOrWhiteSpace(httpContext.User.FindFirst("sub")?.Value))
+            throw new PopulationDataException(
+                PopulationErrorKind.Unauthorized,
+                "An authenticated HelseID subject is required.");
+
+        return new PatientRequestContext(
+            patientIdPseudonymizer.CreateLogicalId(nationalIdentityNumber),
+            nationalIdentityNumber,
+            ReadSubjectToken(httpContext),
+            httpContext.TraceIdentifier);
+    }
+
+    private PatientRequestContext CreateForConfiguredTestNin(
+        HttpContext httpContext,
+        string nationalIdentityNumber)
+    {
+        if (!hostEnvironment.IsDevelopment())
+            throw new PopulationDataException(
+                PopulationErrorKind.Forbidden,
+                "Anonymous NIN-based form search is available only in local Development Test mode.");
 
         var patient = options.Value.TestAliases.Values.SingleOrDefault(candidate =>
             string.Equals(
@@ -161,5 +244,16 @@ public sealed class PatientRequestContextFactory(
             patient.NationalIdentityNumber,
             string.Empty,
             httpContext.TraceIdentifier);
+    }
+
+    private static string ReadSubjectToken(HttpContext httpContext)
+    {
+        var authorization = httpContext.Request.Headers.Authorization.ToString();
+        var separator = authorization.IndexOf(' ');
+        if (separator <= 0 || separator == authorization.Length - 1)
+            throw new PopulationDataException(
+                PopulationErrorKind.Unauthorized,
+                "An incoming HelseID access token is required.");
+        return authorization[(separator + 1)..];
     }
 }

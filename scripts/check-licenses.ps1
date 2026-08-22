@@ -92,7 +92,7 @@ if (-not (Test-Path -LiteralPath $Notice)) {
 }
 $noticeText = Get-Content -LiteralPath $Notice -Raw
 $licenseCounts = $inventory | Group-Object License
-if ($noticeText -notmatch [regex]::Escape("contains $($inventory.Count) unique package/version pairs")) {
+if (-not $noticeText.Contains("$($inventory.Count) unike package/version pairs")) {
     throw "$Notice does not contain the current NuGet package count ($($inventory.Count))."
 }
 foreach ($licenseCount in $licenseCounts) {

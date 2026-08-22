@@ -25,14 +25,10 @@ var dhg = builder.Configuration.GetSection(DhgOptions.SectionName).Get<DhgOption
 var productionSecurityBoundary = builder.Environment.IsProduction() ||
                                  dhg.Environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
 var localDevelopmentTestMode = developmentTestMode.Enabled && builder.Environment.IsDevelopment();
-var remoteStagingTestMode = developmentTestMode.Enabled &&
-                            developmentTestMode.AllowRemoteStaging &&
-                            builder.Environment.IsStaging();
 if (developmentTestMode.Enabled &&
-    ((!localDevelopmentTestMode && !remoteStagingTestMode) ||
-     !dhg.Environment.Equals("Test", StringComparison.OrdinalIgnoreCase)))
+    (!localDevelopmentTestMode || !dhg.Environment.Equals("Test", StringComparison.OrdinalIgnoreCase)))
     throw new InvalidOperationException(
-        "DevelopmentTestMode requires Dhg:Environment=Test and either a Development host or an explicitly allowed remote Staging host.");
+        "DevelopmentTestMode requires Dhg:Environment=Test and a Development host.");
 if (localDevelopmentTestMode)
 {
     var configuredListenerUrls = (builder.Configuration["urls"] ?? string.Empty)
@@ -79,10 +75,14 @@ builder.Services.AddOptions<PatientContextOptions>()
             .Distinct(StringComparer.Ordinal)
             .Count() == options.TestAliases.Count,
         "Every PatientContext:TestAliases entry must use a unique NationalIdentityNumber.")
+    .Validate(options => developmentTestMode.Enabled ||
+                         PatientContextOptions.IsPatientIdHmacKeyValid(options.PatientIdHmacKey),
+        "PatientContext:PatientIdHmacKey must be a Base64-encoded secret of at least 32 bytes outside DevelopmentTestMode.")
     .Validate(options => !productionSecurityBoundary || options.TestAliases.Count == 0,
         "PatientContext:TestAliases must be empty when the host or DHG environment is Production.")
     .ValidateOnStart();
 builder.Services.AddSingleton<IPatientContextTokenService, PatientContextTokenService>();
+builder.Services.AddSingleton<IPatientIdPseudonymizer, PatientIdPseudonymizer>();
 builder.Services.AddScoped<PatientRequestContextFactory>();
 
 var helseId = builder.Configuration.GetSection(HelseIdOptions.SectionName).Get<HelseIdOptions>() ?? new HelseIdOptions();
@@ -292,9 +292,7 @@ if (swaggerEnabled)
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
-app.MapPopulationFhirApi(
-    requireAuthorization: !developmentTestMode.Enabled,
-    enableDevelopmentNinSearch: localDevelopmentTestMode);
+app.MapPopulationFhirApi(requireAuthorization: !developmentTestMode.Enabled);
 
 var patientContextEndpoint = app.MapPost("/test/patient-context/{alias}", (
         string alias,
@@ -313,7 +311,7 @@ var patientContextEndpoint = app.MapPost("/test/patient-context/{alias}", (
     })
     .WithTags("Test support")
     .WithDescription(
-        "Looks up a configured synthetic DHG Test alias and returns its logical FHIR patientId plus a short-lived protected patientContext. The patientId is not the NIN. Disabled in production.");
+        "Slår opp et konfigurert syntetisk DHG Test-alias og returnerer logical FHIR patientId samt en short-lived protected patientContext. patientId er ikke NIN. Deaktivert i production.");
 
 if (!developmentTestMode.Enabled)
     patientContextEndpoint.RequireAuthorization("population.read");

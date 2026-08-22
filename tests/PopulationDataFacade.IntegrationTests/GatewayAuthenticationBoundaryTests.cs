@@ -177,6 +177,7 @@ public sealed class RealGatewayAuthenticationFactory : WebApplicationFactory<Pro
         builder.UseSetting("HelseId:ClientId", "gateway-boundary-integration-client");
         builder.UseSetting("HelseId:ClientAssertionJwk", privateJwk);
         builder.UseSetting("HelseId:DPoPJwk", privateJwk);
+        builder.UseSetting("PatientContext:PatientIdHmacKey", ProductionSwaggerFactory.PatientIdHmacKey);
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureTestServices(services =>
         {

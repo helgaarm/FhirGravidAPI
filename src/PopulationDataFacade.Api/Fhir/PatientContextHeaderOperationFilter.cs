@@ -11,10 +11,10 @@ public sealed class PatientContextHeaderOperationFilter(
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var path = context.ApiDescription.RelativePath;
-        var developmentNinSearch =
+        var ninSearch =
             context.ApiDescription.HttpMethod?.Equals("POST", StringComparison.OrdinalIgnoreCase) == true &&
             path?.EndsWith("/_search", StringComparison.OrdinalIgnoreCase) == true;
-        if (developmentNinSearch)
+        if (ninSearch)
         {
             var identifierName = path!.StartsWith("fhir/Patient/", StringComparison.OrdinalIgnoreCase)
                 ? "identifier"
@@ -24,7 +24,7 @@ public sealed class PatientContextHeaderOperationFilter(
                 [identifierName] = new()
                 {
                     Type = "string",
-                    Description = "Approved configured synthetic NIN. Sent in the form body and never returned."
+                    Description = "NIN sendes i form body og returneres aldri. Krever HelseID utenfor lokal DevelopmentTestMode."
                 }
             };
             if (path.StartsWith("fhir/Observation/", StringComparison.OrdinalIgnoreCase))
@@ -32,7 +32,7 @@ public sealed class PatientContextHeaderOperationFilter(
                 properties["code"] = new OpenApiSchema
                 {
                     Type = "string",
-                    Description = "Optional system|code Observation filter."
+                    Description = "Valgfritt system|code Observation filter."
                 };
             }
 
@@ -67,7 +67,7 @@ public sealed class PatientContextHeaderOperationFilter(
             Name = options.Value.HeaderName,
             In = ParameterLocation.Header,
             Required = true,
-            Description = "Protected patient context returned by POST /test/patient-context/{alias}.",
+            Description = "Protected patient context returnert av POST /test/patient-context/{alias}.",
             Schema = new OpenApiSchema { Type = "string" }
         });
     }

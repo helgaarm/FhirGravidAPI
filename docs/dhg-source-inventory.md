@@ -1,24 +1,24 @@
 # DHG source inventory
 
-This inventory describes the DHG read model used by the facade. DHG remains the only runtime source. The API first reads `/status`, requires explicit consent and an active record, then reads `/record/{latestRecordId}` and verifies matching identity and `ACTIVE` status.
+Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt eneste runtime source. API-et leser først `/status`, krever eksplisitt consent og en active record, leser deretter `/record/{latestRecordId}` og verifiserer samsvarende identitet og `ACTIVE` status.
 
-| DHG resource area | DTO support | Exposed in the first FHIR surface |
+| DHG resource area | DTO support | Eksponert i første FHIR surface |
 |---|---|---|
-| `mother` | Yes | Preferred language and interpreter need only |
-| `currentPregnancy` | Yes | Explicit dates, fetal count, assisted conception, counselling flags |
-| `previousPregnancies` | Yes | Explicit counters and unparsed note |
-| `geneticDisorders` | Yes | Explicit nullable booleans and unparsed note |
-| `medicalConditions` | Yes | Explicit nullable booleans and unparsed note |
-| `medication` | Yes | Frequency, allergy and folate facts; no inferred medicine names |
-| `lifestyleFactors` | Yes | Explicit coded stimuli and frequency components |
-| `clinicalTests` | Yes | Explicit results with conservative facade/authoritative terminology |
-| `rhesusDNegative` | Yes | Consent, result, result date and prophylaxis |
-| `vitalMeasurementsBeforePregnancy` | Yes | Height, pre-pregnancy weight and BMI |
-| `symphysisFundalHeights` | Yes | Measurement, date and pregnancy week |
-| `antenatalAppointments` | Yes | Encounter dates and explicit measurements/findings |
-| `pointsOfContact` | Yes | Not exposed; the facade is not a directory/demographics source |
-| `birthStatus` | Yes | Not exposed in the active-pregnancy first release |
+| `mother` | Ja | Bare preferred language og behov for tolk |
+| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted conception og counselling flags |
+| `previousPregnancies` | Ja | Eksplisitte counters og uparset note |
+| `geneticDisorders` | Ja | Eksplisitte nullable booleans og uparset note |
+| `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note |
+| `medication` | Ja | Frequency-, allergy- og folate-fakta; ingen infererte legemiddelnavn |
+| `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
+| `clinicalTests` | Ja | Eksplisitte resultater med konservativ facade/authoritative terminology |
+| `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
+| `vitalMeasurementsBeforePregnancy` | Ja | Høyde, pre-pregnancy weight og BMI |
+| `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
+| `antenatalAppointments` | Ja | Encounter-datoer og eksplisitte measurements/findings |
+| `pointsOfContact` | Ja | Ikke eksponert; fasaden er ikke en directory/demographics source |
+| `birthStatus` | Ja | Ikke eksponert i første release for active pregnancy |
 
-Every resource DTO accepts unknown JSON properties for forward compatibility. Exact property names remain case-sensitive, including `bMI`. Resources marked `metadata.enteredInError=true` are excluded. See [the mapping matrix](mapping.md) for field-level behavior.
+Hver resource DTO aksepterer ukjente JSON properties for forward compatibility. Eksakte property names er fortsatt case-sensitive, inkludert `bMI`. Resources merket `metadata.enteredInError=true` ekskluderes. Se [mappingmatrisen](mapping.md) for oppførsel på feltnivå.
 
-Source reference: [NHN DHG resource documentation](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/api/resourcesmd/). Revalidate it before a contract or terminology upgrade.
+Source-referanse: [NHN DHG resource-dokumentasjon](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/api/resourcesmd/). Valider den på nytt før en contract- eller terminology-oppgradering.

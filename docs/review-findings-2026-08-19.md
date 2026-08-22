@@ -1,35 +1,35 @@
-# Review findings — 2026-08-19
+# Review-funn — 2026-08-19
 
-Three independent, report-only repository reviewers were run against the approved Word brief, implementation, tests, configuration and documentation:
+Tre uavhengige report-only repository reviewers ble kjørt mot godkjent Word-brief, implementasjon, tester, konfigurasjon og dokumentasjon:
 
-- documentation drift reviewer;
-- full-stack code reviewer;
-- test-gap reviewer.
+- documentation drift reviewer
+- full-stack code reviewer
+- test-gap reviewer
 
-## Addressed in this pass
+## Håndtert i denne gjennomgangen
 
-- Added the three reusable reviewer definitions under `.codex/agents`.
-- Removed dynamic DHG record IDs from custom telemetry and filtered generic DHG URL spans.
-- Bound protected patient contexts to the authenticated HelseID subject and added cross-subject replay coverage.
-- Rejected unsupported DHG environment names and empty facade scope at startup.
-- Added timeout retry and both `Retry-After` forms.
-- Preserved historical appointment gestational age while emitting exactly one latest value.
-- Removed invented local strings from the NLK namespace and corrected hemoglobin to the currently verified `g/dL` unit.
-- Avoided inferred Patient, Observation and Encounter status claims.
-- Corrected vital-sign categories, fetal-heart-rate quantity typing and standalone fetal RhD result date.
-- Made 401/403 responses consistently return FHIR `OperationOutcome`.
-- Added no-store/security headers and configurable patient-context header handling to the test client.
-- Added active-record/consent, privacy telemetry, retry, mapping, configuration, authorization and replay regression tests.
-- Added the documentation artifacts and query examples required by the brief.
+- La til de tre gjenbrukbare reviewer-definisjonene under `.codex/agents`.
+- Fjernet dynamiske DHG record IDs fra custom telemetry og filtrerte generiske DHG URL spans.
+- Bandt beskyttede patient contexts til autentisert HelseID subject og la til cross-subject replay coverage.
+- Avviste unsupported DHG environment names og tom facade scope ved startup.
+- La til timeout retry og begge `Retry-After`-formene.
+- Bevarte historisk gestational age per appointment samtidig som nøyaktig én siste verdi emittes.
+- Fjernet oppdiktede lokale strings fra NLK namespace og korrigerte hemoglobin til gjeldende verifiserte `g/dL` unit.
+- Unngikk infererte status claims for Patient, Observation og Encounter.
+- Korrigerte vital-sign categories, quantity typing for fetal heart rate og separat resultatdato for fosterets RhD.
+- Sørget for at 401/403-responses konsekvent returnerer FHIR `OperationOutcome`.
+- La til no-store/security headers og konfigurerbar håndtering av patient-context header i testklienten.
+- La til regression tests for active record/consent, privacy telemetry, retry, mapping, konfigurasjon, authorization og replay.
+- La til documentation artifacts og query-eksempler som briefen krevde.
 
-## Remaining release blockers
+## Gjenværende release blockers
 
-- No approved production patient-context authority or interoperability protocol exists.
-- No opt-in real HelseID Test → token exchange → DHG `/status` → `/record` smoke test exists.
-- Clinical terminology ownership has not approved every code, unit, FHIR datatype/category/status and consumer meaning.
-- Meaningful readiness, shared encrypted Data Protection storage, trusted proxy/canonical URL configuration, exact host allowlists, locked restore/CI security gates and immutable image policy remain deployment work.
-- The test client remains a generic resource browser rather than the full eight-area workflow requested by the brief.
+- Det finnes ingen godkjent production patient-context authority eller interoperability protocol.
+- Det finnes ingen opt-in reell HelseID Test → token exchange → DHG `/status` → `/record` smoke test.
+- Clinical terminology owner har ikke godkjent alle codes, units, FHIR datatypes/categories/statuses og consumer meaning.
+- Meaningful readiness, delt kryptert Data Protection storage, trusted proxy/canonical URL-konfigurasjon, eksakte host allowlists, locked restore/CI security gates og immutable image policy gjenstår som deployment-arbeid.
+- Testklienten er fortsatt en generisk resource browser, ikke den komplette workflowen med åtte områder som briefen etterspurte.
 
-## Verification
+## Verifikasjon
 
-After the fixes, a serialized solution build completed with zero warnings and zero errors. All 35 tests passed: 3 contract, 7 integration and 25 unit tests. No real external HelseID/DHG call was made.
+Etter rettingene fullførte et serialisert solution build med null warnings og null errors. Alle 35 tester passerte: 3 contract-, 7 integration- og 25 unit tests. Ingen reelle eksterne HelseID/DHG calls ble utført.

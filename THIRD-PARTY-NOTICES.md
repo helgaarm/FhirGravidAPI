@@ -1,28 +1,28 @@
-# Third-party dependencies and licenses
+# Third-party dependencies og lisenser
 
-The original source code in this repository is licensed under the [MIT License](LICENSE). That license does not relicense third-party packages, tools, container layers, standards, or services. Each third-party component remains subject to its own terms.
+Original source code i dette repositoryet er lisensiert under [MIT License](LICENSE). Denne lisensen relisensierer ikke third-party packages, tools, container layers, standards eller services. Hver third-party component er fortsatt underlagt sine egne vilkår.
 
-This inventory was produced on 2026-08-20 from `Directory.Packages.props`, all project files, the resolved `net9.0` NuGet graph, `auth-gateway/go.mod`, the packages' embedded license metadata, both Dockerfiles, and the GitHub Actions workflow. It is a compliance aid, not legal advice. Recreate and review the inventory after every dependency or base-image update.
+Denne inventory ble opprettet 2026-08-20 fra `Directory.Packages.props`, alle project files, resolved `net9.0` NuGet graph, `auth-gateway/go.mod`, innebygd license metadata i pakkene, begge Dockerfiles og GitHub Actions workflow. Den er et compliance aid, ikke juridisk rådgivning. Opprett og gjennomgå inventory på nytt etter hver oppdatering av dependency eller base image.
 
 ## License summary
 
-The resolved NuGet graph contains 121 unique package/version pairs across the production and test projects:
+Resolved NuGet graph inneholder 121 unike package/version pairs på tvers av production- og test-projects:
 
-| Declared license | Package/version pairs | Included license text or authoritative terms |
+| Declared license | Package/version pairs | Inkludert license text eller authoritative terms |
 | --- | ---: | --- |
 | MIT | 95 | [SPDX MIT](https://spdx.org/licenses/MIT.html) |
 | Apache-2.0 | 19 | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) |
 | BSD-3-Clause | 7 | [SPDX BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html) |
 
-## Dependency license policy
+## Policy for dependency licenses
 
-All currently resolved NuGet packages use MIT, Apache-2.0, or BSD-3-Clause. Packages with a custom, missing, file-based, or otherwise unapproved license are rejected by `scripts/check-licenses.ps1`, which runs in CI after restore.
+Alle resolved NuGet packages bruker MIT, Apache-2.0 eller BSD-3-Clause. Packages med custom, missing, file-based eller en annen ikke-godkjent license avvises av `scripts/check-licenses.ps1`, som kjører i CI etter restore.
 
-Adding another license requires an explicit architectural and legal review plus an update to both the allowlist and this notice. Prefer replacing a package over adding a non-standard or commercial runtime license.
+Tillegg av en ny license krever eksplisitt architecture- og legal review samt oppdatering av både allowlist og dette notice. Foretrekk å erstatte en package fremfor å legge til en non-standard eller commercial runtime license.
 
-## Direct NuGet dependencies
+## Direkte NuGet dependencies
 
-`Use` identifies whether the dependency is part of the application or only the test toolchain.
+`Use` angir om dependency er en del av applikasjonen eller bare test toolchain.
 
 | Package | Declared version | License | Use |
 | --- | --- | --- | --- |
@@ -46,21 +46,21 @@ Adding another license requires an explicit architectural and legal review plus 
 
 ## Resolved transitive dependency families
 
-Some package IDs resolve at more than one version because the production and test project graphs differ. The following list covers every transitive package family in the current restore.
+Noen package IDs resolves i mer enn én version fordi production- og test-project graphs er forskjellige. Listen nedenfor dekker alle transitive package families i gjeldende restore.
 
-| License | Packages and resolved versions |
+| License | Packages og resolved versions |
 | --- | --- |
 | Apache-2.0 | `OpenTelemetry`, `OpenTelemetry.Api`, `OpenTelemetry.Api.ProviderBuilderExtensions` 1.17.0; `xunit.analyzers` 1.27.0; `xunit.v3.assert`, `xunit.v3.common`, `xunit.v3.core.mtp-v1`, `xunit.v3.extensibility.core`, `xunit.v3.mtp-v1`, `xunit.v3.runner.common`, `xunit.v3.runner.inproc.console` 3.2.2 |
 | BSD-3-Clause | `Fhir.Metrics` 1.3.1; `Hl7.Fhir.Base`, `Hl7.Fhir.Conformance` 6.3.0; `Polly.Core`, `Polly.Extensions`, `Polly.RateLimiting` 8.4.2 |
-| MIT | `Microsoft.ApplicationInsights` 2.23.0; `Microsoft.AspNetCore.TestHost` 9.0.19; `Microsoft.Bcl.AsyncInterfaces` 6.0.0; `Microsoft.Bcl.Cryptography` 10.0.2; `Microsoft.Bcl.Memory` 10.0.4; `Microsoft.CodeCoverage` 18.0.1; all resolved `Microsoft.Extensions.*` packages (8.0.0–8.0.2, 9.0.0, 9.0.11, 9.0.19, 10.0.0, 10.0.4); all resolved `Microsoft.IdentityModel.*` packages 8.19.2; `Microsoft.NETCore.Platforms` 5.0.0; `Microsoft.OpenApi` 1.6.25; `Microsoft.Testing.*` packages 1.9.1; `Microsoft.TestPlatform.ObjectModel`, `Microsoft.TestPlatform.TestHost` 18.0.1; `Microsoft.Win32.Registry` 5.0.0; `Newtonsoft.Json` 13.0.4; `Swashbuckle.AspNetCore.Swagger`, `Swashbuckle.AspNetCore.SwaggerGen`, `Swashbuckle.AspNetCore.SwaggerUI` 9.0.6; `System.Collections.Immutable` 8.0.0; `System.ComponentModel.Annotations` 5.0.0; `System.Diagnostics.DiagnosticSource` 10.0.4; `System.Diagnostics.EventLog` 9.0.19; `System.IdentityModel.Tokens.Jwt` 8.0.1 and 8.19.2; `System.Reflection.Emit.Lightweight` 4.7.0; `System.Reflection.Metadata` 8.0.0; `System.Security.AccessControl`, `System.Security.Principal.Windows` 5.0.0; `System.Threading.RateLimiting` 8.0.0 |
+| MIT | `Microsoft.ApplicationInsights` 2.23.0; `Microsoft.AspNetCore.TestHost` 9.0.19; `Microsoft.Bcl.AsyncInterfaces` 6.0.0; `Microsoft.Bcl.Cryptography` 10.0.2; `Microsoft.Bcl.Memory` 10.0.4; `Microsoft.CodeCoverage` 18.0.1; alle resolved `Microsoft.Extensions.*` packages (8.0.0–8.0.2, 9.0.0, 9.0.11, 9.0.19, 10.0.0, 10.0.4); alle resolved `Microsoft.IdentityModel.*` packages 8.19.2; `Microsoft.NETCore.Platforms` 5.0.0; `Microsoft.OpenApi` 1.6.25; `Microsoft.Testing.*` packages 1.9.1; `Microsoft.TestPlatform.ObjectModel`, `Microsoft.TestPlatform.TestHost` 18.0.1; `Microsoft.Win32.Registry` 5.0.0; `Newtonsoft.Json` 13.0.4; `Swashbuckle.AspNetCore.Swagger`, `Swashbuckle.AspNetCore.SwaggerGen`, `Swashbuckle.AspNetCore.SwaggerUI` 9.0.6; `System.Collections.Immutable` 8.0.0; `System.ComponentModel.Annotations` 5.0.0; `System.Diagnostics.DiagnosticSource` 10.0.4; `System.Diagnostics.EventLog` 9.0.19; `System.IdentityModel.Tokens.Jwt` 8.0.1 og 8.19.2; `System.Reflection.Emit.Lightweight` 4.7.0; `System.Reflection.Metadata` 8.0.0; `System.Security.AccessControl`, `System.Security.Principal.Windows` 5.0.0; `System.Threading.RateLimiting` 8.0.0 |
 
-Direct dependencies can also appear transitively in other projects. Their license remains the one recorded in the direct-dependency table.
+Direkte dependencies kan også forekomme transitively i andre projects. Deres license er fortsatt den som er registrert i tabellen over direct dependencies.
 
-NuGet marks `Microsoft.NETCore.Platforms` 5.0.0 and `System.Security.AccessControl` 5.0.0 as legacy. They are accepted only as exact-version transitive dependencies of the test projects and are not part of the application runtime graph. `scripts/check-nuget-deprecations.ps1` rejects these packages if they become direct/runtime dependencies and rejects every other deprecation until it is upgraded or explicitly reviewed.
+NuGet markerer `Microsoft.NETCore.Platforms` 5.0.0 og `System.Security.AccessControl` 5.0.0 som legacy. De godtas bare som exact-version transitive dependencies i test-projects og er ikke en del av application runtime graph. `scripts/check-nuget-deprecations.ps1` avviser disse pakkene hvis de blir direct/runtime dependencies, og avviser alle andre deprecations frem til de er oppgradert eller eksplisitt gjennomgått.
 
-## Go authentication gateway dependencies
+## Dependencies for Go authentication gateway
 
-The inbound HelseID/DPoP gateway uses only standard open-source licenses. `AxisCommunications/go-dpop` is the DPoP implementation recommended by HelseID for Go APIs; the repository adds HelseID-specific access-token, proof-age, replay, scope, and deployment-boundary checks around it.
+Inbound HelseID/DPoP gateway bruker bare standard open-source licenses. `AxisCommunications/go-dpop` er DPoP implementation som HelseID anbefaler for Go APIs. Repositoryet legger HelseID-spesifikke kontroller for access token, proof age, replay, scope og deployment boundary rundt denne.
 
 | Module | Version | License | Use |
 | --- | --- | --- | --- |
@@ -69,9 +69,9 @@ The inbound HelseID/DPoP gateway uses only standard open-source licenses. `AxisC
 | [golang-jwt/jwt](https://github.com/golang-jwt/jwt) | 5.3.1 | MIT | Runtime access-token validation |
 | [redis/go-redis](https://github.com/redis/go-redis) | 9.22.0 | BSD-2-Clause | Runtime atomic multi-replica replay store |
 
-Resolved runtime transitive modules are `MicahParks/jwkset` 0.11.1 (Apache-2.0), `cespare/xxhash/v2` 2.3.0 (MIT), `go.uber.org/atomic` 1.11.0 (MIT), and `golang.org/x/sys` 0.47.0 plus `golang.org/x/time` 0.15.0 (BSD-3-Clause). `alicebob/miniredis/v2` 2.38.0 and `yuin/gopher-lua` 1.1.1 are test-only and are not linked into the gateway binary. Other test-only checksums may appear in `go.sum` because upstream modules declare their own tests.
+Resolved runtime transitive modules er `MicahParks/jwkset` 0.11.1 (Apache-2.0), `cespare/xxhash/v2` 2.3.0 (MIT), `go.uber.org/atomic` 1.11.0 (MIT), samt `golang.org/x/sys` 0.47.0 og `golang.org/x/time` 0.15.0 (BSD-3-Clause). `alicebob/miniredis/v2` 2.38.0 og `yuin/gopher-lua` 1.1.1 er test-only og linkes ikke inn i gateway binary. Andre test-only checksums kan finnes i `go.sum`, fordi upstream modules deklarerer egne tests.
 
-The exact runtime module allowlist enforced by CI is:
+Eksakt runtime module allowlist som håndheves av CI er:
 
 ```text
 github.com/AxisCommunications/go-dpop|v1.1.2
@@ -87,40 +87,38 @@ golang.org/x/time|v0.15.0
 
 ## Container images
 
-The Docker build uses these immutable image references:
+Docker build bruker disse immutable image references:
 
-| Image | Role | Licensing note |
+| Image | Rolle | License note |
 | --- | --- | --- |
-| `mcr.microsoft.com/dotnet/sdk:9.0.317-bookworm-slim@sha256:35048e3a81e6a07c316e7bbbd80d80d2ba705fe5f23a8ed42b6638c8f4c20d30` | Build stage only | The .NET Docker repository is MIT, while the image includes .NET, PowerShell, a Linux base, and other components under their own licenses. |
-| `mcr.microsoft.com/dotnet/aspnet:9.0.19-bookworm-slim@sha256:4e376dd15bbc8437d4892367ab0ea06a3ac9fea482d10f92f3c493fe1a2219ad` | Distributed runtime image | Includes `/usr/share/dotnet/LICENSE.txt` and `/usr/share/dotnet/ThirdPartyNotices.txt`; Linux packages remain under their individual licenses. |
-| `golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc` | Gateway build stage only | Go is BSD-3-Clause; Alpine packages retain their individual licenses. The distributed gateway runtime is `scratch` plus the binary and CA certificate bundle. |
+| `mcr.microsoft.com/dotnet/sdk:9.0.317-bookworm-slim@sha256:35048e3a81e6a07c316e7bbbd80d80d2ba705fe5f23a8ed42b6638c8f4c20d30` | Bare build stage | .NET Docker repository er MIT, mens image inkluderer .NET, PowerShell, en Linux base og andre components under egne licenses. |
+| `mcr.microsoft.com/dotnet/aspnet:9.0.19-bookworm-slim@sha256:4e376dd15bbc8437d4892367ab0ea06a3ac9fea482d10f92f3c493fe1a2219ad` | Distribuert runtime image | Inkluderer `/usr/share/dotnet/LICENSE.txt` og `/usr/share/dotnet/ThirdPartyNotices.txt`. Linux packages er fortsatt underlagt sine individuelle licenses. |
+| `golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc` | Bare gateway build stage | Go er BSD-3-Clause. Alpine packages beholder sine individuelle licenses. Distribuert gateway runtime er `scratch` med binary og CA certificate bundle. |
 
-Microsoft's [container legal notice](https://aka.ms/mcr/osslegalnotice) explains that container contents may use multiple licenses. The [.NET image license-discovery guide](https://github.com/dotnet/dotnet-docker/blob/main/documentation/image-artifact-details.md) describes how to inspect embedded notices and Linux package metadata.
+Microsofts [container legal notice](https://aka.ms/mcr/osslegalnotice) forklarer at container contents kan bruke flere licenses. [.NET image license-discovery guide](https://github.com/dotnet/dotnet-docker/blob/main/documentation/image-artifact-details.md) beskriver hvordan innebygde notices og Linux package metadata kan inspiseres.
 
-The build stages are pinned by digest. For a release, generate and retain an image SBOM/license report for those exact digests; this repository-level inventory does not enumerate all operating-system packages in the images.
+Build stages er pinned by digest. For en release skal det genereres og oppbevares en image SBOM/license report for disse eksakte digestene. Denne inventory på repository-level lister ikke alle operating-system packages i images.
 
-## Build and deployment tooling
+## Build- og CI tooling
 
-These components support builds or deployment and are not linked into the application binaries:
+Disse components støtter build eller CI og linkes ikke inn i application binaries:
 
 | Component | Version/reference | License |
 | --- | --- | --- |
-| [.NET SDK](https://github.com/dotnet/sdk) | 9.0.317 with latest patch roll-forward | MIT |
-| [Bicep](https://github.com/Azure/bicep) | Version supplied by Azure CLI/GitHub runner | MIT, excluding separately licensed Azure Architecture icons not used here |
+| [.NET SDK](https://github.com/dotnet/sdk) | 9.0.317 med latest patch roll-forward | MIT |
 | [actions/checkout](https://github.com/actions/checkout) | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7`) | MIT |
 | [actions/setup-dotnet](https://github.com/actions/setup-dotnet) | `a98b56852c35b8e3190ac28c8c2271da59106c68` (`v6`) | MIT |
 | [actions/setup-go](https://github.com/actions/setup-go) | `924ae3a1cded613372ab5595356fb5720e22ba16` (`v6`) | MIT |
-| [Azure/login](https://github.com/Azure/login) | `f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca` (`v3`) | MIT |
 
-GitHub-hosted runner software, Azure platform services, Docker tooling, and externally called DHG/HelseID services are governed by their respective terms and are not redistributed by this repository.
+GitHub-hosted runner software, Docker tooling og eksterne DHG/HelseID-services reguleres av sine respektive vilkår og redistribueres ikke av dette repositoryet.
 
 ## FHIR specification material
 
-The application uses the Firely .NET SDK packages under BSD-3-Clause. FHIR names, definitions, code systems, and specification material can also carry HL7 terms that are separate from the SDK's software license. See the [FHIR license and legal terms](https://hl7.org/fhir/license.html) when redistributing specification content or derived artifacts.
+Applikasjonen bruker Firely .NET SDK packages under BSD-3-Clause. FHIR names, definitions, code systems og specification material kan også være underlagt HL7-vilkår som er separate fra SDK-ens software license. Se [FHIR license and legal terms](https://hl7.org/fhir/license.html) ved redistribusjon av specification content eller derived artifacts.
 
-## Refresh procedure
+## Prosedyre for oppdatering
 
-After changing package versions, restore with the repository SDK and inspect the complete graph:
+Etter endring av package versions skal du restore med repository SDK og inspisere komplett graph:
 
 ```powershell
 dotnet restore PopulationDataFacade.slnx --locked-mode
@@ -134,4 +132,4 @@ go mod verify
 Pop-Location
 ```
 
-For each unique package/version pair, verify the `<license>` or `<licenseUrl>` value in the installed package's `.nuspec`. Also re-check the runtime container by digest and update the date, counts, versions, and exceptions in this file.
+For hvert unike package/version pair må `<license>`- eller `<licenseUrl>`-verdien verifiseres i installert packages `.nuspec`. Kontroller også runtime container på nytt etter digest, og oppdater dato, counts, versions og exceptions i denne filen.
