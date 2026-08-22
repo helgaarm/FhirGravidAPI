@@ -20,7 +20,7 @@ flowchart LR
         Telemetry["Telemetry backend"]
     end
 
-    Client -->|"HelseID DPoP token<br/>+ subject-bound context"| Gateway
+    Client -->|"HelseID DPoP token<br/>+ context eller POST form body"| Gateway
     Gateway -->|"Validated request<br/>+ private shared credential"| Api
     Gateway -->|"Discovery / JWKS"| HelseID
     Api --> Infrastructure
@@ -31,7 +31,7 @@ flowchart LR
 
 Development test mode endrer bare de to første pilene: Swagger/FHIR-caller er anonym, og fasaden henter DPoP-bound DHG authorization server-side. Normalt brukes `client_credentials`; en ekstra HelseID TEST-token provider som er disabled by default, kan i stedet opprette et nytt token/proof-par for hver eksakte DHG request, i samsvar med smartOppgaves test flow. Modusen krever lokal Development, loopback-only listeners og en kjent loopback peer; eksponering via proxy, tunnel eller port forwarding er forbudt. Den krever DHG Test og avvises i alle andre environments og mot Production.
 
-FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. En godkjent syntetisk NIN lagres i secret configuration og kan i lokal Development test mode mottas transient i POST form body. Derfra inngår den i request context eller en beskyttet patient context og sendes i påkrevd outbound DHG header. Den er aldri en FHIR logical ID, URL parameter, response field, log field eller telemetry tag. De lokale POST-rutene registreres ikke utenfor lokal Development.
+FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. NIN kan mottas transient i en liten POST form body og inngår derfra i request context før det sendes i påkrevd outbound DHG header. I autentisert drift krever POST-ruten HelseID `population.read` og danner en deterministisk pseudonym FHIR-ID med en separat HMAC-SHA-256 key. I lokal `DevelopmentTestMode` må NIN i stedet matche et konfigurert syntetisk alias. NIN er aldri en FHIR identifier, URL parameter, response field, log field eller telemetry tag.
 
 ## Implementerte controls
 
@@ -41,6 +41,7 @@ FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. En godkj
 - gateway-stripping av caller-supplied internal credentials og deployment ingress rettet bare mot gateway-porten
 - FHIR `OperationOutcome` for authorization- og application failures
 - subject-bound, time-limited Data Protection patient context
+- HelseID-beskyttet POST `_search` med NIN bare i form body og stabil HMAC-pseudonym `Patient.id`; GET-query med NIN avvises
 - gates for consent, deceased, active record, record ID og `ACTIVE` status før mapping
 - HTTPS-only configuration og lukket Test/Production environment validation
 - separate konfigurerte roller for client assertion key og DPoP key
@@ -52,7 +53,8 @@ FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. En godkj
 
 ## Production gates
 
-- implementer og godkjenn production patient-context authority
+- implementer og godkjenn production patient-context authority før de kontekstbaserte GET-operasjonene tas i bruk; HelseID-beskyttet POST `_search` er en separat implementert selection flow
+- lagre og roter `PatientContext:PatientIdHmacKey` som en separat, delt driftshemmelighet; rotasjon endrer pseudonyme patient IDs og må koordineres
 - konfigurer en delt kryptert Data Protection key ring for mer enn én instance
 - konfigurer Redis atomic replay store før mer enn én instance kjøres; memory store nekter startup med mindre single-replica operation er eksplisitt deklarert
 - generer og roter en tilfeldig delt gateway credential på minst 32 bytes, og hold API-porten privat i sidecar network

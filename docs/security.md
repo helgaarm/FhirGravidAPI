@@ -23,15 +23,17 @@ HelseID-kall bruker `private_key_jwt` med:
 
 DPoP-nøkler og assertion-nøkler er separate driftshemmeligheter. Nøkkelrotasjon må koordineres med HelseID-registreringen.
 
-## Pasientkontekst
+## Pasientkontekst og POST search
 
-Fødselsnummer tas aldri fra URL, query eller FHIR-logisk ID. En formålsbundet ASP.NET Data Protection-token inneholder logisk pasient-ID, fødselsnummer, autentisert HelseID-`sub` og utløp. Tokenet sendes i konfigurert pasientkontekst-header; route-/search-ID og innlogget subjekt må matche innholdet. Standard levetid er ti minutter, og svar er merket `Cache-Control: no-store`.
+Fødselsnummer tas aldri fra URL, query eller FHIR-logisk ID. De kontekstbaserte GET-operasjonene bruker en formålsbundet ASP.NET Data Protection-token med logisk pasient-ID, fødselsnummer, autentisert HelseID-`sub` og utløp. Tokenet sendes i konfigurert pasientkontekst-header; route-/search-ID og innlogget subjekt må matche innholdet. Standard levetid er ti minutter, og svar er merket `Cache-Control: no-store`.
 
 Alias-endepunktet er kun støtte for konfigurerte syntetiske DHG Test-personer og finnes ikke i Production. Det krever normalt samme autorisasjon som FHIR-flaten; i eksplisitt Development-testmodus er det anonymt og binder konteksten til det faste konfigurerte test-subjektet. Det returnerer aldri fødselsnummeret.
 
-Kun på en lokal `DevelopmentTestMode`-host kan en konfigurert syntetisk testperson også velges med FHIR POST `_search`. Fødselsnummeret må ligge i en liten `application/x-www-form-urlencoded` body, må matche nøyaktig én konfigurert alias og returneres aldri. GET-query med fødselsnummer støttes ikke. POST-rutene registreres ikke utenfor lokal Development, og request body tas ikke inn i applikasjonens logger eller telemetry.
+FHIR POST `_search` er tilgjengelig i autentisert drift og Production uten `X-Patient-Context`. Fødselsnummeret må ligge i en liten `application/x-www-form-urlencoded` body og returneres aldri. Gatewayen og API-et håndhever HelseID `population.read`; det innkommende subject-tokenet brukes fortsatt i token exchange mot DHG. Fasaden lager en stabil pseudonym FHIR-ID med `HMAC-SHA-256(PatientIdHmacKey, NIN)`. Den separate HMAC key-en må være minst 32 tilfeldige byte, lagres i en godkjent secret store og deles mellom instanser. Rotasjon endrer pseudonyme patient IDs og må koordineres. GET-query med fødselsnummer støttes ikke, og request body tas ikke inn i applikasjonens logger eller telemetry.
 
-Det finnes foreløpig ingen godkjent produksjonsutsteder for pasientkontekst. Produksjon skal ikke åpnes før tillitsprotokoll, autorisasjonsgrunnlag, nøkkelstyring, rotasjon og replay-kontroll er arkitekturgodkjent og testet.
+I lokal `DevelopmentTestMode` er POST-ruten anonym, men fødselsnummeret må matche nøyaktig ett konfigurert syntetisk alias. Aliasets `LogicalId` brukes da i stedet for HMAC-ID.
+
+Det finnes foreløpig ingen godkjent produksjonsutsteder for `X-Patient-Context`. De kontekstbaserte GET-operasjonene skal derfor ikke åpnes før tillitsprotokoll, autorisasjonsgrunnlag, nøkkelstyring, rotasjon og replay-kontroll er arkitekturgodkjent og testet. Dette gjelder ikke den separate HelseID-beskyttede POST `_search`-flyten.
 
 For flere instanser må Data Protection-nøkkelringen lagres i en godkjent, delt og kryptert nøkkeltjeneste. Standard lokal nøkkelring er bare egnet for lokal utvikling eller én instans.
 
@@ -42,6 +44,7 @@ Følgende skal aldri ligge i kildekode, container-image, telemetry eller logger:
 - access-/refresh-token og DPoP proof
 - HelseID TEST-tokenverktøyets auth key
 - private JWK-er
+- `PatientContext:PatientIdHmacKey`
 - fødselsnummer
 - DHG response body eller klinisk FHIR payload
 
@@ -54,12 +57,13 @@ Alle eksterne URL-er må være HTTPS. Test og produksjon valideres som sammenhø
 ## Produksjonssjekkliste
 
 - registrer korrekt facade audience/scope og token-exchange-relasjon i HelseID
-- lagre og roter JWK-er i HSM/Key Vault eller tilsvarende
+- lagre og roter JWK-er i HSM eller en godkjent secret-management-tjeneste
 - konfigurer persistent kryptert Data Protection key ring
 - bruk Redis replay-register med TLS før flere replikaer tas i bruk; minnevarianten er kun tillatt ved eksplisitt én-replika-drift
 - eksponer bare gateway-porten, hold API-port 8081 privat, og roter den delte gateway-hemmeligheten som en driftshemmelighet
+- lagre en separat stabil `PatientContext:PatientIdHmacKey` på minst 32 tilfeldige byte i godkjent secret store, og planlegg eventuell rotasjon som en ID-endring
 - fjern alle testaliaser og sett `ASPNETCORE_ENVIRONMENT=Production`
 - behold Swagger/OpenAPI deaktivert i Production, eller dokumenter behovet, aktiver eksplisitt og verifiser HelseID-beskyttelsen
-- implementer og godkjenn produksjonsutsteder for subjektbundet pasientkontekst
+- implementer og godkjenn produksjonsutsteder før de subjektbundne GET-operasjonene tas i bruk
 - verifiser klokkesynkronisering, egress, sertifikatkjede og OTLP-redigering
 - kjør penetrasjonstest og personvern-/risikovurdering før klinisk bruk

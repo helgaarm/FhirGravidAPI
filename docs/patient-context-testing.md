@@ -1,6 +1,6 @@
 # Pasient-ID og protected context for testing
 
-Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnummeret (NIN). Den logiske `patientId`-verdien velges i configuration. Den genereres ikke fra DHG-data og er aldri NIN.
+Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnummeret (NIN). For test-alias velges den logiske `patientId`-verdien i configuration. For autentisert POST `_search` lages den deterministisk med HMAC. Ingen av variantene henter ID-en fra DHG eller eksponerer NIN.
 
 ## Verdier som brukes i flyten
 
@@ -10,6 +10,7 @@ Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnumm
 | Logical patient ID | `patient-test-1` | FHIR `Patient.id`, route `{id}` og `patient` search value |
 | NIN | godkjent syntetisk verdi | Hemmelig identifier som bare sendes i DHGs obligatoriske outbound header |
 | Patient context | beskyttet opaque string | Short-lived binding mellom logical ID, NIN, subject og expiry |
+| Pseudonym patient ID | `patient-<base64url-hmac>` | Stabil FHIR `Patient.id` for autentisert POST `_search`; kan ikke reverseres uten secret key |
 
 Alias og logical ID er ikke DHG identifiers. En operatør velger stabile, ikke-sensitive navn for dem. Bare konfigurert NIN identifiserer den syntetiske personen overfor DHG.
 
@@ -107,6 +108,33 @@ Invoke-RestMethod `
   -Headers $headers
 ```
 
+## Autentisert POST search med NIN
+
+De tre FHIR POST `_search`-operasjonene er tilgjengelige i autentisert drift, inkludert Production. De krever et HelseID DPoP access-token som oppfyller `population.read`, men ikke `X-Patient-Context`. NIN oppgis bare i en `application/x-www-form-urlencoded` request body. DHGs consent-, personstatus- og active-record-kontroller kjøres som ellers.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as HelseID client
+    participant Gateway as auth-gateway
+    participant Api as Facade API
+    participant HMAC as HMAC pseudonymizer
+    participant DHG as DHG API
+
+    Client->>Gateway: POST _search + DPoP token + NIN form body
+    Gateway->>Gateway: Validate token, scope, DPoP and replay
+    Gateway->>Api: Validated request + internal credential
+    Api->>HMAC: HMAC-SHA-256(secret, NIN)
+    HMAC-->>Api: Stable pseudonym Patient.id
+    Api->>DHG: Authorized status/record calls + NIN header
+    DHG-->>Api: Active record or controlled error
+    Api-->>Client: FHIR Bundle without NIN
+```
+
+`PatientContext:PatientIdHmacKey` må være en Base64-kodet tilfeldig hemmelighet på minst 32 byte og leveres fra en godkjent secret store. Samme key må brukes av alle instanser. Rotasjon endrer de pseudonyme FHIR-ID-ene og krever derfor en eksplisitt migreringsbeslutning. Key-en må aldri gjenbrukes som gateway credential, Data Protection key eller HelseID private key.
+
+DPoP proof er bundet til eksakt HTTP method og URL og må derfor være nytt for hvert POST-kall. Se [FHIR-eksempler](../examples/fhir-queries.md) for request-format. Et ellevesifret, men ukjent NIN går videre til DHG og gir en kontrollert respons basert på DHGs consent/status/record-resultat; fasaden gjengir ikke verdien.
+
 ## Valgfritt lokalt search med syntetisk NIN
 
 En eksplisitt lokal `DevelopmentTestMode` host eksponerer også FHIR POST `_search` operations som ikke krever `X-Patient-Context`. De godtar bare et ellevesifret NIN som er nøyaktig likt ett konfigurert test-alias. NIN oppgis i en `application/x-www-form-urlencoded` request body og returneres aldri. Resources fortsetter å bruke aliasets konfigurerte logiske `patientId`.
@@ -138,7 +166,7 @@ Invoke-RestMethod `
   -Body @{ "patient.identifier" = $approvedSyntheticNin }
 ```
 
-Ikke bruk `GET /fhir/Observation?patient.identifier=<NIN>` eller en tilsvarende Patient/Encounter-URL. Query strings kan bli lagret i browser history, ingress logs, access telemetry og intermediary systems. POST-routene er med hensikt ikke tilgjengelige utenfor lokal Development. Et ukjent eller ikke-konfigurert NIN gir `404` uten å gjengi den oppgitte verdien.
+Ikke bruk `GET /fhir/Observation?patient.identifier=<NIN>` eller en tilsvarende Patient/Encounter-URL. Query strings kan bli lagret i browser history, ingress logs, access telemetry og intermediary systems. Et ukjent eller ikke-konfigurert NIN gir `404` i lokal `DevelopmentTestMode` uten å gjengi den oppgitte verdien. Utenfor denne modusen finnes de samme POST-routene, men da med obligatorisk HelseID og pseudonym HMAC-ID som beskrevet over.
 
 ## Vanlige responser
 
@@ -146,6 +174,8 @@ Ikke bruk `GET /fhir/Observation?patient.identifier=<NIN>` eller en tilsvarende 
 |---:|---|
 | `404` fra Test-support POST | Aliaset er ikke konfigurert. Konfigurer både `LogicalId` og `NationalIdentityNumber`, og start deretter på nytt |
 | `400` fra en FHIR operation | Context header mangler, er ugyldig eller har utløpt. For lokal POST `_search` kan request body også være ugyldig |
+| `401` fra POST `_search` | HelseID access-token mangler eller er ugyldig utenfor lokal `DevelopmentTestMode` |
+| `403` fra POST `_search` | Autentisert subjekt mangler fasadens påkrevde `population.read` scope, eller DHG avviser tilgangen |
 | `404` som sier at pasienten ikke ble funnet i denne context | Logical ID i route/search samsvarer ikke med returnert `patientId` |
 | `403` fra en DHG-backed operation | DHG rapporterer manglende consent eller en annen forbidden state |
 | `404` fra en DHG-backed operation | DHG rapporterer at det ikke finnes en active maternity record eller matchende syntetisk pasient |
@@ -155,4 +185,4 @@ Utsted en ny context etter at lifetime har utløpt, eller etter en application r
 
 ## Environment boundary
 
-Alias-endpointet er test support, ikke en production patient-selection protocol. Det er utilgjengelig når host eller DHG security boundary er Production. En production patient-context authority og trust contract må godkjennes og implementeres før klinisk deployment.
+Alias-endpointet er test support, ikke en production patient-selection protocol. Det er utilgjengelig når host eller DHG security boundary er Production. En production patient-context authority og trust contract må godkjennes før de kontekstbaserte GET-operasjonene brukes klinisk. Production patient selection gjennom POST `_search` er en separat HelseID-beskyttet flyt og krever stabil HMAC key samt gjennomført security/privacy review.

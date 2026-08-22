@@ -15,7 +15,7 @@ Bare for eksplisitt Development/DHG Test kan de to private keys erstattes av en 
 
 1. Client autentiserer gjennom HelseID og kaller fasaden med et DPoP-bound access token.
 2. Auth gateway validerer issuer, audience, lifetime, eksakt read scope, DPoP proof, token/proof binding og replay uniqueness.
-3. Den private fasaden validerer access token uavhengig, verifiserer gateway credential og validerer en short-lived patient context bundet til gjeldende HelseID `sub`.
+3. Den private fasaden validerer access token uavhengig og verifiserer gateway credential. GET-operasjoner validerer i tillegg en short-lived patient context bundet til gjeldende HelseID `sub`; POST `_search` validerer NIN fra form body og lager en HMAC-pseudonym patient ID.
 4. Innkommende access token brukes bare som `subject_token` i HelseID token exchange.
 5. Det exchanged DHG token og et destination-bound DPoP proof sendes til DHG. Inbound token videresendes aldri til DHG.
 
@@ -33,7 +33,7 @@ sequenceDiagram
     HelseID-->>Gateway: Issuer metadata + public keys
     Gateway->>Gateway: Validate token, proof, scope and replay
     Gateway->>Api: Validated request + internal credential
-    Api->>Api: Validate JWT, gateway credential and patient context
+    Api->>Api: Validate JWT + gateway credential + context eller POST form
     Api->>HelseID: Token exchange + subject_token + private_key_jwt + DPoP
     HelseID-->>Api: DHG access token
     Api->>DHG: GET /status + DPoP proof + NIN header
@@ -47,7 +47,7 @@ Ved lokal testing med Swagger erstatter `DevelopmentTestMode:Enabled=true` steg 
 
 ## Påkrevd configuration
 
-Se `HelseId`, `HelseIdTestToken`, `AuthGateway` og `PatientContext` i API-ets `appsettings.json`. Oppgi `ClientId`, `ClientAssertionJwk`, `DPoPJwk`, gateway shared secret og syntetiske Test aliases gjennom en godkjent secret/configuration provider. I TEST-token-unntaket oppgis `HelseIdTestToken:AuthKey` og godkjente syntetiske organization claims i stedet for de to JWK-ene. Startup avviser tomt facade scope, manglende credentials, ukjente DHG environment names, blanding av Test/Production og alle forsøk på å aktivere utility utenfor eksplisitt Development Test mode.
+Se `HelseId`, `HelseIdTestToken`, `AuthGateway` og `PatientContext` i API-ets `appsettings.json`. Oppgi `ClientId`, `ClientAssertionJwk`, `DPoPJwk`, gateway shared secret og `PatientContext:PatientIdHmacKey` gjennom en godkjent secret/configuration provider. HMAC key-en skal være en separat Base64-kodet hemmelighet på minst 32 tilfeldige byte og må være stabil på tvers av instanser og restarter. Syntetiske Test aliases er bare tillatt utenfor Production. I TEST-token-unntaket oppgis `HelseIdTestToken:AuthKey` og godkjente syntetiske organization claims i stedet for de to JWK-ene. Startup avviser tomt facade scope, manglende credentials eller HMAC key i autentisert drift, ukjente DHG environment names, blanding av Test/Production og alle forsøk på å aktivere utility utenfor eksplisitt Development Test mode.
 
 Relevant environment-variable-format er:
 
@@ -58,6 +58,7 @@ HelseIdTestToken__AuthKey=<secret>
 HelseIdTestToken__OrgnrParent=<nine-digit-test-organization-number>
 HelseIdTestToken__ClientTenancyType=1
 HelseId__ClientId=<registered-test-client-id>
+PatientContext__PatientIdHmacKey=<base64-encoded-random-secret-at-least-32-bytes>
 ```
 
 Lagre bare stabil auth key og claims som configuration. Returnerte `accessTokenJwt` eller `dPoPProof` må aldri lagres, logges eller gjenbrukes. Provider henter et nytt request-bound par for hvert DHG-kall. En vanlig `.env`-fil lastes ikke automatisk av .NET og må importeres i process environment av developer tooling dersom den brukes.
@@ -95,10 +96,10 @@ Test alias endpoint er bare tilgjengelig utenfor Production og krever normalt sa
 
 For den eksakte sekvensen alias → logical `patientId` → protected context → FHIR request, inkludert lokal user-secrets configuration og vanlige feil, se [Pasient-ID og protected context for testing](patient-context-testing.md).
 
-Production er blokkert frem til en godkjent patient-context authority og interoperability contract er implementert. Beslutningen må dekke authorization basis, issuer identity, subject/purpose binding, key storage/rotation, replay controls, audit, multi-instance Data Protection og revocation/expiry.
+Kontekstbaserte GET-operasjoner i Production er blokkert frem til en godkjent patient-context authority og interoperability contract er implementert. Beslutningen må dekke authorization basis, issuer identity, subject/purpose binding, key storage/rotation, replay controls, audit, multi-instance Data Protection og revocation/expiry. POST `_search` er en separat production-flyt: den krever HelseID `population.read`, sender NIN bare i form body, krever stabil `PatientIdHmacKey` og returnerer en pseudonym FHIR patient ID uten NIN.
 
 En ekstern smoke test må velges eksplisitt og bare bruke en godkjent syntetisk pasient. Repositoryet har for øyeblikket ingen slik credentialed smoke harness.
 
-Swagger UI og OpenAPI-document er anonymous i environments som ikke er Production. Kliniske FHIR operations krever normalt et gyldig inbound HelseID DPoP access token og protected patient context. Eksplisitt Development test mode fjerner bare inbound authentication. Outbound DHG-kall krever fortsatt DPoP-bound HelseID authorization, enten med normal client-credentials/private-JWK flow eller separat aktivert HelseID TEST-token utility. Begge er avhengige av en korrekt autorisert DHG Test client registration.
+Swagger UI og OpenAPI-document er anonymous i environments som ikke er Production. Kliniske FHIR operations krever normalt et gyldig inbound HelseID DPoP access token. GET-operasjoner krever også protected patient context; POST `_search` krever i stedet NIN i form body og ingen context header. Eksplisitt Development test mode fjerner bare inbound authentication og begrenser POST selection til konfigurerte syntetiske aliaser. Outbound DHG-kall krever fortsatt DPoP-bound HelseID authorization, enten med normal client-credentials/private-JWK flow eller separat aktivert HelseID TEST-token utility. Begge er avhengige av en korrekt autorisert DHG Test client registration.
 
 Når enten host eller DHG environment er Production, er Swagger og OpenAPI deaktivert som default. `Swagger:EnabledInProduction=true` eksponerer `/swagger`, `/swagger/v1/swagger.json` og `/openapi/v1.json`, men alle tre krever normal authenticated HelseID `population.read` policy. Development test mode er fortsatt ugyldig mot Production. Standard browser Swagger kan ikke utføre nødvendig HelseID DPoP flow alene. Interaktiv bruk i production krever derfor en godkjent HelseID-aware backend/reverse proxy som holder tokens og key material på server-side.

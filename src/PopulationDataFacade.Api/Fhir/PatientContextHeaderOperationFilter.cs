@@ -11,10 +11,10 @@ public sealed class PatientContextHeaderOperationFilter(
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var path = context.ApiDescription.RelativePath;
-        var developmentNinSearch =
+        var ninSearch =
             context.ApiDescription.HttpMethod?.Equals("POST", StringComparison.OrdinalIgnoreCase) == true &&
             path?.EndsWith("/_search", StringComparison.OrdinalIgnoreCase) == true;
-        if (developmentNinSearch)
+        if (ninSearch)
         {
             var identifierName = path!.StartsWith("fhir/Patient/", StringComparison.OrdinalIgnoreCase)
                 ? "identifier"
@@ -24,7 +24,7 @@ public sealed class PatientContextHeaderOperationFilter(
                 [identifierName] = new()
                 {
                     Type = "string",
-                    Description = "Godkjent konfigurert syntetisk NIN. Sendes i form body og returneres aldri."
+                    Description = "NIN sendes i form body og returneres aldri. Krever HelseID utenfor lokal DevelopmentTestMode."
                 }
             };
             if (path.StartsWith("fhir/Observation/", StringComparison.OrdinalIgnoreCase))

@@ -8,8 +8,7 @@ public static class FhirEndpoints
 {
     public static RouteGroupBuilder MapPopulationFhirApi(
         this IEndpointRouteBuilder endpoints,
-        bool requireAuthorization = true,
-        bool enableDevelopmentNinSearch = false)
+        bool requireAuthorization = true)
     {
         var group = endpoints.MapGroup("/fhir")
             .WithTags("FHIR R4");
@@ -17,7 +16,7 @@ public static class FhirEndpoints
         if (requireAuthorization) group.RequireAuthorization("population.read");
 
         group.MapGet("/metadata", (HttpContext context, IFhirPopulationMapper mapper) =>
-                FhirHttp.Result(mapper.CapabilityStatement(ServiceBase(context), enableDevelopmentNinSearch)))
+                FhirHttp.Result(mapper.CapabilityStatement(ServiceBase(context))))
             .AllowAnonymous()
             .WithName("CapabilityStatement")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
@@ -35,29 +34,26 @@ public static class FhirEndpoints
             .WithName("SearchEncounters")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
 
-        if (enableDevelopmentNinSearch)
-        {
-            group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
-                .WithName("DevelopmentSearchPatientByIdentifier")
-                .WithDescription("Bare for lokal Development Test. Søker etter en konfigurert syntetisk pasient med NIN oppgitt i form body. NIN returneres aldri.")
-                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+        group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
+            .WithName("SearchPatientByIdentifier")
+            .WithDescription("FHIR POST search med NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
-            group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
-                .WithName("DevelopmentSearchObservationsByPatientIdentifier")
-                .WithDescription("Bare for lokal Development Test. Søker med konfigurert syntetisk patient NIN oppgitt i form body. NIN returneres aldri.")
-                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+        group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
+            .WithName("SearchObservationsByPatientIdentifier")
+            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
-            group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
-                .WithName("DevelopmentSearchEncountersByPatientIdentifier")
-                .WithDescription("Bare for lokal Development Test. Søker med konfigurert syntetisk patient NIN oppgitt i form body. NIN returneres aldri.")
-                .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
-                .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
-        }
+        group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
+            .WithName("SearchEncountersByPatientIdentifier")
+            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
         return group;
     }
@@ -70,7 +66,7 @@ public static class FhirEndpoints
         CancellationToken cancellationToken)
     {
         var form = await ReadSearchFormAsync(httpContext, cancellationToken, "identifier");
-        var requestContext = contextFactory.CreateForConfiguredTestNin(
+        var requestContext = contextFactory.CreateForNinSearch(
             httpContext,
             RequiredSingleValue(form, "identifier"));
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
@@ -85,7 +81,7 @@ public static class FhirEndpoints
         CancellationToken cancellationToken)
     {
         var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier", "code");
-        var requestContext = contextFactory.CreateForConfiguredTestNin(
+        var requestContext = contextFactory.CreateForNinSearch(
             httpContext,
             RequiredSingleValue(form, "patient.identifier"));
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
@@ -101,7 +97,7 @@ public static class FhirEndpoints
         CancellationToken cancellationToken)
     {
         var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier");
-        var requestContext = contextFactory.CreateForConfiguredTestNin(
+        var requestContext = contextFactory.CreateForNinSearch(
             httpContext,
             RequiredSingleValue(form, "patient.identifier"));
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);

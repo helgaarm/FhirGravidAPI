@@ -32,7 +32,9 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("\"resourceType\":\"CapabilityStatement\"", json);
-        Assert.DoesNotContain("\"name\":\"identifier\"", json);
+        Assert.Contains("\"name\":\"identifier\"", json);
+        Assert.Contains("\"name\":\"patient.identifier\"", json);
+        Assert.Contains("POST _search accepts NIN", json);
     }
 
     [Fact]
@@ -193,6 +195,7 @@ public sealed class FhirFacadeFactory : WebApplicationFactory<Program>
                 ["HelseId:ClientAssertionJwk"] = privateJwk,
                 ["HelseId:DPoPJwk"] = privateJwk,
                 ["AuthGateway:SharedSecret"] = new string('g', 32),
+                ["PatientContext:PatientIdHmacKey"] = ProductionSwaggerFactory.PatientIdHmacKey,
                 ["ReverseProxy:ForwardedHeadersEnabled"] = "true",
                 ["PatientContext:TestAliases:synthetic-1:LogicalId"] = "patient-1",
                 ["PatientContext:TestAliases:synthetic-1:NationalIdentityNumber"] = "01019012345"

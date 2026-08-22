@@ -15,7 +15,7 @@ flowchart LR
     Mapper["Firely FHIR R4 mapping"]
     Resources["Patient / Observation / Encounter / Bundle"]
 
-    Client -->|"HelseID DPoP access token<br/>+ protected patient context"| Gateway
+    Client -->|"HelseID DPoP access token<br/>+ protected context eller POST form body"| Gateway
     Gateway -->|"Validated request<br/>+ internal credential"| Api
     Api --> Core
     Core --> Infrastructure
@@ -28,7 +28,7 @@ flowchart LR
 
 I eksplisitt `DevelopmentTestMode` er Swagger/FHIR-siden anonym. Den innkommende token-exchange-flyten erstattes da normalt av en server-side HelseID `client_credentials`-forespørsel med DHG resource/scope og DPoP. En separat Test-only konfigurasjon kan i stedet hente et nytt request-bound `accessTokenJwt`/`dPoPProof`-par fra HelseID TEST-tokenverktøyet for hvert DHG-kall, etter samme mønster som smartOppgave. Modusen er sperret til lokal `Development` sammen med `Dhg:Environment=Test`. Resten av DHG-status/record- og FHIR-flyten er uendret, og testmodusen avvises i alle andre environments og mot Production.
 
-Den lokale Development-varianten kan i tillegg velge en allerede konfigurert syntetisk alias gjennom FHIR POST `_search`, med fødselsnummeret i form body. API-laget oversetter dette til aliasens ikke-sensitive logiske pasient-ID før DHG-kallet. Denne forenklingen omgår bare den lokale `X-Patient-Context`-utstedelsen; den godtar ikke ukonfigurerte personer, eksponerer ikke fødselsnummeret i FHIR og registreres ikke utenfor lokal Development.
+FHIR POST `_search` velger pasient med fødselsnummer i en `application/x-www-form-urlencoded` form body og bruker aldri `X-Patient-Context`. I autentisert drift, inkludert Production, håndheves HelseID `population.read`, og API-laget lager en stabil pseudonym FHIR-ID som `HMAC-SHA-256(PatientIdHmacKey, NIN)`. Nøkkelen er en separat driftshemmelighet; fødselsnummeret eller rå hash eksponeres ikke i FHIR. I lokal `DevelopmentTestMode` er bare allerede konfigurerte syntetiske aliaser tillatt, og aliasets logiske pasient-ID brukes i stedet. GET-query med fødselsnummer støttes ikke i noen environment.
 
 API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og wire-kontrakter finnes i Infrastructure. Det gjør at FHIR-kontrakten kan testes uten runtime-mock eller alternativ datakilde.
 

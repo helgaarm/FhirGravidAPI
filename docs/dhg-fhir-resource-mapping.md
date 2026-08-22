@@ -46,13 +46,13 @@ flowchart TD
 | FHIR resource | Cardinality per vellykket request | Source | Endpoint |
 |---|---:|---|---|
 | `CapabilityStatement` | 1 | Statisk facade capability | `GET /fhir/metadata` |
-| `Patient` | 1 | Logical patient context og safe subset av `mother` | `GET /fhir/Patient/{id}` eller lokal Development POST `_search` |
-| `Observation` | 0..* | Eksplisitte DHG clinical fields | `GET /fhir/Observation?patient={id}[&code={system}\|{code}]` eller lokal Development POST `_search` |
-| `Encounter` | 0..* | Daterte antenatal appointments uten error | `GET /fhir/Encounter?patient={id}` eller lokal Development POST `_search` |
+| `Patient` | 1 | Logical patient context eller HMAC-pseudonym ID og safe subset av `mother` | `GET /fhir/Patient/{id}` eller POST `_search` |
+| `Observation` | 0..* | Eksplisitte DHG clinical fields | `GET /fhir/Observation?patient={id}[&code={system}\|{code}]` eller POST `_search` |
+| `Encounter` | 0..* | Daterte antenatal appointments uten error | `GET /fhir/Encounter?patient={id}` eller POST `_search` |
 | `Bundle` | 1 | Search wrapper for Observation- eller Encounter-results | Observation- og Encounter search endpoints |
 | `OperationOutcome` | 0..1 | Kontrollert oversettelse av facade-, HelseID- eller DHG-errors | Håndterte failures på mappede FHIR endpoints |
 
-Bare `Patient`, `Observation` og `Encounter` er clinical resources i gjeldende CapabilityStatement. POST `_search` med syntetisk NIN er en lokal `DevelopmentTestMode`-convenience og endrer ikke resource mapping.
+Bare `Patient`, `Observation` og `Encounter` er clinical resources i gjeldende CapabilityStatement. POST `_search` med NIN i form body krever HelseID i autentisert drift og bruker en HMAC-pseudonym patient ID; lokal `DevelopmentTestMode` bruker konfigurert test-alias. Selection-måten endrer ikke clinical resource mapping.
 
 ## Felles mapping rules
 
@@ -73,7 +73,7 @@ Bare `Patient`, `Observation` og `Encounter` er clinical resources i gjeldende C
 
 | DHG/context source | FHIR element | Regel |
 |---|---|---|
-| Logical ID fra protected patient context | `Patient.id` | Aldri avledet fra NIN |
+| Logical ID fra protected patient context, lokalt alias eller HMAC-pseudonymisering | `Patient.id` | Aldri NIN eller en rå hash |
 | `mother.metadata.lastUpdated` eller record update time | `Patient.meta.lastUpdated` | Finnes bare når source time finnes |
 | `mother.language` | `Patient.communication.language` | Source system/code/display bevares; markeres preferred |
 | `mother.needsLanguageInterpreter` | Extension `urn:nhn:population-data:StructureDefinition/needs-language-interpreter` | `valueBoolean`; utelates ved null |
@@ -238,7 +238,7 @@ Observation- og Encounter-searches returnerer alltid en FHIR `Bundle` med:
 - `timestamp` satt til fasadens response time, ikke DHG source freshness time;
 - `total=0` uten entries når en støttet query ikke har en registrert verdi.
 
-Valgfritt Observation `code` filter bruker eksakt `system|code` matching. Fravær av en Observation er ikke det samme som `false`. Lokal POST `_search` velger først en konfigurert syntetisk pasient ved NIN i form body; NIN inngår aldri i returnert Bundle eller resource identifiers.
+Valgfritt Observation `code` filter bruker eksakt `system|code` matching. Fravær av en Observation er ikke det samme som `false`. POST `_search` velger pasient ved NIN i form body. Autentisert drift lager en HMAC-pseudonym logical ID, mens lokal `DevelopmentTestMode` bruker konfigurert test-alias. NIN inngår aldri i returnert Bundle eller resource identifiers.
 
 ## Resources som bevisst ikke opprettes
 

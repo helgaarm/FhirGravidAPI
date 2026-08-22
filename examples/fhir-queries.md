@@ -29,33 +29,52 @@ $patientContext = $selection.patientContext
 
 Context er short-lived. Erstatt aldri `$logicalPatientId` med NIN.
 
-## Lokal POST search med konfigurert syntetisk NIN
+## POST search med NIN
 
-Bare eksplisitt lokal `DevelopmentTestMode` støtter direkte search med et godkjent syntetisk NIN. Les det inn interaktivt slik at det ikke skrives på command line, og send det i en form body i stedet for en URL. Disse tre POST searches bruker ikke `$headers` eller `X-Patient-Context`:
+Les NIN inn interaktivt slik at det ikke skrives på command line, og send det i en form body i stedet for en URL. Disse tre POST searches bruker ikke `X-Patient-Context`:
 
 ```powershell
-$approvedSyntheticNin = Read-Host "Approved configured synthetic NIN"
+$patientNin = Read-Host "NIN"
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Patient/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ identifier = $approvedSyntheticNin }
+  -Body @{ identifier = $patientNin }
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Observation/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+  -Body @{ "patient.identifier" = $patientNin }
 
 Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Encounter/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ "patient.identifier" = $approvedSyntheticNin }
+  -Body @{ "patient.identifier" = $patientNin }
 ```
 
-NIN må samsvare med ett konfigurert alias. Returnerte resources bruker aliasets logical ID og inneholder aldri NIN. Denne convenience-funksjonen er ikke tilgjengelig utenfor lokal Development. Legg aldri NIN i en GET query string.
+I lokal `DevelopmentTestMode` utelates auth headers, NIN må samsvare med ett konfigurert alias, og returnerte resources bruker aliasets logical ID.
+
+I autentisert drift og Production skal hvert kall i stedet ha HelseID-headerne nedenfor. `$dpopProof` må opprettes spesielt for den aktuelle POST-URL-en og kan ikke gjenbrukes mellom de tre eksemplene:
+
+```powershell
+$authenticatedSearchHeaders = @{
+  Authorization = "DPoP $accessToken"
+  DPoP = $dpopProof
+  Accept = "application/fhir+json"
+}
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "$facadeBase/fhir/Patient/_search" `
+  -Headers $authenticatedSearchHeaders `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{ identifier = $patientNin }
+```
+
+Det autentiserte tokenet må oppfylle fasadens `population.read`-policy. Responsen bruker en stabil HMAC-pseudonym patient ID og inneholder aldri NIN. Legg aldri NIN i en GET query string.
 
 ## CapabilityStatement
 

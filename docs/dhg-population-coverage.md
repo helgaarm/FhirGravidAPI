@@ -5,13 +5,13 @@ Fasaden eksponerer bare `Patient`, `Observation` og `Encounter`. Den implementer
 ## Consumer contract
 
 - `Patient/{id}` er minimal og inneholder ikke NIN, navn, adresse, fødselsdato, GP eller kontaktinformasjon.
-- Vanlig Observation search krever `patient={logical-id}` og aksepterer valgfritt ett `code={system}|{code}` token. Lokal `DevelopmentTestMode` har i tillegg POST `_search` med `patient.identifier` i form body for en konfigurert syntetisk testperson.
+- GET Observation search krever `patient={logical-id}` og aksepterer valgfritt ett `code={system}|{code}` token. POST `_search` bruker `patient.identifier` i form body; det krever HelseID utenfor lokal `DevelopmentTestMode`, hvor bare en konfigurert syntetisk testperson tillates.
 - En manglende/null DHG-verdi produserer ingen Observation. Eksplisitt `false` produserer `valueBoolean: false`.
 - `metadata.enteredInError=true` produserer ingen FHIR resource.
 - `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.
 - `recorded-gestational-age` forekommer maksimalt én gang og representerer den siste daterte appointment uten error som inneholder uke- eller dagdata.
 - `gestational-age-at-appointment` beholder datert appointment-historikk.
-- Etter vellykket patient selection returnerer search uten kliniske treff en FHIR `searchset` Bundle med `total=0`. En ukjent lokal syntetisk identifier returnerer i dagens test-support-kontrakt `404`.
+- Etter vellykket patient selection returnerer search uten kliniske treff en FHIR `searchset` Bundle med `total=0`. En ukjent lokal syntetisk identifier returnerer i test-support-kontrakten `404`; i autentisert drift bestemmes manglende tilgang/record av DHGs status- og consent-kontroller.
 
 ## Stabile facade concepts
 
