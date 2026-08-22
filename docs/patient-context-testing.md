@@ -10,7 +10,7 @@ Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnumm
 | Logical patient ID | `patient-test-1` | FHIR `Patient.id`, route `{id}` og `patient` search value |
 | NIN | godkjent syntetisk verdi | Hemmelig identifier som bare sendes i DHGs obligatoriske outbound header |
 | Patient context | beskyttet opaque string | Short-lived binding mellom logical ID, NIN, subject og expiry |
-| Pseudonym patient ID | `patient-<base64url-hmac>` | Stabil FHIR `Patient.id` for autentisert POST `_search`; kan ikke reverseres uten secret key |
+| Pseudonym patient ID | `patient-<FHIR-safe-HMAC>` | Stabil FHIR `Patient.id` for autentisert POST `_search`; bruker bare tegn tillatt av FHIR R4 og kan ikke reverseres uten secret key |
 
 Alias og logical ID er ikke DHG identifiers. En operatør velger stabile, ikke-sensitive navn for dem. Bare konfigurert NIN identifiserer den syntetiske personen overfor DHG.
 

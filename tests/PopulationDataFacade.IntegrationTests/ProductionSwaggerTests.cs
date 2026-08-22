@@ -92,10 +92,12 @@ public sealed class ProductionSwaggerTests
         Assert.DoesNotContain(nationalIdentityNumber, body);
     }
 
-    [Fact]
-    public async Task Production_post_search_returns_a_stable_hmac_pseudonymous_patient_id()
+    [Theory]
+    [InlineData("01019012345")]
+    [InlineData("00000000001")]
+    public async Task Production_post_search_returns_a_stable_fhir_safe_hmac_pseudonymous_patient_id(
+        string nationalIdentityNumber)
     {
-        const string nationalIdentityNumber = "01019012345";
         await using var factory = new ProductionSwaggerFactory(enabled: null);
         using var client = factory.CreateClient();
 
@@ -103,7 +105,7 @@ public sealed class ProductionSwaggerTests
         var secondId = await SearchPatientIdAsync(client, nationalIdentityNumber);
 
         Assert.Equal(firstId, secondId);
-        Assert.Matches("^patient-[A-Za-z0-9_-]{43}$", firstId);
+        Assert.Matches("^patient-[A-Za-z0-9.-]{43}$", firstId);
         Assert.DoesNotContain(nationalIdentityNumber, firstId);
     }
 

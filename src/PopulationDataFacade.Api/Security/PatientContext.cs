@@ -95,7 +95,7 @@ public sealed class PatientIdPseudonymizer : IPatientIdPseudonymizer, IDisposabl
         var encoded = Convert.ToBase64String(hash)
             .TrimEnd('=')
             .Replace('+', '-')
-            .Replace('/', '_');
+            .Replace('/', '.');
         CryptographicOperations.ZeroMemory(hash);
         return $"patient-{encoded}";
     }
