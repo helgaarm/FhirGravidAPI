@@ -104,18 +104,24 @@ Alle populated observations:
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId" -Headers $headers
 ```
 
-Et stabilt facade fact (`system|code` URI-encodes av `EscapeDataString`):
+Et standardisert BMI fact (`system|code` URI-encodes av `EscapeDataString`):
 
 ```powershell
-$token = [Uri]::EscapeDataString("urn:nhn:population-data|pre-pregnancy-bmi")
+$token = [Uri]::EscapeDataString("http://loinc.org|39156-5")
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" -Headers $headers
 ```
 
-Sist registrerte gestational age:
+Gestational-age history bruker LOINC `18185-9`. Velg nyeste `effectiveDateTime` client-side; fasaden lager ikke en duplicate facade-specific «latest» Observation:
 
 ```powershell
-$token = [Uri]::EscapeDataString("urn:nhn:population-data|recorded-gestational-age")
-Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" -Headers $headers
+$token = [Uri]::EscapeDataString("http://loinc.org|18185-9")
+$gestationalAgeBundle = Invoke-RestMethod `
+  -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" `
+  -Headers $headers
+
+$latestGestationalAge = $gestationalAgeBundle.entry.resource |
+  Sort-Object effectiveDateTime -Descending |
+  Select-Object -First 1
 ```
 
 ## Encounter search

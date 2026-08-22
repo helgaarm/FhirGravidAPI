@@ -251,7 +251,7 @@ public sealed class FixedPopulationDataService : IPopulationDataService
         var updated = DateTimeOffset.Parse("2026-01-16T12:30:00+01:00");
         return Task.FromResult(new PopulationSnapshot(
             new PopulationPatient(context.LogicalId, new CodedValue("urn:ietf:bcp:47", "no", "Norsk"), false, updated),
-            [new PopulationObservation("obs-1", PopulationCodes.Hiv, new BooleanValue(false), "laboratory", updated)],
+            [new PopulationObservation("obs-1", PopulationCodes.Hemoglobin, new QuantityValue(12.4m, "g/dL", PopulationCodes.Ucum, "g/dL"), "laboratory", updated)],
             [new PopulationEncounter("encounter-1", new DateOnly(2026, 1, 16), updated)],
             updated,
             true));

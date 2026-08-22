@@ -11,7 +11,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note |
 | `medication` | Ja | Frequency-, allergy- og folate-fakta; ingen infererte legemiddelnavn |
 | `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
-| `clinicalTests` | Ja | Eksplisitte resultater med konservativ facade/authoritative terminology |
+| `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology |
 | `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
 | `vitalMeasurementsBeforePregnancy` | Ja | Høyde, pre-pregnancy weight og BMI |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |

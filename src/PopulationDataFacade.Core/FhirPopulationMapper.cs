@@ -33,7 +33,7 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         if (source.NeedsInterpreter is not null)
         {
             patient.Extension.Add(new Extension(
-                "urn:nhn:population-data:StructureDefinition/needs-language-interpreter",
+                "http://hl7.org/fhir/StructureDefinition/patient-interpreterRequired",
                 new FhirBoolean(source.NeedsInterpreter.Value)));
         }
 
@@ -43,7 +43,7 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
     public IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null)
     {
         return snapshot.Observations
-            .Where(x => filter is null || (x.Code.System == filter.System && x.Code.Code == filter.Code))
+            .Where(x => filter is null || PopulationCodes.Matches(x.Code, filter))
             .Select(x => MapObservation(snapshot.Patient.LogicalId, x))
             .ToArray();
     }
@@ -127,10 +127,11 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
 
     private static Observation MapObservation(string patientId, PopulationObservation source)
     {
+        var profiles = ObservationProfiles(source);
         var observation = new Observation
         {
             Id = source.Id,
-            Meta = Meta(source.LastUpdated),
+            Meta = Meta(source.LastUpdated, profiles),
             Status = ObservationStatus.Unknown,
             Code = ToCodeableConcept(source.Code),
             Subject = new ResourceReference($"Patient/{patientId}"),
@@ -146,7 +147,7 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
 
         observation.Effective = source.Effective switch
         {
-            EffectiveDate date => new Date(date.Value.ToString("yyyy-MM-dd")),
+            EffectiveDate date => new FhirDateTime(date.Value.ToString("yyyy-MM-dd")),
             EffectiveDateTime instant => new FhirDateTime(instant.Value),
             _ => null
         };
@@ -179,6 +180,12 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         params CapabilityStatement.TypeRestfulInteraction[] interactions) => new()
     {
         Type = resourceType.ToString(),
+        SupportedProfile = resourceType is ResourceType.Observation
+            ?
+            [
+                PopulationProfiles.NorwegianVitalSignsBodyWeight
+            ]
+            : [],
         Interaction = interactions
             .Select(interaction => new CapabilityStatement.ResourceInteractionComponent { Code = interaction })
             .ToList(),
@@ -231,22 +238,53 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                     : []
     };
 
-    private static Meta? Meta(DateTimeOffset? lastUpdated) => lastUpdated is null
-        ? null
-        : new Meta { LastUpdated = lastUpdated };
+    private static IReadOnlyList<string> ObservationProfiles(PopulationObservation source)
+    {
+        if (!string.Equals(source.Category, "vital-signs", StringComparison.Ordinal) ||
+            source.Effective is null)
+        {
+            return [];
+        }
+
+        if (source.Code == PopulationCodes.MotherWeight &&
+            source.Value is QuantityValue { System: PopulationCodes.Ucum, Code: "kg" })
+        {
+            return [PopulationProfiles.NorwegianVitalSignsBodyWeight];
+        }
+
+        return [];
+    }
+
+    private static Meta? Meta(DateTimeOffset? lastUpdated, IReadOnlyList<string>? profiles = null)
+    {
+        if (lastUpdated is null && (profiles is null || profiles.Count == 0))
+            return null;
+
+        var meta = new Meta { LastUpdated = lastUpdated };
+        if (profiles is { Count: > 0 })
+            meta.Profile = profiles.ToList();
+
+        return meta;
+    }
 
     private static CodeableConcept ToCodeableConcept(CodedValue value) =>
         new(value.System, value.Code, value.Display);
 
-    private static CodeableConcept ToCodeableConcept(PopulationCode value) =>
-        new(value.System, value.Code, value.Display);
-
-    private static DataType ToDataType(PopulationValue value) => value switch
+    private static CodeableConcept ToCodeableConcept(PopulationCode value) => new()
     {
+        Coding = PopulationCodes.CodingsFor(value)
+            .Select(coding => new Coding(coding.System, coding.Code, coding.Display))
+            .ToList(),
+        Text = value.Display
+    };
+
+    private static DataType? ToDataType(PopulationValue? value) => value switch
+    {
+        null => null,
         BooleanValue x => new FhirBoolean(x.Value),
         IntegerValue x => new Integer(x.Value),
         DecimalValue x => new FhirDecimal(x.Value),
-        DateValue x => new Date(x.Value.ToString("yyyy-MM-dd")),
+        DateValue x => new FhirDateTime(x.Value.ToString("yyyy-MM-dd")),
         DateTimeValue x => new FhirDateTime(x.Value),
         TextValue x => new FhirString(x.Value),
         CodedValue x => ToCodeableConcept(x),

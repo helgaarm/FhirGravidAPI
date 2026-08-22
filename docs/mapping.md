@@ -4,63 +4,86 @@ For en resource-oriented oversikt over alle FHIR resources fasaden kan opprette,
 
 Klassifisering:
 
-- **DIRECT**: eksplisitt kildefelt blir samme kliniske fakta i FHIR.
-- **PARTIAL**: bare den semantisk sikre delen eksponeres; avgrensningen er angitt.
-- **UNSUPPORTED**: lagres i DTO for kontraktstoleranse, men eksponeres ikke.
+- **DIRECT**: Et eksplisitt source field blir det samme clinical fact i FHIR.
+- **PARTIAL**: Bare den semantisk sikre delen eksponeres; avgrensningen er angitt.
+- **UNSUPPORTED**: Feltet beholdes i DTO for contract tolerance, men eksponeres ikke.
 
-Alle resources med `metadata.enteredInError = true` filtreres. `null` betyr ukjent/ikke registrert og gir ingen Observation; `false` er en eksplisitt verdi og beholdes.
+Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent eller ikke registrert og gir ingen Observation. En eksplisitt `false` beholdes. Vanlige clinical facts bruker `valueBoolean=false`; DHG laboratory booleans bruker kodeverk 8340 `T008 |Negativ|` fordi source contract uttrykkelig definerer boolean som positivt/negativt prøvesvar.
 
-| DHG-område/felt | FHIR | Status | Regel |
+| DHG-område/felt | FHIR mapping | Status | Regel |
 |---|---|---|---|
-| `metadata.recordId`, `recordStatus.status` | intern konsistenskontroll | DIRECT | record-ID må matche `/status`; status må være `ACTIVE` |
-| `metadata.recordLastUpdated`, resource `metadata.lastUpdated` | `meta.lastUpdated` | DIRECT | kilde-tid beholdes |
-| `mother.language` | `Patient.communication.language` | DIRECT | kode/system/display beholdes |
-| `mother.needsLanguageInterpreter` | Patient extension | DIRECT | nullable boolean beholdes |
-| øvrige `mother`-felt | — | UNSUPPORTED | navn, adresse, arbeid, fødeland og samliv er utenfor minimal Patient |
-| `currentPregnancy.dateLastPeriod` | Observation `valueDate` | DIRECT | eksplisitt dato |
-| `dueDate` | termin fra siste menstruasjon, `valueDate` | DIRECT | ingen rekalkulering |
-| `dueDateBasedOnUltrasound` | ultralydtermin, `valueDate` | DIRECT | ingen rekalkulering |
-| `dueDateCorrectedDate` | — | UNSUPPORTED | kildefeltets kliniske prioritet/årsak er ikke entydig dokumentert i fasadekontrakten |
-| `numberOfFetuses` | Observation `valueInteger` | DIRECT | eksplisitt antall |
-| `assistedConception.*` | boolean/date Observations | DIRECT | ingen avledning |
-| `hasPrenatalDiagnosticsTests`, `birthPreparationTalk`, `breastfeedingGuidance` | boolean Observations | DIRECT | eksplisitte fakta |
-| alle tellere i `previousPregnancies` | integer Observations | DIRECT | hver teller holdes separat |
-| provosert abort | — | UNSUPPORTED | finnes ikke eksplisitt og beregnes aldri som restkategori |
-| `previousPregnancies.note` | tekst-Observation | DIRECT | merkes som fritekst, ikke tolket |
-| `geneticDisorders` boolean-felt | boolean Observations | DIRECT | separate eksplisitte fakta |
-| `geneticDisorders.note` | tekst-Observation | DIRECT | ikke tolket |
-| alle boolean-felt i `medicalConditions` | boolean Observations | PARTIAL | `allergiesAsthma` forblir ett sammensatt fakta; splittes ikke |
-| `medicalConditions.note` | tekst-Observation | DIRECT | ikke til diagnosekode |
-| `medication.medicationFrequency` | kodet Observation | PARTIAL | kildeverdien beholdes; fritekstnote kan være annotation |
-| `drugAllergy`, `folate.*` | boolean Observations | DIRECT | nullable boolean beholdes |
-| legemiddelnavn/dose fra `medication.note` | — | UNSUPPORTED | ingen `MedicationStatement` opprettes fra fritekst |
-| `lifestyleFactors.stimuli[].stimuliType` | social-history Observation | DIRECT | kildekode/system beholdes |
-| stimulusfrekvens/daglig antall | Observation components | DIRECT | første konsultasjon og uke 36 holdes separate |
-| lifestyle `note` | Observation annotation | PARTIAL | ikke tolket |
-| `clinicalTests.hemoglobin`, `hemoglobinAt3rdTrimester` | quantity Observations | DIRECT | separate facade-koder for trimester; UCUM `g/dL`, med NOR05172 som enhetskilde |
-| `clinicalTests.ferritin`, `bHbA1c` | quantity Observations | DIRECT | eksplisitt verdi og dokumentert enhet |
-| `clinicalTests` infeksjons-/screeningbooleans | boolean Observations | DIRECT | HBV, HBV core og toxoplasmose bruker facade-koder fordi DHG-feltet ikke angir én entydig NLK-analyse; øvrige sikre NLK-koblinger beholdes |
-| `aboRh.*` | coded Observations | DIRECT | ingen terminologisk gjetning |
-| `glucoseTolerance.*Level`, `testDate` | quantity Observations + `effectiveDate` | DIRECT | fastende og 2-timersverdi holdes separate |
-| `clinicalTests.note` | — | UNSUPPORTED | uspesifikk note knyttes ikke til enkeltprøver |
-| `rhesusDNegative` boolean-felt | boolean Observations | DIRECT | samtykke, fosterresultat og profylakse holdes separate |
-| `dateForResult` | egen date Observation + RhD-resultatets `effectiveDate` | DIRECT | separat søkbart fakta og tidskontekst for foster-RhD-resultatet |
-| `rhesusDNegative.note` | — | UNSUPPORTED | ikke tolket |
-| `vitalMeasurementsBeforePregnancy.height` | quantity cm | DIRECT | UCUM `cm` |
-| `prePregnancyWeight` | quantity kg | DIRECT | UCUM `kg` |
-| `bMI` | decimal Observation | DIRECT | wire-navnet er eksakt `bMI` |
-| `symphysisFundalHeights[].measurement` | quantity cm | DIRECT | dato til `effectiveDate`, uke til component |
-| `antenatalAppointments[].appointmentDate` | `Encounter.period` | DIRECT | besøksdato; status er `unknown` fordi DHG ikke oppgir gjennomføringsstatus |
-| gestasjonsuke/dager | Observation + integer components | DIRECT | historikk bruker `gestational-age-at-appointment`; kun siste relevante avtale gir `recorded-gestational-age` |
-| mors vekt, ødem | quantity/integer Observations | DIRECT | refererer til Encounter |
-| blodtrykk `NNN/NN` | Observation med systolisk/diastolisk components | PARTIAL | kun dokumentert parsbar form eksponeres; ellers utelates |
-| protein i urin | coded Observation | DIRECT | kildeverdi beholdes |
-| fosterlyd, presentasjon/leie, mor kjenner liv | Observations | DIRECT | ett sett per eksplisitt foster-ID |
-| appointment `medication`, `employmentRate`, `note`, fetus `note` | — | UNSUPPORTED | utilstrekkelig spesifikke for sikker klinisk mapping |
-| `pointsOfContact` | — | UNSUPPORTED | fasaden er populasjonsdata, ikke katalog-/kontaktflate |
-| `birthStatus` | — | UNSUPPORTED | første versjon er avgrenset til aktivt svangerskap; post-birth-modell krever egen beslutning |
-| `lastUpdatedBy` | — | UNSUPPORTED | provenance-person-/organisasjonsdetaljer eksponeres ikke |
+| `metadata.recordId`, `recordStatus.status` | intern consistency check | DIRECT | record ID må samsvare med `/status`; status må være `ACTIVE` |
+| `metadata.recordLastUpdated`, resource `metadata.lastUpdated` | `meta.lastUpdated` | DIRECT | source timestamp beholdes |
+| `mother.language` | `Patient.communication.language` | DIRECT | bare dokumentert Volven 3303 code/system/display beholdes |
+| `mother.needsLanguageInterpreter` | HL7 extension `patient-interpreterRequired` | DIRECT | nullable boolean beholdes |
+| øvrige `mother`-felt | — | UNSUPPORTED | demography, employment og contact data er utenfor minimal Patient |
+| `currentPregnancy.dateLastPeriod` | LOINC `8665-2`, `valueDateTime` med day precision | DIRECT | eksplisitt dato; ingen rekalkulering |
+| `dueDate` | SNOMED CT `289206005` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
+| `dueDateBasedOnUltrasound` | SNOMED CT `738070007` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
+| `dueDateCorrectedDate` | — | UNSUPPORTED | clinical precedence og reason er ikke entydig dokumentert |
+| `numberOfFetuses` | SNOMED CT `246435002`, `valueInteger` | DIRECT | eksplisitt antall |
+| `assistedConception.hadAssistedConception` | SNOMED CT `813541000000100`, `valueBoolean` | DIRECT | ingen avledning |
+| `assistedConception.dateAssistedConception` | `Observation.effectiveDateTime` med day precision | PARTIAL | brukes bare når `hadAssistedConception=true`; dato alene utleder aldri IVF-status |
+| `birthPreparationTalk` | SNOMED CT `702396006`, `valueBoolean` | DIRECT | eksplisitt childbirth education fact |
+| `breastfeedingGuidance` | SNOMED CT `243094003`, `valueBoolean` | DIRECT | eksplisitt breastfeeding education fact |
+| `hasPrenatalDiagnosticsTests` | — | UNSUPPORTED | DHG-feltet skiller ikke screening fra diagnostic procedure godt nok for en sikker code |
+| `numberOfPreviousPregnancies` | SNOMED CT `246211005`, `valueInteger` | DIRECT | tidligere, ikke totalt antall pregnancies |
+| `numberOfPreviousLiveBirths` | LOINC `11636-8`, `valueInteger` | DIRECT | total live births |
+| `spontaneousMiscarriages` | SNOMED CT `248989003`, `valueInteger` | DIRECT | beholdes separat |
+| `stillBirths22weeks` | SNOMED CT `252112002`, `valueInteger` | PARTIAL | DHG threshold står i source contract; ingen snevrere standard code er lagt til |
+| `numberOfEctopicPregnancies` | SNOMED CT `440537001`, `valueInteger` | DIRECT | beholdes separat |
+| provosert abort og `previousPregnancies.note` | — | UNSUPPORTED | ingen residual calculation og ingen free-text interpretation |
+| `geneticDisorders.parentsAreRelatives` | SNOMED CT `842009`, `valueBoolean` | DIRECT | consanguinity fact |
+| øvrige `geneticDisorders`-felt | — | UNSUPPORTED | subject/family-history semantics er ikke entydige nok for en standard code |
+| `medicalConditions.heartDisease` | SNOMED CT `56265001`, `valueBoolean` | DIRECT | broad DHG fact beholdes uten mer spesifikk diagnosis inference |
+| `highBloodPressure` | SNOMED CT `38341003`, `valueBoolean` | DIRECT | ingen subtype inference |
+| `diabetes` | SNOMED CT `73211009`, `valueBoolean` | PARTIAL | DHG skiller ikke diabetes fra gestational diabetes |
+| `epilepsy`, `thrombosis`, `autoimmuneDisease`, `mentalHealth` | SNOMED CT `84757009`, `439127006`, `85828009`, `74732009` | DIRECT | nullable booleans beholdes |
+| sammensatte/andre medical fields og `note` | — | UNSUPPORTED | blant annet `allergiesAsthma` og gynecological condition/procedure kan ikke splittes eller kodes sikkert |
+| `drugAllergy` | SNOMED CT `416098002`, `valueBoolean` | DIRECT | eksplisitt fact |
+| `folate.takenBefore`, `takenDuring` | SNOMED CT `792807003`, `valueBoolean` | PARTIAL | tidscontext beholdes som annotation; statusene utledes ikke fra hverandre |
+| `medicationFrequency`, medication `note` | — | UNSUPPORTED | local enum/free text blir ikke en standard code eller `MedicationStatement` |
+| `lifestyleFactors.stimuli[].stimuliType` | Volven 8536 som `Observation.code` | DIRECT | bare dokumentert national code system godtas |
+| stimulus frequency | Volven 8537 som `valueCodeableConcept` | DIRECT | first consultation og week 36 blir separate Observations med annotation |
+| stimulus `dailyCount` | — | UNSUPPORTED | ingen entydig generic national/standard code er dokumentert |
+| `clinicalTests.hemoglobin`, `hemoglobinAt3rdTrimester` | NLK `NOR05172`, UCUM `g/dL` | DIRECT | samme analysis code; third trimester markeres med annotation; NILAR brukes som mapping reference |
+| `ferritin`, `bHbA1c` | NLK `NPU19763`, `NPU27300` | DIRECT | units følger DHG/NLK contract |
+| `hbv` | SNOMED CT `165806002`; kodeverk 8340 `T002`/`T008` result | DIRECT | DHG identifiserer uttrykkelig hepatitis B surface antigen; `true` betyr `Positiv`, `false` betyr `Negativ`, og `null` utelates |
+| `hbvCore`, `hiv`, `syphilis`, `bloodAntibodies`, `chlamydia`, `toxoplasmosis`, `rubellaAntigen`, `hepatitisC` | — | UNSUPPORTED | public DHG contract identifiserer ikke assay/analytt/method med samme presisjon som tidligere foreslåtte koder; ingen kode gjettes |
+| `asymptomaticBacteriuria`, `groupBStreptococci` | — | UNSUPPORTED | feltene må verifiseres mot autorisert gjeldende DHG contract før de kan publiseres |
+| `aboRh.aboType`, `rhesusDType` | NLK `NPU58582`, `NPU21917` + LOINC `883-9`, `10331-7`; SNOMED CT coded value | DIRECT | norske laboratory codes er med; LOINC beholdes som interoperabel tilleggskoding; ukjente enum values eksponeres ikke |
+| `glucoseTolerance.*Level` | SNOMED CT `271062006`, `49167009`; UCUM `mmol/L` | DIRECT | positiv value kreves; test date blir `effectiveDateTime` med day precision |
+| `asymptomaticBacteriuria` | SNOMED CT `236630004`, `valueBoolean` | DIRECT | eksplisitt DHG fact |
+| `mrsaVreEsbl`, `gonorrhea`, `cytomegaloVirus`, clinical `note` | — | UNSUPPORTED | source identifiserer ikke en entydig assay/finding code |
+| `rhesusDNegative.prophylaxisAtWeek28` | SNOMED CT `408783007`, `valueBoolean` | DIRECT | antenatal anti-D prophylaxis status |
+| øvrige `rhesusDNegative`-felt | — | UNSUPPORTED | consent krever annen FHIR resource; fetal result kan ikke få mother som subject |
+| `vitalMeasurementsBeforePregnancy.height` | SNOMED CT `1153637007` + LOINC `8302-2`, UCUM `cm` | DIRECT | norsk SNOMED CT coding og profile-required LOINC; mangler `effective[x]` og deklarerer derfor ikke profile conformance |
+| `prePregnancyWeight` | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | source sier ikke at målingen er self reported; pre-pregnancy context beholdes som annotation; ingen profile claim uten `effective[x]` |
+| `bMI` | LOINC `39156-5`, UCUM `kg/m2` | DIRECT | wire name er eksakt `bMI` |
+| `symphysisFundalHeights[].measurement` | SNOMED CT `364253002`, UCUM `cm` | DIRECT | bare positiv value; measurement date blir `effectiveDateTime` med day precision |
+| `antenatalAppointments[].appointmentDate` | `Encounter.period` | DIRECT | Encounter status forblir `unknown` |
+| gestational week/day | LOINC `18185-9`, UCUM `d` | DIRECT | ett exact total-day Quantity per datert appointment; original `week+day` beholdes som annotation |
+| mother weight | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | norsk SNOMED CT coding og profile-required LOINC; refererer til Encounter og deklarerer norsk Body Weight profile når appointment date gir `effective[x]` |
+| blood pressure `NNN/NN` | LOINC `85354-9`; components SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4` | PARTIAL | positive, sikkert parsbare components publiseres; Blood Pressure-canonical deklareres ikke fordi draft-profilen ikke kan kompileres av pinned validator |
+| protein in urine | NLK `NPU04206` med kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` | DIRECT | DHG enum `Neg`, `Spor`, `1+`, `2+`, `3+` oversettes eksplisitt; ukjente values utelates |
+| edema | — | UNSUPPORTED | DHG definerer bare accepted integer `0..3`, ikke betydningen av hvert scale-trinn; rå integer publiseres ikke |
+| fetal heart rate, presentation/lie og mother feels fetal movements | — | UNSUPPORTED | `fosterId` kan ikke bare ligge i resource ID; facts publiseres ikke før en godkjent pregnancy-scoped `Observation.focus`/identifier-strategi finnes |
+| øvrige appointment/fetus fields | — | UNSUPPORTED | utilstrekkelig spesifikke for sikker clinical mapping |
+| `pointsOfContact`, `birthStatus`, `lastUpdatedBy` | — | UNSUPPORTED | utenfor gjeldende population/FHIR scope |
 
-## Terminologi
+## Terminologiregler
 
-Løsningen bruker dokumenterte NLK/Volven-identifikatorer bare når feltet har en entydig kobling. Fasadespesifikke eller flertydige konsepter ligger under `urn:nhn:population-data`; lokale strenger legges aldri i NLK-navnerommet. Nye eller ukjente kildekoder tolereres og beholdes; de oversettes ikke til en kode med annen klinisk betydning. Alle koder og enheter må godkjennes av klinisk terminologieier før DHG Test/produksjon.
+- Fasaden publiserer ingen facade-specific `Observation.code` under `urn:nhn:population-data`.
+- HL7 core extension brukes for interpreter requirement.
+- NLK er det nasjonale laboratoriesystemet. Kodene er internasjonale NPU-koder eller norske NOR-koder; «NorLOINC» er ikke et eget code system.
+- LOINC brukes der HL7 eller en norsk FHIR-profile krever det. Når en entydig norsk SNOMED CT- eller NLK-kode finnes, publiseres den sammen med LOINC. UCUM brukes for machine-readable units.
+- NLK og Volven brukes bare når DHG contract eller en autoritativ national source gir en entydig mapping.
+- SNOMED CT brukes for eksakte clinical concepts som er verifisert som active i den norske terminology service. ICD-10 brukes ikke for broad booleans eller measurements; DHG-feltene er ikke tilstrekkelige til å etablere en konkret diagnosis.
+- En Observation kan ha flere standard `Coding`-verdier når de uttrykker komplementær og sann semantics, for eksempel norsk SNOMED CT sammen med profile-required LOINC. Rekkefølgen i `CodeableConcept.coding` uttrykker ikke prioritet.
+- `meta.profile` publiseres bare når generert output er validert mot en pinned package. Datert mother weight valideres mot `hl7.fhir.no.domain.vitalsigns#0.9.74` med `hl7.fhir.no.basis#2.2.2`. Blood pressure beholder profilens codings, men deklarerer ikke canonical før draft-profilens slicing kan kompileres av pinned validator. Undated height/pre-pregnancy weight deklarerer heller ikke profile conformance fordi `effective[x]` er mandatory.
+- NILAR `NilarObservation` brukes som mapping reference for laboratory code og UCUM. Fasaden deklarerer ikke NILAR `meta.profile`: profilen krever blant annet en mandatory `diagnosticreportref` extension til en faktisk `DiagnosticReport` og report-specific terminology som DHG snapshot-mappingen ikke leverer.
+- Ukjent code system, ny enum value eller free text oversettes aldri automatisk til en standard code.
+- Numeric measurements med en dokumentert DHG positivity constraint utelates når value er `0` eller negativ. `numberOfFetuses` må være positiv, pregnancy week må være positiv, days after full week må være `0..6`, og blood pressure components må være positive. Dette er source-contract validation, ikke clinical reference-range inference.
+- Terminology, code version og units må fortsatt godkjennes av clinical terminology owner før DHG Test/Production.
+
+Autoritative referanser: [DHG Resources](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/api/resourcesmd/), [Norsk laboratoriekodeverk (NLK)](https://www.helsedirektoratet.no/digitalisering-og-e-helse/helsefaglige-kodeverk/nlk), [veileder for NLK](https://www.helsedirektoratet.no/veiledere/veileder-for-norsk-laboratoriekodeverk-nlk), [NILAR/Pasientens Prøvesvar](https://github.com/HL7Norway/NILAR), [NilarObservation](https://hl7norway.github.io/NILAR/DiagnosticReportIG/CurrentBuild/StructureDefinition-nilar-observation.html), [Norwegian national Vital Signs](https://hl7.no/fhir/no-domain/vitalsigns/), [HL7 FHIR R4 Vital Signs](https://hl7.org/fhir/R4/observation-vitalsigns.html), [Helsedirektoratet om SNOMED CT](https://www.helsedirektoratet.no/digitalisering-og-e-helse/snomed-ct) og [FinnKode](https://finnkode.helsedirektoratet.no/).

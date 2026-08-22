@@ -19,7 +19,7 @@ For manuell testing tillater eksplisitt test mode anonyme Swagger/FHIR requests 
 Når en URI bygges, skal vertical bar representeres med percent-encoding som `%7C`. Eksempel:
 
 ```text
-/fhir/Observation?patient=patient-test-1&code=urn%3Anhn%3Apopulation-data%7Cpre-pregnancy-bmi
+/fhir/Observation?patient=patient-test-1&code=http%3A%2F%2Floinc.org%7C39156-5
 ```
 
 ## Tolkning av resultater
@@ -27,7 +27,7 @@ Når en URI bygges, skal vertical bar representeres med percent-encoding som `%7
 - `Bundle.total=0` betyr at faktumet ikke er registrert i active DHG record; det betyr ikke false.
 - `valueBoolean=false` er en eksplisitt negativ verdi og må ikke slås sammen med fravær.
 - Unsupported concepts finnes ikke i fasadens publiserte coverage contract; consumers må ikke behandle dem som queried-but-empty.
-- `recorded-gestational-age` har maksimalt ett resultat. Historiske verdier bruker `gestational-age-at-appointment` og refererer til sin Encounter.
+- Gestational age bruker `http://loinc.org|18185-9`, UCUM `d` og refererer til appointment Encounter. Consumer velger nyeste `effectiveDateTime` når bare current value trengs.
 - Errors er FHIR `OperationOutcome`; consumers skal velge branch basert på HTTP status og `issue.code`, ikke parse diagnostics text.
 
 Bruk [coverage contract](dhg-population-coverage.md) og [kjøreklare eksempler](../examples/fhir-queries.md) når en consumer konfigureres.

@@ -22,7 +22,7 @@ public sealed record PopulationPatient(
 public sealed record PopulationObservation(
     string Id,
     PopulationCode Code,
-    PopulationValue Value,
+    PopulationValue? Value,
     string Category,
     DateTimeOffset? LastUpdated,
     PopulationEffective? Effective = null,

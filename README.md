@@ -28,6 +28,8 @@ GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings
 
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
+FHIR terminology bruker norske NLK-koder (NPU/NOR), SNOMED CT, nasjonale Volven-koder og UCUM units. LOINC beholdes der HL7 eller en norsk FHIR-profile krever koden; da legges en entydig norsk coding til når en slik finnes. «NorLOINC» er ikke et eget norsk code system. Fasaden publiserer ikke egne clinical codes. Sammensatte eller tvetydige DHG fields forblir unsupported til en clinical terminology owner har godkjent en exact mapping. Se [mappingmatrisen](docs/mapping.md).
+
 ## Forutsetninger
 
 - .NET SDK 9.0.317 eller nyere kompatibel 9.0-SDK

@@ -58,6 +58,22 @@ Direkte dependencies kan også forekomme transitively i andre projects. Deres li
 
 NuGet markerer `Microsoft.NETCore.Platforms` 5.0.0 og `System.Security.AccessControl` 5.0.0 som legacy. De godtas bare som exact-version transitive dependencies i test-projects og er ikke en del av application runtime graph. `scripts/check-nuget-deprecations.ps1` avviser disse pakkene hvis de blir direct/runtime dependencies, og avviser alle andre deprecations frem til de er oppgradert eller eksplisitt gjennomgått.
 
+## FHIR profile-validation toolchain
+
+FHIR profile validation er build/test tooling og inngår ikke i application runtime:
+
+| Component | Pinned version | Declared license | Use |
+| --- | --- | --- | --- |
+| [Firely Terminal](https://www.nuget.org/packages/Firely.Terminal/3.5.0) | 3.5.0 | BSD-3-Clause | Validator CLI |
+| `hl7.fhir.r4.core` | 4.0.1 | CC0-1.0 | FHIR R4 validation definitions |
+| `hl7.terminology.r4` | 7.1.0 | CC0-1.0 | FHIR terminology definitions |
+| `hl7.fhir.uv.extensions.r4` | 5.2.0 | CC0-1.0 | FHIR extensions dependency |
+| `hl7.fhir.uv.tools.r4` | 0.9.0 | CC0-1.0 | IG tooling dependency |
+| `hl7.fhir.no.domain.vitalsigns` | 0.9.74 | CC0-1.0, med separate LOINC/SNOMED IP notices | Norsk Vital Signs profile validation |
+| `hl7.fhir.no.basis` | 2.2.2 | Package manifest declares no license | Required Norwegian base-profile validation dependency; legal terms must be confirmed before redistribution |
+
+Den offisielle Vital Signs `package.tgz` lastes bare ned under validation og avvises hvis SHA-256 avviker fra den pinnede verdien i `scripts/validate-fhir-profiles.ps1`. Package-cache og den nedlastede filen distribueres ikke fra repositoryet. Bruk av LOINC og SNOMED CT følger IP-notices i den publiserte norske implementation guiden.
+
 ## Dependencies for Go authentication gateway
 
 Inbound HelseID/DPoP gateway bruker bare standard open-source licenses. `AxisCommunications/go-dpop` er DPoP implementation som HelseID anbefaler for Go APIs. Repositoryet legger HelseID-spesifikke kontroller for access token, proof age, replay, scope og deployment boundary rundt denne.
@@ -115,6 +131,18 @@ GitHub-hosted runner software, Docker tooling og eksterne DHG/HelseID-services r
 ## FHIR specification material
 
 Applikasjonen bruker Firely .NET SDK packages under BSD-3-Clause. FHIR names, definitions, code systems og specification material kan også være underlagt HL7-vilkår som er separate fra SDK-ens software license. Se [FHIR license and legal terms](https://hl7.org/fhir/license.html) ved redistribusjon av specification content eller derived artifacts.
+
+## LOINC terminology content
+
+This material contains content from LOINC (http://loinc.org). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at http://loinc.org/license. LOINC® is a registered United States trademark of Regenstrief Institute, Inc.
+
+Repositoryet inkluderer bare et lite, eksplisitt sett LOINC identifiers og deres offisielle English display names. Se [LOINC License](https://loinc.org/license) for gjeldende terms. UCUM codes som brukes i FHIR messages er underlagt [UCUM terms](https://unitsofmeasure.org).
+
+## SNOMED CT terminology content
+
+This material includes SNOMED Clinical Terms® (SNOMED CT®), which is used by permission of SNOMED International. All rights reserved. SNOMED® and SNOMED CT® are registered trademarks of SNOMED International.
+
+Repositoryet inkluderer et lite, eksplisitt sett active SNOMED CT concept identifiers og English display terms for FHIR interoperability. Bruk og distribution av SNOMED CT content krever relevant Affiliate/National License. Norge er et SNOMED International Member country, men implementer og deployer er fortsatt ansvarlig for korrekt registration og license compliance. Se [Helsedirektoratets veiledning](https://www.helsedirektoratet.no/digitalisering-og-e-helse/snomed-ct/hvordan-ta-i-bruk-snomed-ct), [SNOMED International licensing](https://www.snomed.org/get-snomed) og [SNOMED CT URI standard](https://docs.snomed.org/snomed-ct-specifications/snomed-ct-uri-standard/2-snomed-ct-uri-space).
 
 ## Prosedyre for oppdatering
 

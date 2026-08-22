@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "firely.terminal": {
+      "version": "3.5.0",
+      "commands": [
+        "fhir"
+      ],
+      "rollForward": false
+    }
+  }
+}
