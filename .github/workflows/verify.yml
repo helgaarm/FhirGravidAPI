@@ -1,0 +1,67 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build, test, and validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.27.0
+          cache-dependency-path: auth-gateway/go.sum
+
+      - name: Restore
+        run: dotnet restore PopulationDataFacade.slnx --locked-mode
+
+      - name: Enforce dependency vulnerability policy
+        shell: pwsh
+        run: |
+          ./scripts/check-nuget-vulnerabilities.ps1
+          ./scripts/check-nuget-deprecations.ps1
+
+      - name: Enforce dependency license policy
+        shell: pwsh
+        run: |
+          ./scripts/check-licenses.ps1
+          ./scripts/check-go-licenses.ps1
+
+      - name: Build
+        run: dotnet build PopulationDataFacade.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PopulationDataFacade.slnx --configuration Release --no-build
+
+      - name: Test authentication gateway
+        working-directory: auth-gateway
+        run: |
+          go mod verify
+          go test -race ./...
+          go vet ./...
+
+      - name: Check authentication gateway vulnerabilities
+        working-directory: auth-gateway
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+      - name: Build container images
+        run: |
+          docker build --tag fhir-gravid-api:verify .
+          docker build --file auth-gateway/Dockerfile --tag fhir-gravid-auth-gateway:verify .

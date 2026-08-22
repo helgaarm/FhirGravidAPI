@@ -5,7 +5,7 @@ En skrivebeskyttet .NET 9-fasade som henter det aktive digitale helsekortet fra 
 ## Løsningen
 
 - `auth-gateway` er den eksterne inngangen og validerer HelseID access-token, DPoP, scope og replay med åpne Go-biblioteker før den proxier til det private API-et.
-- `PopulationDataFacade.Api` krever gatewayens interne credential, validerer JWT-et på nytt, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt testmodus kan gjøre Swagger/FHIR anonymt lokalt, eller i repositoryets IP-begrensede Azure Staging-mal, mens fasaden skaffer HelseID-autorisasjon server-side mot DHG Test.
+- `PopulationDataFacade.Api` krever gatewayens interne credential, validerer JWT-et på nytt, åpner en kortlivet kryptert pasientkontekst og returnerer FHIR JSON. En eksplisitt lokal testmodus kan gjøre Swagger/FHIR anonymt mens fasaden skaffer HelseID-autorisasjon server-side mot DHG Test.
 - `PopulationDataFacade.Core` inneholder kildeuavhengige populasjonsmodeller og FHIR-mapping.
 - `PopulationDataFacade.Infrastructure` inneholder eksakte DHG-kontrakter, HelseID token exchange, DPoP-bevis, den avgrensede HelseID TEST-tokenflyten, robust HTTP-klient og DHG-til-populasjon-mapping.
 - `tests` inneholder kontrakt-, mapping- og HTTP-integrasjonstester.
@@ -27,7 +27,7 @@ POST /fhir/Observation/_search     patient.identifier={synthetic-nin}[&code={sys
 POST /fhir/Encounter/_search       patient.identifier={synthetic-nin}
 ```
 
-Disse lokale søkene krever ikke `X-Patient-Context`. GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings kan havne i nettleserhistorikk, proxylogger og telemetry. POST-søkene er ikke tilgjengelige i Azure Staging, QA eller Production. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for Swagger- og PowerShell-eksempler.
+Disse lokale søkene krever ikke `X-Patient-Context`. GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings kan havne i nettleserhistorikk, proxylogger og telemetry. POST-søkene er ikke tilgjengelige utenfor lokal Development. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for Swagger- og PowerShell-eksempler.
 
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
@@ -62,8 +62,6 @@ Alias-konfigurasjon er kun tillatt utenfor Production. Endepunktet `POST /test/p
 ### Anonym Swagger mot DHG Test
 
 Som standard er denne modusen bare for lokal testing. Den kan starte i `Development` med `Dhg:Environment=Test`; eksplisitte wildcard-/ikke-loopback-listenere avvises, og forespørsler uten en kjent loopback-peer avvises. Modusen må da ikke publiseres gjennom reverse proxy, tunnel eller port-forwarding. Innkommende Swagger/FHIR-kall er anonyme. Utgående DHG-autorisasjon bruker normalt `client_credentials`, client assertion og DPoP server-side, men kan eksplisitt bruke HelseID TEST-tokenverktøyet i samme mønster som smartOppgave. HelseID-klienten må være godkjent for de DHG Test-operasjonene som skal prøves.
-
-Det finnes ett eksplisitt unntak for repositoryets Azure Test-mal: `Staging` kan bruke `DevelopmentTestMode:AllowRemoteStaging=true` mot DHG Test når Container Apps samtidig begrenser ingress til en obligatorisk, kontrollert CIDR. Dette er ikke en generell applikasjonsinnstilling og skal bare settes av [Azure testdeploymentet](docs/azure-test-deployment.md). Testmodus avvises fortsatt når host eller DHG er Production.
 
 ```powershell
 $env:ASPNETCORE_ENVIRONMENT = "Development"
@@ -107,7 +105,7 @@ I Swagger:
 
 Som en lokal testforenkling kan de tre POST `_search`-operasjonene brukes direkte med et fødselsnummer som allerede finnes i `PatientContext:TestAliases`. Fødselsnummeret legges i form body, ikke i URL, og Swagger viser derfor ikke `X-Patient-Context` for disse operasjonene. De returnerte FHIR-ressursene bruker fortsatt konfigurert `LogicalId` og inneholder aldri fødselsnummeret.
 
-Modusen avvises ved oppstart utenfor lokal Development eller den eksplisitt tillatte, IP-begrensede Azure Staging-malen, og alltid mot annet enn DHG Test. Den må aldri aktiveres i QA eller Production.
+Modusen avvises ved oppstart utenfor lokal Development og alltid mot annet enn DHG Test. Den må aldri aktiveres i Staging, QA eller Production.
 
 ### Autentisert lokal gateway
 
@@ -173,7 +171,7 @@ Kjør API-et med den eksplisitte anonyme Development-testkonfigurasjonen ovenfor
 
 Logger inneholder aldri access-token, privat nøkkel, fødselsnummer eller klinisk payload. DHG-kall bruker `nhn-patient-nin` kun som utgående header. Kun idempotente GET-kall retries ved timeout, 429 og relevante 5xx-feil; `Retry-After` respekteres.
 
-Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [Azure testdeployment](docs/azure-test-deployment.md), [arkitektur](docs/architecture.md), [DHG→FHIR-ressursmapping](docs/dhg-fhir-resource-mapping.md), [mappingmatrise](docs/mapping.md), [DHG-kildeliste](docs/dhg-source-inventory.md), [populasjonsdekning](docs/dhg-population-coverage.md), [SDC-bruk](docs/sdc-usage.md), [HelseID-oppsett](docs/helseid-setup.md), [sikkerhetsarkitektur](docs/security-architecture.md), [drift](docs/operations.md) og [FHIR-eksempler](examples/fhir-queries.md) før produksjonssetting.
+Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [arkitektur](docs/architecture.md), [DHG→FHIR-ressursmapping](docs/dhg-fhir-resource-mapping.md), [mappingmatrise](docs/mapping.md), [DHG-kildeliste](docs/dhg-source-inventory.md), [populasjonsdekning](docs/dhg-population-coverage.md), [SDC-bruk](docs/sdc-usage.md), [HelseID-oppsett](docs/helseid-setup.md), [sikkerhetsarkitektur](docs/security-architecture.md), [drift](docs/operations.md) og [FHIR-eksempler](examples/fhir-queries.md) før produksjonssetting.
 
 ## Bevisste avgrensninger
 

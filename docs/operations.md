@@ -9,12 +9,12 @@
 | `HelseIdTestToken` | eksplisitt DHG Test-only tokenverktøy, secret auth key og godkjente syntetiske klient-/organisasjonsclaims |
 | `AuthGateway` | `SharedSecret`; samme tilfeldige verdi på minst 32 byte som `AUTH_GATEWAY_SHARED_SECRET` |
 | `PatientContext` | headernavn, levetid og ikke-produksjonsaliaser |
-| `DevelopmentTestMode` | eksplisitt anonym Swagger/DHG Test-modus, fast test-subjekt og Azure-malens avgrensede `AllowRemoteStaging` |
+| `DevelopmentTestMode` | eksplisitt lokal anonym Swagger/DHG Test-modus og fast test-subjekt |
 | `Swagger` | `EnabledInProduction`; standard `false`, og HelseID-policy håndheves når den er `true` i Production |
-| `ReverseProxy` | `ForwardedHeadersEnabled`; bare på bak godkjent proxy/Container Apps slik at FHIR-baser bruker opprinnelig HTTPS-skjema |
+| `ReverseProxy` | `ForwardedHeadersEnabled`; bare bak godkjent proxy slik at FHIR-baser bruker opprinnelig HTTPS-skjema |
 | OpenTelemetry | standard `OTEL_*`-miljøvariabler |
 
-Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. `DevelopmentTestMode:Enabled=true` krever DHG Test. `HelseIdTestToken:Enabled=true` krever i tillegg aktiv Development-testmodus, en HTTPS-endpoint under `.test.nhn.no`, auth key, registrert client-ID og godkjente testclaims. I lokal Development kreves loopback-only listeners og kjent loopback-peer; ikke plasser denne varianten bak proxy, tunnel eller port-forwarding. Det eneste støttede fjernunntaket er Azure Test-malen med `Staging`, eksplisitt `AllowRemoteStaging=true` og obligatorisk Container Apps CIDR-begrensning. Begge varianter avvises mot Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
+Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. `DevelopmentTestMode:Enabled=true` krever lokal Development og DHG Test. `HelseIdTestToken:Enabled=true` krever i tillegg en HTTPS-endpoint under `.test.nhn.no`, auth key, registrert client-ID og godkjente testclaims. Det kreves loopback-only listeners og kjent loopback-peer; ikke plasser testmodusen bak proxy, tunnel eller port-forwarding. Testmodus avvises i Staging, QA og Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
 
 ### Auth-gateway
 

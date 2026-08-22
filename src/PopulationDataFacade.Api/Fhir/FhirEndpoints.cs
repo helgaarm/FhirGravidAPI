@@ -39,21 +39,21 @@ public static class FhirEndpoints
         {
             group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
                 .WithName("DevelopmentSearchPatientByIdentifier")
-                .WithDescription("Local Development Test only. Searches a configured synthetic patient by NIN supplied in the form body; the NIN is never returned.")
+                .WithDescription("Bare for lokal Development Test. Søker etter en konfigurert syntetisk pasient med NIN oppgitt i form body. NIN returneres aldri.")
                 .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
             group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
                 .WithName("DevelopmentSearchObservationsByPatientIdentifier")
-                .WithDescription("Local Development Test only. Searches by a configured synthetic patient NIN supplied in the form body; the NIN is never returned.")
+                .WithDescription("Bare for lokal Development Test. Søker med konfigurert syntetisk patient NIN oppgitt i form body. NIN returneres aldri.")
                 .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
             group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
                 .WithName("DevelopmentSearchEncountersByPatientIdentifier")
-                .WithDescription("Local Development Test only. Searches by a configured synthetic patient NIN supplied in the form body; the NIN is never returned.")
+                .WithDescription("Bare for lokal Development Test. Søker med konfigurert syntetisk patient NIN oppgitt i form body. NIN returneres aldri.")
                 .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
                 .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");

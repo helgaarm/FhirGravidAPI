@@ -188,8 +188,8 @@ public sealed class DhgProductionNonProductionHostFactory : WebApplicationFactor
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var privateJwk = ProductionSwaggerFactory.CreatePrivateJwk();
-        // Use a non-Production, non-Development host so developer user-secrets
-        // cannot change this production-boundary integration test.
+        // Bruk en host som verken er Production eller Development, slik at developer user-secrets
+        // ikke kan endre denne integration test av production boundary.
         builder.UseEnvironment("Testing");
         builder.UseSetting("Dhg:Environment", "Production");
         builder.UseSetting("AuthGateway:SharedSecret", new string('g', 32));

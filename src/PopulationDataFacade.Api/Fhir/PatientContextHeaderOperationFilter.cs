@@ -24,7 +24,7 @@ public sealed class PatientContextHeaderOperationFilter(
                 [identifierName] = new()
                 {
                     Type = "string",
-                    Description = "Approved configured synthetic NIN. Sent in the form body and never returned."
+                    Description = "Godkjent konfigurert syntetisk NIN. Sendes i form body og returneres aldri."
                 }
             };
             if (path.StartsWith("fhir/Observation/", StringComparison.OrdinalIgnoreCase))
@@ -32,7 +32,7 @@ public sealed class PatientContextHeaderOperationFilter(
                 properties["code"] = new OpenApiSchema
                 {
                     Type = "string",
-                    Description = "Optional system|code Observation filter."
+                    Description = "Valgfritt system|code Observation filter."
                 };
             }
 
@@ -67,7 +67,7 @@ public sealed class PatientContextHeaderOperationFilter(
             Name = options.Value.HeaderName,
             In = ParameterLocation.Header,
             Required = true,
-            Description = "Protected patient context returned by POST /test/patient-context/{alias}.",
+            Description = "Protected patient context returnert av POST /test/patient-context/{alias}.",
             Schema = new OpenApiSchema { Type = "string" }
         });
     }

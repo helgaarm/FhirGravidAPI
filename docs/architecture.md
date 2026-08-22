@@ -2,32 +2,33 @@
 
 ## Flyt
 
-```text
-FHIR-klient
-  │ HelseID DPoP access-token + beskyttet pasientkontekst
-  ▼
-auth-gateway
-  │ validerer HelseID token, DPoP, scope og replay; videresender med intern credential
-  ▼
-PopulationDataFacade.Api
-  │ validerer gateway-credential, JWT og kontekst; kjenner ikke DHG JSON
-  ▼
-IPopulationDataService / Core-modell
-  │
-  ▼
-Infrastructure
-  ├─ HelseID token exchange + DPoP
-  ├─ GET DHG /status
-  ├─ GET DHG /record/{latestRecordId}
-  └─ DHG DTO → kildeuavhengig PopulationSnapshot
-  │
-  ▼
-Firely FHIR R4-mapping → Patient / Observation / Encounter / Bundle
+```mermaid
+flowchart LR
+    Client["FHIR client"]
+    Gateway["auth-gateway"]
+    Api["PopulationDataFacade.Api"]
+    Core["IPopulationDataService<br/>Core model"]
+    Infrastructure["PopulationDataFacade.Infrastructure"]
+    HelseID["HelseID"]
+    DHG["DHG API"]
+    Snapshot["PopulationSnapshot"]
+    Mapper["Firely FHIR R4 mapping"]
+    Resources["Patient / Observation / Encounter / Bundle"]
+
+    Client -->|"HelseID DPoP access token<br/>+ protected patient context"| Gateway
+    Gateway -->|"Validated request<br/>+ internal credential"| Api
+    Api --> Core
+    Core --> Infrastructure
+    Infrastructure -->|"Token exchange + DPoP"| HelseID
+    Infrastructure -->|"GET /status<br/>GET /record/{latestRecordId}"| DHG
+    Infrastructure --> Snapshot
+    Snapshot --> Mapper
+    Mapper --> Resources
 ```
 
-I eksplisitt `DevelopmentTestMode` er Swagger/FHIR-siden anonym. Den innkommende token-exchange-flyten erstattes da normalt av en server-side HelseID `client_credentials`-forespørsel med DHG resource/scope og DPoP. En separat Test-only konfigurasjon kan i stedet hente et nytt request-bound `accessTokenJwt`/`dPoPProof`-par fra HelseID TEST-tokenverktøyet for hvert DHG-kall, etter samme mønster som smartOppgave. Modusen er normalt sperret til lokal `Development` sammen med `Dhg:Environment=Test`. Repositoryets testmal kan eksplisitt tillate `Staging` med `AllowRemoteStaging=true`, men bare bak malens obligatoriske Container Apps CIDR-begrensning. Resten av DHG-status/record- og FHIR-flyten er uendret, og begge testvariantene avvises mot Production.
+I eksplisitt `DevelopmentTestMode` er Swagger/FHIR-siden anonym. Den innkommende token-exchange-flyten erstattes da normalt av en server-side HelseID `client_credentials`-forespørsel med DHG resource/scope og DPoP. En separat Test-only konfigurasjon kan i stedet hente et nytt request-bound `accessTokenJwt`/`dPoPProof`-par fra HelseID TEST-tokenverktøyet for hvert DHG-kall, etter samme mønster som smartOppgave. Modusen er sperret til lokal `Development` sammen med `Dhg:Environment=Test`. Resten av DHG-status/record- og FHIR-flyten er uendret, og testmodusen avvises i alle andre environments og mot Production.
 
-Den lokale Development-varianten kan i tillegg velge en allerede konfigurert syntetisk alias gjennom FHIR POST `_search`, med fødselsnummeret i form body. API-laget oversetter dette til aliasens ikke-sensitive logiske pasient-ID før DHG-kallet. Denne forenklingen omgår bare den lokale `X-Patient-Context`-utstedelsen; den godtar ikke ukonfigurerte personer, eksponerer ikke fødselsnummeret i FHIR og registreres ikke i remote Staging eller Production.
+Den lokale Development-varianten kan i tillegg velge en allerede konfigurert syntetisk alias gjennom FHIR POST `_search`, med fødselsnummeret i form body. API-laget oversetter dette til aliasens ikke-sensitive logiske pasient-ID før DHG-kallet. Denne forenklingen omgår bare den lokale `X-Patient-Context`-utstedelsen; den godtar ikke ukonfigurerte personer, eksponerer ikke fødselsnummeret i FHIR og registreres ikke utenfor lokal Development.
 
 API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og wire-kontrakter finnes i Infrastructure. Det gjør at FHIR-kontrakten kan testes uten runtime-mock eller alternativ datakilde.
 

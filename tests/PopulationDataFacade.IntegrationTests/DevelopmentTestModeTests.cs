@@ -150,63 +150,6 @@ public sealed class DevelopmentTestModeTests
     }
 
     [Fact]
-    public async Task Explicit_remote_staging_mode_accepts_non_loopback_requests()
-    {
-        await using var factory = new DevelopmentTestModeFactory(
-            simulateLoopback: false,
-            hostEnvironment: "Staging",
-            allowRemoteStaging: true);
-        using var client = factory.CreateClient();
-
-        using var contextResponse = await client.PostAsync(
-            "/test/patient-context/synthetic_1",
-            null,
-            TestContext.Current.CancellationToken);
-        contextResponse.EnsureSuccessStatusCode();
-        using var contextJson = JsonDocument.Parse(await contextResponse.Content.ReadAsStringAsync(
-            TestContext.Current.CancellationToken));
-        var patientId = contextJson.RootElement.GetProperty("patientId").GetString();
-        var patientContext = contextJson.RootElement.GetProperty("patientContext").GetString();
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"/fhir/Patient/{patientId}");
-        request.Headers.TryAddWithoutValidation("X-Patient-Context", patientContext);
-        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Remote_staging_mode_does_not_expose_nin_form_search()
-    {
-        await using var factory = new DevelopmentTestModeFactory(
-            hostEnvironment: "Staging",
-            allowRemoteStaging: true);
-        using var client = factory.CreateClient();
-        using var content = new FormUrlEncodedContent(
-            [new KeyValuePair<string, string>("patient.identifier", "01019012345")]);
-
-        using var response = await client.PostAsync(
-            "/fhir/Observation/_search",
-            content,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public void Remote_staging_flag_cannot_enable_test_mode_in_production()
-    {
-        using var factory = new InvalidDevelopmentTestModeFactory(
-            "Production",
-            "Test",
-            allowRemoteStaging: true);
-
-        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
-
-        Assert.Contains("DevelopmentTestMode requires Dhg:Environment=Test", exception.ToString());
-    }
-
-    [Fact]
     public async Task Swagger_documents_the_patient_context_header()
     {
         await using var factory = new DevelopmentTestModeFactory();
@@ -308,14 +251,12 @@ public sealed class DevelopmentTestModeTests
 
 public sealed class InvalidDevelopmentTestModeFactory(
     string hostEnvironment,
-    string dhgEnvironment,
-    bool allowRemoteStaging = false) : WebApplicationFactory<Program>
+    string dhgEnvironment) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(hostEnvironment);
         builder.UseSetting("DevelopmentTestMode:Enabled", "true");
-        builder.UseSetting("DevelopmentTestMode:AllowRemoteStaging", allowRemoteStaging.ToString());
         builder.UseSetting("Dhg:Environment", dhgEnvironment);
     }
 }
@@ -333,16 +274,13 @@ public sealed class InvalidDevelopmentListenerFactory : WebApplicationFactory<Pr
 
 public sealed class DevelopmentTestModeFactory(
     bool simulateLoopback = true,
-    string hostEnvironment = "Development",
-    bool allowRemoteStaging = false,
     bool useTestTokenUtility = false) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var privateJwk = CreatePrivateJwk();
-        builder.UseEnvironment(hostEnvironment);
+        builder.UseEnvironment("Development");
         builder.UseSetting("DevelopmentTestMode:Enabled", "true");
-        builder.UseSetting("DevelopmentTestMode:AllowRemoteStaging", allowRemoteStaging.ToString());
         builder.UseSetting("DevelopmentTestMode:Subject", "swagger-integration-user");
         builder.UseSetting("Dhg:Environment", "Test");
         builder.ConfigureLogging(logging => logging.ClearProviders());
@@ -350,7 +288,6 @@ public sealed class DevelopmentTestModeFactory(
             new Dictionary<string, string?>
             {
                 ["DevelopmentTestMode:Enabled"] = "true",
-                ["DevelopmentTestMode:AllowRemoteStaging"] = allowRemoteStaging.ToString(),
                 ["DevelopmentTestMode:Subject"] = "swagger-integration-user",
                 ["Dhg:Environment"] = "Test",
                 ["HelseId:Authority"] = "https://helseid-sts.test.nhn.no",

@@ -33,7 +33,6 @@ public sealed class DevelopmentTestModeOptions
 {
     public const string SectionName = "DevelopmentTestMode";
     public bool Enabled { get; set; }
-    public bool AllowRemoteStaging { get; set; }
     public string Subject { get; set; } = "swagger-dhg-test-user";
 }
 
