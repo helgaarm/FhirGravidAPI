@@ -11,6 +11,7 @@ Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnumm
 | NIN | godkjent syntetisk verdi | Hemmelig identifier som bare sendes i DHGs obligatoriske outbound header |
 | Patient context | beskyttet opaque string | Short-lived binding mellom logical ID, NIN, subject og expiry |
 | Pseudonym patient ID | `patient-<FHIR-safe-HMAC>` | Stabil FHIR `Patient.id` for autentisert POST `_search`; bruker bare tegn tillatt av FHIR R4 og kan ikke reverseres uten secret key |
+| Fetus patient ID | `fetus-<digest>` | Pregnancy-scoped logical `Patient.id` avledet fra maternal logical ID og positivt DHG `fosterId`; inneholder verken NIN eller raw `fosterId` og skal leses fra `Observation.focus` |
 
 Alias og logical ID er ikke DHG identifiers. En operatør velger stabile, ikke-sensitive navn for dem. Bare konfigurert NIN identifiserer den syntetiske personen overfor DHG.
 
@@ -88,9 +89,10 @@ Bruk samme par ved searches:
 ```text
 GET /fhir/Observation?patient=patient-test-1
 GET /fhir/Encounter?patient=patient-test-1
+GET /fhir/CareTeam?patient=patient-test-1
 ```
 
-Logical ID i route eller search parameter må være nøyaktig lik logical ID i protected context. Legg aldri NIN i `{id}` eller en query parameter.
+Maternal logical ID i search parameter må være nøyaktig lik logical ID i protected context. En Patient read kan også bruke en fetus ID som først er returnert i `Observation.focus`; samme protected maternal context kreves, og bare foster i dette maternal snapshot kan løses. Legg aldri NIN i `{id}` eller en query parameter.
 
 PowerShell-eksempel for eksplisitt lokal Development-test mode:
 
@@ -112,7 +114,7 @@ Invoke-RestMethod `
 
 ## Autentisert POST search med NIN
 
-De tre FHIR POST `_search`-operasjonene er tilgjengelige i autentisert drift, inkludert Production. De krever et HelseID DPoP access-token som oppfyller `population.read`, men ikke `X-Patient-Context`. NIN oppgis bare i en `application/x-www-form-urlencoded` request body. DHGs consent-, personstatus- og active-record-kontroller kjøres som ellers.
+De fire FHIR POST `_search`-operasjonene er tilgjengelige i autentisert drift, inkludert Production. De krever et HelseID DPoP access-token som oppfyller `population.read`, men ikke `X-Patient-Context`. NIN oppgis bare i en `application/x-www-form-urlencoded` request body. DHGs consent-, personstatus- og active-record-kontroller kjøres som ellers.
 
 ```mermaid
 sequenceDiagram
@@ -153,6 +155,9 @@ POST /fhir/Observation/_search
 
 POST /fhir/Encounter/_search
   patient.identifier: <approved-configured-synthetic-nin>
+
+POST /fhir/CareTeam/_search
+  patient.identifier: <approved-configured-synthetic-nin>
 ```
 
 PowerShell-eksempel:
@@ -168,7 +173,7 @@ Invoke-RestMethod `
   -Body @{ "patient.identifier" = $approvedSyntheticNin }
 ```
 
-Ikke bruk `GET /fhir/Observation?patient.identifier=<NIN>` eller en tilsvarende Patient/Encounter-URL. Query strings kan bli lagret i browser history, ingress logs, access telemetry og intermediary systems. Et ukjent eller ikke-konfigurert NIN gir `404` i lokal `DevelopmentTestMode` uten å gjengi den oppgitte verdien. Utenfor denne modusen finnes de samme POST-routene, men da med obligatorisk HelseID og pseudonym HMAC-ID som beskrevet over.
+Ikke bruk `GET /fhir/Observation?patient.identifier=<NIN>` eller en tilsvarende Patient/Encounter/CareTeam-URL. Query strings kan bli lagret i browser history, ingress logs, access telemetry og intermediary systems. Et ukjent eller ikke-konfigurert NIN gir `404` i lokal `DevelopmentTestMode` uten å gjengi den oppgitte verdien. Utenfor denne modusen finnes de samme POST-routene, men da med obligatorisk HelseID og pseudonym HMAC-ID som beskrevet over.
 
 ## Vanlige responser
 

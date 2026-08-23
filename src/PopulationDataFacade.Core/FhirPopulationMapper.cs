@@ -5,9 +5,11 @@ namespace PopulationDataFacade.Core;
 public interface IFhirPopulationMapper
 {
     Patient MapPatient(PopulationPatient patient);
+    IReadOnlyList<Patient> MapFetusPatients(PopulationSnapshot snapshot);
     IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null);
     IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationObservationSearch search);
     IReadOnlyList<Encounter> MapEncounters(PopulationSnapshot snapshot);
+    IReadOnlyList<CareTeam> MapCareTeams(PopulationSnapshot snapshot);
     Bundle SearchBundle(IEnumerable<Resource> resources, Uri? serviceBase = null);
     CapabilityStatement CapabilityStatement(Uri serviceBase);
 }
@@ -41,6 +43,15 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         return patient;
     }
 
+    public IReadOnlyList<Patient> MapFetusPatients(PopulationSnapshot snapshot) =>
+        (snapshot.Fetuses ?? [])
+            .Select(source => new Patient
+            {
+                Id = source.LogicalId,
+                Meta = Meta(source.LastUpdated)
+            })
+            .ToArray();
+
     public IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null) =>
         MapObservations(snapshot, new PopulationObservationSearch(Code: filter));
 
@@ -65,6 +76,11 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             Period = new Period(new FhirDateTime(x.Date.ToString("yyyy-MM-dd")), new FhirDateTime(x.Date.ToString("yyyy-MM-dd")))
         })
         .ToArray();
+
+    public IReadOnlyList<CareTeam> MapCareTeams(PopulationSnapshot snapshot) =>
+        (snapshot.CareTeams ?? [])
+            .Select(x => MapCareTeam(snapshot.Patient.LogicalId, x))
+            .ToArray();
 
     public Bundle SearchBundle(IEnumerable<Resource> resources, Uri? serviceBase = null)
     {
@@ -125,6 +141,10 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                     ResourceCapability(
                         ResourceType.Encounter,
                         false,
+                        Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType),
+                    ResourceCapability(
+                        ResourceType.CareTeam,
+                        false,
                         Hl7.Fhir.Model.CapabilityStatement.TypeRestfulInteraction.SearchType)
                 ]
             }
@@ -171,12 +191,82 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             observation.Encounter = new ResourceReference($"Encounter/{source.EncounterId}");
         }
 
+        if (source.FocusPatientId is not null)
+        {
+            observation.Focus = [new ResourceReference($"Patient/{source.FocusPatientId}")];
+        }
+
         if (!string.IsNullOrWhiteSpace(source.Note))
         {
             observation.Note = [new Annotation { Text = source.Note }];
         }
 
         return observation;
+    }
+
+    private static CareTeam MapCareTeam(string patientId, PopulationCareTeam source)
+    {
+        var careTeam = new CareTeam
+        {
+            Id = source.Id,
+            Meta = Meta(source.LastUpdated),
+            Status = CareTeam.CareTeamStatus.Active,
+            Subject = new ResourceReference($"Patient/{patientId}")
+        };
+
+        if (source.Midwife is not null)
+        {
+            var participant = new CareTeam.ParticipantComponent
+            {
+                Role = [new CodeableConcept { Text = "Jordmor" }]
+            };
+
+            if (!string.IsNullOrWhiteSpace(source.Midwife.Name))
+            {
+                careTeam.Contained.Add(new Practitioner
+                {
+                    Id = "midwife",
+                    Name = [new HumanName { Text = source.Midwife.Name }]
+                });
+                participant.Member = new ResourceReference("#midwife", source.Midwife.Name);
+            }
+
+            if (!string.IsNullOrWhiteSpace(source.Midwife.OrganizationName))
+            {
+                careTeam.Contained.Add(new Organization
+                {
+                    Id = "midwife-organization",
+                    Name = source.Midwife.OrganizationName
+                });
+                var organizationReference = new ResourceReference(
+                    "#midwife-organization",
+                    source.Midwife.OrganizationName);
+                if (participant.Member is null)
+                    participant.Member = organizationReference;
+                else
+                    participant.OnBehalfOf = organizationReference;
+            }
+
+            careTeam.Participant.Add(participant);
+        }
+
+        if (!string.IsNullOrWhiteSpace(source.MaternityHealthcareCentre))
+        {
+            careTeam.Contained.Add(new Organization
+            {
+                Id = "maternity-healthcare-centre",
+                Name = source.MaternityHealthcareCentre
+            });
+            careTeam.Participant.Add(new CareTeam.ParticipantComponent
+            {
+                Role = [new CodeableConcept { Text = "Helsestasjon" }],
+                Member = new ResourceReference(
+                    "#maternity-healthcare-centre",
+                    source.MaternityHealthcareCentre)
+            });
+        }
+
+        return careTeam;
     }
 
     private static CapabilityStatement.ResourceComponent ResourceCapability(
@@ -221,7 +311,7 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                     Definition = "http://hl7.org/fhir/SearchParameter/clinical-date"
                 }
             ]
-            : resourceType is ResourceType.Encounter
+            : resourceType is ResourceType.Encounter or ResourceType.CareTeam
                 ?
                 [
                     new CapabilityStatement.SearchParamComponent

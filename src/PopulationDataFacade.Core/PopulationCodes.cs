@@ -6,6 +6,7 @@ public static class PopulationCodes
     public const string Loinc = "http://loinc.org";
     public const string SnomedCt = "http://snomed.info/sct";
     public const string Volven3303 = "urn:oid:2.16.578.1.12.4.1.1.3303";
+    public const string Volven8534 = "urn:oid:2.16.578.1.12.4.1.1.8534";
     public const string Volven8536 = "urn:oid:2.16.578.1.12.4.1.1.8536";
     public const string Volven8537 = "urn:oid:2.16.578.1.12.4.1.1.8537";
     public const string Volven8340 = "urn:oid:2.16.578.1.12.4.1.1.8340";
@@ -25,7 +26,10 @@ public static class PopulationCodes
     public static readonly PopulationCode StillBirths22Weeks = Snomed("252112002", "Number of stillbirths");
     public static readonly PopulationCode EctopicPregnancies = Snomed("440537001", "Number of ectopic pregnancies");
 
+    public static readonly PopulationCode NoKnownGeneticDisorders = TextOnly("Ingen kjente arvelige sykdommer");
     public static readonly PopulationCode ParentsAreRelatives = Snomed("842009", "Consanguinity");
+    public static readonly PopulationCode OtherGeneticDisorder = TextOnly("Annen arvelig sykdom");
+    public static readonly PopulationCode GeneticDisordersNote = TextOnly("Merknad om arvelige sykdommer");
 
     public static readonly PopulationCode HeartDisease = Snomed("56265001", "Heart disease");
     public static readonly PopulationCode HypertensiveDisorder = Snomed("38341003", "Hypertensive disorder");
@@ -43,10 +47,13 @@ public static class PopulationCodes
     public static readonly PopulationCode Hemoglobin = NlkCode("NOR05172", "B-Hemoglobin");
     public static readonly PopulationCode Ferritin = NlkCode("NPU19763", "P-Ferritin");
     public static readonly PopulationCode Hbv = Snomed("165806002", "Hepatitis B surface antigen detected");
+    public static readonly PopulationCode HbvCoreAntibodyTestResult = TextOnly("P-Hepatitt B-virus (HBV) core-antistoff");
+    public static readonly PopulationCode BloodTypeAntibodyTestResult = TextOnly("Blodtypeantistoffer");
     public static readonly PopulationCode HivTestResult = TextOnly("Prøveresultat for HIV");
     public static readonly PopulationCode SyphilisTestResult = TextOnly("Prøveresultat for syfilis");
     public static readonly PopulationCode ChlamydiaTestResult = TextOnly("Prøveresultat for klamydia");
     public static readonly PopulationCode ToxoplasmosisTestResult = TextOnly("Prøveresultat for toksoplasmose");
+    public static readonly PopulationCode RubellaIgg = NlkCode("NPU12412", "P-Rubellavirus IgG");
     public static readonly PopulationCode HepatitisCTestResult = TextOnly("Prøveresultat for hepatitt C");
     public static readonly PopulationCode HbA1c = NlkCode("NPU27300", "B-HbA1c");
     public static readonly PopulationCode GlucoseFasting = Snomed("271062006", "Fasting blood glucose measurement");
@@ -56,11 +63,18 @@ public static class PopulationCodes
 
     public static readonly PopulationCode SymphysisFundalHeight = Snomed("364253002", "Fundal height of uterus");
     public static readonly PopulationCode GestationalAge = LoincCode("18185-9", "Gestational age");
+    public static readonly PopulationCode BodyHeight = Snomed("50373000", "Body height measure");
     public static readonly PopulationCode MotherWeight = Snomed("27113001", "Body weight");
+    public static readonly PopulationCode BodyMassIndex = Snomed("60621009", "Body mass index");
     public static readonly PopulationCode BloodPressure = LoincCode("85354-9", "Blood pressure panel with all children optional");
     public static readonly PopulationCode Systolic = Snomed("4471000202106", "Systemic systolic arterial blood pressure");
     public static readonly PopulationCode Diastolic = Snomed("4481000202108", "Systemic diastolic arterial blood pressure");
     public static readonly PopulationCode UrineProtein = NlkCode("NPU04206", "Protein in urine");
+
+    public static readonly PopulationCode FetalHeartRate = Snomed("364075005", "Heart rate");
+    public static readonly PopulationCode FetalPresentationLie = TextOnly("Fosterleie og -presentasjon");
+    public static readonly PopulationCode FetalMovementsReported = LoincCode("57088-7", "Fetal Movement - Reported");
+    public static readonly PopulationCode FetalFindingsNote = TextOnly("Merknad om fosterfunn");
 
     private static readonly IReadOnlyDictionary<(string System, string Code), PopulationCode[]> SupplementalCodings =
         new Dictionary<(string System, string Code), PopulationCode[]>
@@ -69,9 +83,12 @@ public static class PopulationCodes
             [(DueDateUltrasound.System!, DueDateUltrasound.Code!)] = [LoincCode("11778-8", "Delivery date Estimated")],
             [(AboType.System!, AboType.Code!)] = [LoincCode("883-9", "ABO group [Type] in Blood")],
             [(RhesusDType.System!, RhesusDType.Code!)] = [LoincCode("10331-7", "Rh [Type] in Blood")],
+            [(BodyHeight.System!, BodyHeight.Code!)] = [LoincCode("8302-2", "Body height")],
             [(MotherWeight.System!, MotherWeight.Code!)] = [LoincCode("29463-7", "Body weight")],
+            [(BodyMassIndex.System!, BodyMassIndex.Code!)] = [LoincCode("39156-5", "Body mass index (BMI) [Ratio]")],
             [(Systolic.System!, Systolic.Code!)] = [LoincCode("8480-6", "Systolic blood pressure")],
-            [(Diastolic.System!, Diastolic.Code!)] = [LoincCode("8462-4", "Diastolic blood pressure")]
+            [(Diastolic.System!, Diastolic.Code!)] = [LoincCode("8462-4", "Diastolic blood pressure")],
+            [(FetalHeartRate.System!, FetalHeartRate.Code!)] = [LoincCode("55283-6", "Fetal Heart rate")]
         };
 
     public static IEnumerable<PopulationCode> CodingsFor(PopulationCode code)

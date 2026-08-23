@@ -1,0 +1,60 @@
+{
+  "resourceType": "CareTeam",
+  "id": "pregnancy-care-team",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "contained": [
+    {
+      "resourceType": "Practitioner",
+      "id": "midwife",
+      "name": [
+        {
+          "text": "Kari Jordmor"
+        }
+      ]
+    },
+    {
+      "resourceType": "Organization",
+      "id": "midwife-organization",
+      "name": "Sentrum jordmortjeneste"
+    },
+    {
+      "resourceType": "Organization",
+      "id": "maternity-healthcare-centre",
+      "name": "Sentrum helsestasjon"
+    }
+  ],
+  "status": "active",
+  "subject": {
+    "reference": "Patient/patient-1"
+  },
+  "participant": [
+    {
+      "role": [
+        {
+          "text": "Jordmor"
+        }
+      ],
+      "member": {
+        "reference": "#midwife",
+        "display": "Kari Jordmor"
+      },
+      "onBehalfOf": {
+        "reference": "#midwife-organization",
+        "display": "Sentrum jordmortjeneste"
+      }
+    },
+    {
+      "role": [
+        {
+          "text": "Helsestasjon"
+        }
+      ],
+      "member": {
+        "reference": "#maternity-healthcare-centre",
+        "display": "Sentrum helsestasjon"
+      }
+    }
+  ]
+}

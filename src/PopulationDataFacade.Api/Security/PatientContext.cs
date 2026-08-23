@@ -187,14 +187,19 @@ public sealed class PatientRequestContextFactory(
 {
     public PatientRequestContext Create(HttpContext httpContext, string requestedPatientId)
     {
+        var context = CreateForPatientRead(httpContext);
+        if (!string.Equals(context.LogicalId, requestedPatientId, StringComparison.Ordinal))
+            throw new PopulationDataException(PopulationErrorKind.NotFound, "The requested patient was not found in this context.");
+        return context;
+    }
+
+    public PatientRequestContext CreateForPatientRead(HttpContext httpContext)
+    {
         if (!httpContext.Request.Headers.TryGetValue(options.Value.HeaderName, out var values) ||
             values.Count != 1 || string.IsNullOrWhiteSpace(values[0]))
             throw new PopulationDataException(PopulationErrorKind.InvalidPatientContext, "A protected patient context is required.");
 
         var payload = tokenService.Read(values[0]!);
-        if (!string.Equals(payload.LogicalId, requestedPatientId, StringComparison.Ordinal))
-            throw new PopulationDataException(PopulationErrorKind.NotFound, "The requested patient was not found in this context.");
-
         var authenticatedSubject = developmentTestMode.Value.Enabled
             ? developmentTestMode.Value.Subject
             : httpContext.User.FindFirst("sub")?.Value;

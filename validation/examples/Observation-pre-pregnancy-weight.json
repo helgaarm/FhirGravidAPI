@@ -1,0 +1,40 @@
+{
+  "resourceType": "Observation",
+  "id": "pre-pregnancy-weight",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "vital-signs"
+    }],
+    "text": "vital-signs"
+  }],
+  "code": {
+    "coding": [
+      {
+        "system": "http://snomed.info/sct",
+        "code": "27113001",
+        "display": "Body weight"
+      },
+      {
+        "system": "http://loinc.org",
+        "code": "29463-7",
+        "display": "Body weight"
+      }
+    ],
+    "text": "Body weight"
+  },
+  "subject": { "reference": "Patient/patient-1" },
+  "valueQuantity": {
+    "value": 62.5,
+    "unit": "kg",
+    "system": "http://unitsofmeasure.org",
+    "code": "kg"
+  },
+  "note": [{
+    "text": "Før svangerskapet; measurement time er ikke oppgitt av DHG"
+  }]
+}

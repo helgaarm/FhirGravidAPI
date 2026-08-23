@@ -1,0 +1,26 @@
+{
+  "resourceType": "Observation",
+  "id": "text-value",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "survey"
+        }
+      ],
+      "text": "survey"
+    }
+  ],
+  "code": {
+    "text": "Merknad om arvelige sykdommer"
+  },
+  "subject": {
+    "reference": "Patient/patient-1"
+  },
+  "valueString": "Mor har en arvelig sykdom som ikke er kodet"
+}

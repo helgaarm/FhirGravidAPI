@@ -39,6 +39,10 @@ public static class FhirEndpoints
             .WithName("SearchEncounters")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
 
+        group.MapGet("/CareTeam", SearchCareTeamsAsync)
+            .WithName("SearchCareTeams")
+            .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
+
         group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchPatientByIdentifier")
@@ -58,6 +62,14 @@ public static class FhirEndpoints
         group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchEncountersByPatientIdentifier")
+            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
+            .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
+
+        group.MapPost("/CareTeam/_search", SearchCareTeamsByPatientIdentifierAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
+            .WithName("SearchCareTeamsByPatientIdentifier")
             .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
@@ -122,6 +134,21 @@ public static class FhirEndpoints
         return FhirHttp.Result(mapper.SearchBundle(mapper.MapEncounters(snapshot).Cast<Resource>(), ServiceBase(httpContext)));
     }
 
+    private static async Task<IResult> SearchCareTeamsByPatientIdentifierAsync(
+        HttpContext httpContext,
+        PatientRequestContextFactory contextFactory,
+        IPopulationDataService service,
+        IFhirPopulationMapper mapper,
+        CancellationToken cancellationToken)
+    {
+        var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier");
+        var requestContext = contextFactory.CreateForNinSearch(
+            httpContext,
+            RequiredSingleValue(form, "patient.identifier"));
+        var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
+        return FhirHttp.Result(mapper.SearchBundle(mapper.MapCareTeams(snapshot).Cast<Resource>(), ServiceBase(httpContext)));
+    }
+
     private static async Task<IResult> GetPatientAsync(
         string id,
         HttpContext httpContext,
@@ -130,9 +157,19 @@ public static class FhirEndpoints
         IFhirPopulationMapper mapper,
         CancellationToken cancellationToken)
     {
-        var requestContext = contextFactory.Create(httpContext, id);
+        var requestContext = contextFactory.CreateForPatientRead(httpContext);
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
-        return FhirHttp.Result(mapper.MapPatient(snapshot.Patient));
+        if (string.Equals(snapshot.Patient.LogicalId, id, StringComparison.Ordinal))
+            return FhirHttp.Result(mapper.MapPatient(snapshot.Patient));
+
+        var fetus = mapper.MapFetusPatients(snapshot)
+            .SingleOrDefault(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal));
+        if (fetus is null)
+            throw new PopulationDataException(
+                PopulationErrorKind.NotFound,
+                "The requested patient was not found in this context.");
+
+        return FhirHttp.Result(fetus);
     }
 
     private static async Task<IResult> SearchObservationsAsync(
@@ -166,6 +203,20 @@ public static class FhirEndpoints
         var requestContext = contextFactory.Create(httpContext, patientId);
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
         return FhirHttp.Result(mapper.SearchBundle(mapper.MapEncounters(snapshot).Cast<Resource>(), ServiceBase(httpContext)));
+    }
+
+    private static async Task<IResult> SearchCareTeamsAsync(
+        string? patient,
+        HttpContext httpContext,
+        PatientRequestContextFactory contextFactory,
+        IPopulationDataService service,
+        IFhirPopulationMapper mapper,
+        CancellationToken cancellationToken)
+    {
+        var patientId = RequiredPatient(patient);
+        var requestContext = contextFactory.Create(httpContext, patientId);
+        var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
+        return FhirHttp.Result(mapper.SearchBundle(mapper.MapCareTeams(snapshot).Cast<Resource>(), ServiceBase(httpContext)));
     }
 
     private static string RequiredPatient(string? patient)

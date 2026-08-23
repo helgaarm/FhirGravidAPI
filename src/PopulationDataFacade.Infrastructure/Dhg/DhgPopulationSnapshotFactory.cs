@@ -13,6 +13,8 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         var observations = new List<PopulationObservation>();
         var encounters = new List<PopulationEncounter>();
+        var careTeams = new List<PopulationCareTeam>();
+        var fetuses = new Dictionary<int, PopulationFetusPatient>();
 
         var mother = Active(record.Mother);
         var language = ToCodedValue(mother?.Language);
@@ -31,15 +33,26 @@ public sealed partial class DhgPopulationSnapshotFactory
         MapLifestyle(Active(record.LifestyleFactors), observations);
         MapClinicalTests(Active(record.ClinicalTests), observations);
         MapRhesus(Active(record.RhesusDNegative), observations);
+        MapVitalMeasurementsBeforePregnancy(
+            Active(record.VitalMeasurementsBeforePregnancy),
+            observations);
         MapSymphysisFundalHeights(record.SymphysisFundalHeights, observations);
-        MapAntenatalAppointments(record.AntenatalAppointments, observations, encounters);
+        MapAntenatalAppointments(
+            logicalPatientId,
+            record.AntenatalAppointments,
+            observations,
+            encounters,
+            fetuses);
+        MapPointsOfContact(Active(record.PointsOfContact), careTeams);
 
         return new PopulationSnapshot(
             patient,
             observations,
             encounters,
             status.LastChangedDateTime ?? record.Metadata?.RecordLastUpdated,
-            status.HasActiveMaternityRecord == true);
+            status.HasActiveMaternityRecord == true,
+            careTeams,
+            fetuses.Values.OrderBy(fetus => fetus.LogicalId, StringComparer.Ordinal).ToArray());
     }
 
     private static void MapCurrentPregnancy(DhgCurrentPregnancy? source, List<PopulationObservation> output)
@@ -85,7 +98,10 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
+        AddBoolean(output, Id(source.Metadata, "genetic-none-known"), PopulationCodes.NoKnownGeneticDisorders, source.NoneKnown, updated);
         AddBoolean(output, Id(source.Metadata, "parents-are-relatives"), PopulationCodes.ParentsAreRelatives, source.ParentsAreRelatives, updated);
+        AddBoolean(output, Id(source.Metadata, "genetic-other"), PopulationCodes.OtherGeneticDisorder, source.Other, updated);
+        AddText(output, Id(source.Metadata, "genetic-note"), PopulationCodes.GeneticDisordersNote, source.Note, updated);
     }
 
     private static void MapMedicalConditions(DhgMedicalConditions? source, List<PopulationObservation> output)
@@ -169,10 +185,13 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddQuantity(output, Id(source.Metadata, "hemoglobin-3trimester"), PopulationCodes.Hemoglobin, source.HemoglobinAtThirdTrimester, "g/dL", "g/dL", updated, note: "Tredje trimester");
         AddQuantity(output, Id(source.Metadata, "ferritin"), PopulationCodes.Ferritin, source.Ferritin, "µg/L", "ug/L", updated);
         AddBooleanLab(output, Id(source.Metadata, "hbv"), PopulationCodes.Hbv, source.Hbv, updated);
+        AddBooleanLab(output, Id(source.Metadata, "hbv-core"), PopulationCodes.HbvCoreAntibodyTestResult, source.HbvCore, updated);
         AddBooleanLab(output, Id(source.Metadata, "hiv"), PopulationCodes.HivTestResult, source.Hiv, updated);
         AddBooleanLab(output, Id(source.Metadata, "syphilis"), PopulationCodes.SyphilisTestResult, source.Syphilis, updated);
+        AddBooleanLab(output, Id(source.Metadata, "blood-antibodies"), PopulationCodes.BloodTypeAntibodyTestResult, source.BloodAntibodies, updated);
         AddBooleanLab(output, Id(source.Metadata, "chlamydia"), PopulationCodes.ChlamydiaTestResult, source.Chlamydia, updated);
         AddBooleanLab(output, Id(source.Metadata, "toxoplasmosis"), PopulationCodes.ToxoplasmosisTestResult, source.Toxoplasmosis, updated);
+        AddBooleanLab(output, Id(source.Metadata, "rubella-igg"), PopulationCodes.RubellaIgg, source.RubellaAntigen, updated);
         AddBooleanLab(output, Id(source.Metadata, "hepatitis-c"), PopulationCodes.HepatitisCTestResult, source.HepatitisC, updated);
         AddCoded(output, Id(source.Metadata, "abo-type"), PopulationCodes.AboType, ToAboValue(source.AboRh?.AboType), updated);
         AddCoded(output, Id(source.Metadata, "rhesus-d-type"), PopulationCodes.RhesusDType, ToRhesusDValue(source.AboRh?.RhesusDType), updated);
@@ -186,6 +205,46 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
         AddBoolean(output, Id(source.Metadata, "rhd-prophylaxis-week28"), PopulationCodes.RhesusProphylaxis, source.ProphylaxisAtWeek28, updated, "therapy");
+    }
+
+    private static void MapVitalMeasurementsBeforePregnancy(
+        DhgVitalMeasurementsBeforePregnancy? source,
+        List<PopulationObservation> output)
+    {
+        if (source is null) return;
+
+        const string context = "Før svangerskapet; measurement time er ikke oppgitt av DHG";
+        var updated = source.Metadata?.LastUpdated;
+        AddQuantity(
+            output,
+            Id(source.Metadata, "pre-pregnancy-height"),
+            PopulationCodes.BodyHeight,
+            source.Height,
+            "cm",
+            "cm",
+            updated,
+            category: "vital-signs",
+            note: context);
+        AddQuantity(
+            output,
+            Id(source.Metadata, "pre-pregnancy-weight"),
+            PopulationCodes.MotherWeight,
+            source.PrePregnancyWeight,
+            "kg",
+            "kg",
+            updated,
+            category: "vital-signs",
+            note: context);
+        AddQuantity(
+            output,
+            Id(source.Metadata, "pre-pregnancy-bmi"),
+            PopulationCodes.BodyMassIndex,
+            source.BMI,
+            "kg/m²",
+            "kg/m2",
+            updated,
+            category: "vital-signs",
+            note: context);
     }
 
     private static void MapSymphysisFundalHeights(IEnumerable<DhgSymphysisFundalHeight>? sources, List<PopulationObservation> output)
@@ -207,9 +266,11 @@ public sealed partial class DhgPopulationSnapshotFactory
     }
 
     private static void MapAntenatalAppointments(
+        string maternalPatientId,
         IEnumerable<DhgAntenatalAppointment>? sources,
         List<PopulationObservation> output,
-        List<PopulationEncounter> encounters)
+        List<PopulationEncounter> encounters,
+        Dictionary<int, PopulationFetusPatient> fetuses)
     {
         if (sources is null) return;
         var appointments = sources
@@ -249,7 +310,130 @@ public sealed partial class DhgPopulationSnapshotFactory
             {
                 output.Add(Observation(Id(source.Metadata, $"urine-protein-{index}"), PopulationCodes.UrineProtein, urineProteinResult, "laboratory", source.Metadata?.LastUpdated, effective, encounterId: encounterId));
             }
+
+            MapFetalFindings(
+                maternalPatientId,
+                source,
+                output,
+                fetuses,
+                effective,
+                encounterId,
+                index);
         }
+    }
+
+    private static void MapFetalFindings(
+        string maternalPatientId,
+        DhgAntenatalAppointment appointment,
+        List<PopulationObservation> output,
+        Dictionary<int, PopulationFetusPatient> fetuses,
+        EffectiveDate effective,
+        string encounterId,
+        int appointmentIndex)
+    {
+        if (appointment.FetusesVitalSigns is null) return;
+
+        foreach (var fetus in appointment.FetusesVitalSigns
+                     .OfType<DhgFetusVitalSigns>()
+                     .Where(candidate => candidate.FetusId is > 0))
+        {
+            var sourceFetusId = fetus.FetusId!.Value;
+            if (!fetuses.TryGetValue(sourceFetusId, out var fetusPatient))
+            {
+                fetusPatient = new PopulationFetusPatient(
+                    FetalPatientId.Create(maternalPatientId, sourceFetusId),
+                    appointment.Metadata?.LastUpdated);
+                fetuses.Add(sourceFetusId, fetusPatient);
+            }
+            else if (appointment.Metadata?.LastUpdated is { } candidateLastUpdated &&
+                     (fetusPatient.LastUpdated is null || candidateLastUpdated > fetusPatient.LastUpdated))
+            {
+                fetusPatient = fetusPatient with { LastUpdated = candidateLastUpdated };
+                fetuses[sourceFetusId] = fetusPatient;
+            }
+
+            if (fetus.FetalHeartRate is > 0)
+            {
+                output.Add(Observation(
+                    Id(appointment.Metadata, $"fetal-heart-rate-{sourceFetusId}-{appointmentIndex}"),
+                    PopulationCodes.FetalHeartRate,
+                    new QuantityValue(
+                        fetus.FetalHeartRate.Value,
+                        "slag/min",
+                        PopulationCodes.Ucum,
+                        "{beats}/min"),
+                    "vital-signs",
+                    appointment.Metadata?.LastUpdated,
+                    effective,
+                    encounterId: encounterId,
+                    focusPatientId: fetusPatient.LogicalId));
+            }
+
+            var presentation = ToCodedValue(fetus.FetalPresentationLie);
+            if (presentation?.System == PopulationCodes.Volven8534)
+            {
+                output.Add(Observation(
+                    Id(appointment.Metadata, $"fetal-presentation-{sourceFetusId}-{appointmentIndex}"),
+                    PopulationCodes.FetalPresentationLie,
+                    presentation,
+                    "exam",
+                    appointment.Metadata?.LastUpdated,
+                    effective,
+                    encounterId: encounterId,
+                    focusPatientId: fetusPatient.LogicalId));
+            }
+
+            if (fetus.MotherFeelsBabyMovements is not null)
+            {
+                output.Add(Observation(
+                    Id(appointment.Metadata, $"fetal-movements-{sourceFetusId}-{appointmentIndex}"),
+                    PopulationCodes.FetalMovementsReported,
+                    new BooleanValue(fetus.MotherFeelsBabyMovements.Value),
+                    "survey",
+                    appointment.Metadata?.LastUpdated,
+                    effective,
+                    encounterId: encounterId,
+                    focusPatientId: fetusPatient.LogicalId));
+            }
+
+            var note = CleanText(fetus.Note);
+            if (note is not null)
+            {
+                output.Add(Observation(
+                    Id(appointment.Metadata, $"fetal-note-{sourceFetusId}-{appointmentIndex}"),
+                    PopulationCodes.FetalFindingsNote,
+                    new TextValue(note),
+                    "exam",
+                    appointment.Metadata?.LastUpdated,
+                    effective,
+                    encounterId: encounterId,
+                    focusPatientId: fetusPatient.LogicalId));
+            }
+        }
+    }
+
+    private static void MapPointsOfContact(
+        DhgPointsOfContact? source,
+        List<PopulationCareTeam> output)
+    {
+        if (source is null) return;
+
+        var midwifeName = CleanText(source.Midwife?.Name);
+        var midwifeOrganizationName = CleanText(source.Midwife?.OrganizationName);
+        var maternityHealthcareCentre = CleanText(source.MaternityHealthcareCentre);
+        if (midwifeName is null &&
+            midwifeOrganizationName is null &&
+            maternityHealthcareCentre is null)
+            return;
+
+        var midwife = midwifeName is null && midwifeOrganizationName is null
+            ? null
+            : new PopulationCareTeamMember(midwifeName, midwifeOrganizationName);
+        output.Add(new PopulationCareTeam(
+            Id(source.Metadata, "pregnancy-care-team"),
+            midwife,
+            maternityHealthcareCentre,
+            source.Metadata?.LastUpdated));
     }
 
     private static void MapBloodPressure(DhgAntenatalAppointment source, List<PopulationObservation> output, EffectiveDate effective, string encounterId, int index)
@@ -294,6 +478,12 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (value is not null) output.Add(Observation(id, code, new DateValue(value.Value), "survey", updated));
     }
 
+    private static void AddText(List<PopulationObservation> output, string id, PopulationCode code, string? value, DateTimeOffset? updated)
+    {
+        var text = CleanText(value);
+        if (text is not null) output.Add(Observation(id, code, new TextValue(text), "survey", updated));
+    }
+
     private static void AddCoded(List<PopulationObservation> output, string id, PopulationCode code, CodedValue? value, DateTimeOffset? updated)
     {
         if (value is not null) output.Add(Observation(id, code, value, "laboratory", updated));
@@ -308,8 +498,8 @@ public sealed partial class DhgPopulationSnapshotFactory
         output.Add(Observation(id, code, new QuantityValue(numeric, unit, PopulationCodes.Ucum, unitCode), category, updated, effectiveDate is null ? null : new EffectiveDate(effectiveDate.Value), encounterId: encounterId, note: note));
     }
 
-    private static PopulationObservation Observation(string id, PopulationCode code, PopulationValue? value, string category, DateTimeOffset? updated, PopulationEffective? effective = null, IReadOnlyList<PopulationComponent>? components = null, string? encounterId = null, string? note = null) =>
-        new(id, code, value, category, updated, effective, components, encounterId, note);
+    private static PopulationObservation Observation(string id, PopulationCode code, PopulationValue? value, string category, DateTimeOffset? updated, PopulationEffective? effective = null, IReadOnlyList<PopulationComponent>? components = null, string? encounterId = null, string? note = null, string? focusPatientId = null) =>
+        new(id, code, value, category, updated, effective, components, encounterId, note, focusPatientId);
 
     private static T? Active<T>(T? source) where T : class
     {
@@ -325,6 +515,9 @@ public sealed partial class DhgPopulationSnapshotFactory
         return system is null ? null : new CodedValue(system, source.Code, source.Display);
     }
 
+    private static string? CleanText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static string? NormalizeCodeSystem(string? codeSystem)
     {
         if (string.IsNullOrWhiteSpace(codeSystem)) return null;
@@ -332,6 +525,7 @@ public sealed partial class DhgPopulationSnapshotFactory
         {
             "VOLVEN_3303" => PopulationCodes.Volven3303,
             "VOLVEN_8340" => PopulationCodes.Volven8340,
+            "VOLVEN_8534" => PopulationCodes.Volven8534,
             "VOLVEN_8536" => PopulationCodes.Volven8536,
             "VOLVEN_8537" => PopulationCodes.Volven8537,
             _ when OidPattern().IsMatch(codeSystem) => $"urn:oid:{codeSystem}",

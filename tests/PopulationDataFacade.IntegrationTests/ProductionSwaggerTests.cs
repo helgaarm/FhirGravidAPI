@@ -58,6 +58,7 @@ public sealed class ProductionSwaggerTests
     [InlineData("/fhir/Patient/_search", "identifier")]
     [InlineData("/fhir/Observation/_search", "patient.identifier")]
     [InlineData("/fhir/Encounter/_search", "patient.identifier")]
+    [InlineData("/fhir/CareTeam/_search", "patient.identifier")]
     public async Task Production_post_search_requires_helseid(string path, string parameter)
     {
         await using var factory = new ProductionSwaggerFactory(enabled: null);
@@ -74,6 +75,7 @@ public sealed class ProductionSwaggerTests
     [InlineData("/fhir/Patient/_search", "identifier", "Patient")]
     [InlineData("/fhir/Observation/_search", "patient.identifier", "Observation")]
     [InlineData("/fhir/Encounter/_search", "patient.identifier", "Encounter")]
+    [InlineData("/fhir/CareTeam/_search", "patient.identifier", "CareTeam")]
     public async Task Production_post_search_accepts_helseid_without_patient_context(
         string path,
         string parameter,

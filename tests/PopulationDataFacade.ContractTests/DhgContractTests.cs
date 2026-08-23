@@ -19,6 +19,12 @@ public sealed class DhgContractTests
         Assert.NotNull(record);
         Assert.NotNull(record.Metadata);
         Assert.NotNull(record.AntenatalAppointments);
+        var fetus = Assert.Single(Assert.Single(record.AntenatalAppointments).FetusesVitalSigns!);
+        Assert.Equal(1, fetus.FetusId);
+        Assert.Equal(146, fetus.FetalHeartRate);
+        Assert.Equal("1", fetus.FetalPresentationLie?.Code);
+        Assert.True(fetus.MotherFeelsBabyMovements);
+        Assert.Equal("Normale funn", fetus.Note);
         Assert.NotNull(record.BirthStatus);
         Assert.NotNull(record.ClinicalTests);
         Assert.NotNull(record.CurrentPregnancy);
@@ -28,6 +34,9 @@ public sealed class DhgContractTests
         Assert.NotNull(record.Medication);
         Assert.NotNull(record.Mother);
         Assert.NotNull(record.PointsOfContact);
+        Assert.Equal("Kari Jordmor", record.PointsOfContact.Midwife?.Name);
+        Assert.Equal("Sentrum jordmortjeneste", record.PointsOfContact.Midwife?.OrganizationName);
+        Assert.Equal("Sentrum helsestasjon", record.PointsOfContact.MaternityHealthcareCentre);
         Assert.NotNull(record.PreviousPregnancies);
         Assert.NotNull(record.RhesusDNegative);
         Assert.NotNull(record.SymphysisFundalHeights);

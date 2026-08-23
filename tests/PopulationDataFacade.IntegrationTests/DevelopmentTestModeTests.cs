@@ -101,6 +101,7 @@ public sealed class DevelopmentTestModeTests
     [InlineData("/fhir/Patient/_search", "identifier", "Patient")]
     [InlineData("/fhir/Observation/_search", "patient.identifier", "Observation")]
     [InlineData("/fhir/Encounter/_search", "patient.identifier", "Encounter")]
+    [InlineData("/fhir/CareTeam/_search", "patient.identifier", "CareTeam")]
     public async Task Local_post_search_resolves_only_the_configured_synthetic_nin_without_context(
         string path,
         string parameterName,

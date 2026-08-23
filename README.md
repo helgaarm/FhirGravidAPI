@@ -17,14 +17,18 @@ GET /fhir/metadata
 GET /fhir/Patient/{id}
 GET /fhir/Observation?patient={id}[&code={system}|{code}]
 GET /fhir/Encounter?patient={id}
+GET /fhir/CareTeam?patient={id}
 POST /fhir/Patient/_search                 identifier={nin}
 POST /fhir/Observation/_search     patient.identifier={nin}[&code={system}|{code}][&category={code}][&date={prefix}{yyyy-MM-dd}]
 POST /fhir/Encounter/_search       patient.identifier={nin}
+POST /fhir/CareTeam/_search        patient.identifier={nin}
 ```
 
 POST `_search` tar fødselsnummeret i en `application/x-www-form-urlencoded` request body på maksimalt 4096 bytes og krever ikke `X-Patient-Context`. Utenfor lokal `DevelopmentTestMode`, inkludert Production, krever operasjonene et gyldig HelseID DPoP access-token med fasadens `population.read`-policy. Fasaden lager da en stabil, pseudonym FHIR `Patient.id` med HMAC; fødselsnummeret returneres aldri. I lokal `DevelopmentTestMode` er bare fødselsnummer som finnes i et konfigurert syntetisk alias tillatt, og aliasets `LogicalId` brukes.
 
 GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings kan havne i nettleserhistorikk, proxylogger og telemetry. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) og [FHIR-eksempler](examples/fhir-queries.md) for de to flytene.
+
+Når DHG leverer et positivt `fetusesVitalSigns[].fosterId`, opprettes en separat minimal fetus `Patient`. Fetus-spesifikke Observations beholder mor som `subject` og refererer til fosteret med `focus`. Fetus Patient har ingen NIN, name, gender, birthDate eller identifier; den kan leses med samme maternal `X-Patient-Context` via `GET /fhir/Patient/{fetus-id}`. Se [DHG→FHIR-ressursmapping](docs/dhg-fhir-resource-mapping.md).
 
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
@@ -105,7 +109,7 @@ I Swagger:
 2. Kopier `patientId` (den konfigurerte logiske FHIR-ID-en, ikke fødselsnummeret) og `patientContext` fra svaret.
 3. Kall ønsket FHIR-operasjon, bruk nøyaktig denne `patientId`-verdien i route/query, og lim `patientContext` inn i `X-Patient-Context`-feltet Swagger viser.
 
-Som en lokal testforenkling kan de tre POST `_search`-operasjonene brukes direkte med et fødselsnummer som allerede finnes i `PatientContext:TestAliases`. Fødselsnummeret legges i form body, ikke i URL, og Swagger viser derfor ikke `X-Patient-Context` for disse operasjonene. De returnerte FHIR-ressursene bruker fortsatt konfigurert `LogicalId` og inneholder aldri fødselsnummeret.
+Som en lokal testforenkling kan de fire POST `_search`-operasjonene brukes direkte med et fødselsnummer som allerede finnes i `PatientContext:TestAliases`. Fødselsnummeret legges i form body, ikke i URL, og Swagger viser derfor ikke `X-Patient-Context` for disse operasjonene. De returnerte FHIR-ressursene bruker fortsatt konfigurert `LogicalId` og inneholder aldri fødselsnummeret.
 
 De samme POST-operasjonene finnes i autentisert drift og Production. Der kreves HelseID `population.read`, `PatientContext:PatientIdHmacKey` og et innkommende subject-token; `TestAliases` brukes ikke. DHGs consent-, personstatus- og active-record-kontroller kjøres fortsatt før FHIR-mapping.
 

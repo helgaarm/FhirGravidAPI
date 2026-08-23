@@ -51,6 +51,15 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
             parameter => parameter.GetProperty("name").GetString() == "category");
         Assert.Contains(observation.GetProperty("searchParam").EnumerateArray(),
             parameter => parameter.GetProperty("name").GetString() == "date");
+        var careTeam = document.RootElement
+            .GetProperty("rest")[0]
+            .GetProperty("resource")
+            .EnumerateArray()
+            .Single(resource => resource.GetProperty("type").GetString() == "CareTeam");
+        Assert.Contains(careTeam.GetProperty("searchParam").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "patient");
+        Assert.Contains(careTeam.GetProperty("searchParam").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "patient.identifier");
     }
 
     [Fact]
@@ -83,6 +92,45 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"resourceType\":\"Patient\"", json);
         Assert.Contains("\"id\":\"patient-1\"", json);
+        Assert.DoesNotContain("01019012345", json);
+    }
+
+    [Fact]
+    public async Task Fetal_patient_is_resolvable_only_inside_the_maternal_protected_context()
+    {
+        using var client = factory.CreateClient();
+        var context = await IssueContextAsync(client);
+        using var request = Authorized(HttpMethod.Get, "/fhir/Patient/fetus-1", context.Token);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Patient", json.RootElement.GetProperty("resourceType").GetString());
+        Assert.Equal("fetus-1", json.RootElement.GetProperty("id").GetString());
+        Assert.False(json.RootElement.TryGetProperty("identifier", out _));
+        Assert.False(json.RootElement.TryGetProperty("gender", out _));
+        Assert.False(json.RootElement.TryGetProperty("birthDate", out _));
+    }
+
+    [Fact]
+    public async Task Care_team_search_returns_the_marked_DHG_contact_fields()
+    {
+        using var client = factory.CreateClient();
+        var context = await IssueContextAsync(client);
+        using var request = Authorized(
+            HttpMethod.Get,
+            $"/fhir/CareTeam?patient={context.PatientId}",
+            context.Token);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("\"resourceType\":\"CareTeam\"", json);
+        Assert.Contains("Kari Jordmor", json);
+        Assert.Contains("Sentrum helsestasjon", json);
         Assert.DoesNotContain("01019012345", json);
     }
 
@@ -339,10 +387,27 @@ public sealed class FixedPopulationDataService : IPopulationDataService
                     "vital-signs",
                     updated,
                     new EffectiveDate(new DateOnly(2026, 1, 20)),
-                    EncounterId: "encounter-1")
+                    EncounterId: "encounter-1"),
+                new PopulationObservation(
+                    "obs-fetal-heart-rate",
+                    PopulationCodes.FetalHeartRate,
+                    new QuantityValue(145m, "slag/min", PopulationCodes.Ucum, "{beats}/min"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 16)),
+                    EncounterId: "encounter-1",
+                    FocusPatientId: "fetus-1")
             ],
             [new PopulationEncounter("encounter-1", new DateOnly(2026, 1, 16), updated)],
             updated,
-            true));
+            true,
+            [
+                new PopulationCareTeam(
+                    "care-team-1",
+                    new PopulationCareTeamMember("Kari Jordmor", "Sentrum jordmortjeneste"),
+                    "Sentrum helsestasjon",
+                    updated)
+            ],
+            [new PopulationFetusPatient("fetus-1", updated)]));
     }
 }

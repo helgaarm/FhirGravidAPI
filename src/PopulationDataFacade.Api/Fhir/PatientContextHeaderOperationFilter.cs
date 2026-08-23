@@ -69,7 +69,8 @@ public sealed class PatientContextHeaderOperationFilter(
         if (path is null ||
             (!path.StartsWith("fhir/Patient/", StringComparison.OrdinalIgnoreCase) &&
              !path.StartsWith("fhir/Observation", StringComparison.OrdinalIgnoreCase) &&
-             !path.StartsWith("fhir/Encounter", StringComparison.OrdinalIgnoreCase)))
+             !path.StartsWith("fhir/Encounter", StringComparison.OrdinalIgnoreCase) &&
+             !path.StartsWith("fhir/CareTeam", StringComparison.OrdinalIgnoreCase)))
             return;
 
         operation.Parameters ??= [];

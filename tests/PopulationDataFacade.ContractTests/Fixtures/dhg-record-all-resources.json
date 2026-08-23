@@ -9,7 +9,7 @@
     "metadata": { "id": "appointment-1", "version": 1, "lastUpdated": "2026-01-16T12:30:00+01:00", "enteredInError": false },
     "appointmentDate": "2026-01-16", "pregnancyWeek": 24, "daysAfterFullPregnancyWeek": 3,
     "motherWeight": 68.4, "bloodPressure": "118/76", "proteinInUrineTestResult": "neg", "edema": 0,
-    "fetusesVitalSigns": [{ "fosterId": 1, "fetalHeartRate": 146, "motherFeelsBabyMovements": true }]
+    "fetusesVitalSigns": [{ "fosterId": 1, "fetalHeartRate": 146, "fetalPresentationLie": { "code": "1", "display": "Hodeleie", "codeSystem": "VOLVEN_8534" }, "motherFeelsBabyMovements": true, "note": "Normale funn" }]
   }],
   "birthStatus": { "metadata": { "id": "birth-1", "enteredInError": false }, "birthStatus": [{ "fosterId": 1, "status": { "code": "LIVE", "display": "Levende", "codeSystem": "urn:test" }, "datetime": "2026-05-01T08:00:00+02:00" }] },
   "clinicalTests": { "metadata": { "id": "tests-1", "enteredInError": false }, "hemoglobin": 12.4, "hbv": false, "hiv": true, "bHbA1c": 31, "aboRh": { "aboType": "A", "rhesusDType": "NEG" }, "glucoseTolerance": { "fastingGlucoseLevel": 4.5, "post2hGlucoseLevel": 6.3, "testDate": "2026-01-12" } },
@@ -19,7 +19,7 @@
   "medicalConditions": { "metadata": { "id": "conditions-1", "enteredInError": false }, "nothingParticular": false, "heartDisease": false, "allergiesAsthma": true, "epilepsy": null },
   "medication": { "metadata": { "id": "medication-1", "enteredInError": false }, "medicationFrequency": "Ved behov", "drugAllergy": false, "folate": { "takenBefore": true, "takenDuring": null }, "note": "Friksttekst, ikke legemiddelliste" },
   "mother": { "metadata": { "id": "mother-1", "enteredInError": false }, "name": "Skal ikke mappes", "language": { "code": "no", "display": "Norsk", "codeSystem": "urn:ietf:bcp:47" }, "needsLanguageInterpreter": false },
-  "pointsOfContact": { "metadata": { "id": "contacts-1", "enteredInError": false }, "generalPractitioner": { "name": "Skal ikke mappes", "organizationName": "Test" }, "birthInstitute": "Testsykehus" },
+  "pointsOfContact": { "metadata": { "id": "contacts-1", "enteredInError": false }, "generalPractitioner": { "name": "Skal ikke mappes", "organizationName": "Test" }, "midwife": { "name": "Kari Jordmor", "organizationName": "Sentrum jordmortjeneste" }, "birthInstitute": "Testsykehus", "maternityHealthcareCentre": "Sentrum helsestasjon" },
   "previousPregnancies": { "metadata": { "id": "history-1", "enteredInError": false }, "numberOfPreviousPregnancies": 2, "numberOfPreviousLiveBirths": 1, "spontaneousMiscarriages": 1, "stillBirths22weeks": 0, "numberOfEctopicPregnancies": 0 },
   "rhesusDNegative": { "metadata": { "id": "rhd-1", "enteredInError": false }, "consentFetalRhesusTyping": true, "fetusRhDPositiveAtWeek24": false, "prophylaxisAtWeek28": null, "dateForResult": "2026-01-10" },
   "symphysisFundalHeights": [{ "metadata": { "id": "sfh-1", "enteredInError": false }, "pregnancyWeek": 24, "measurement": 23, "measurementDate": "2026-01-16" }],

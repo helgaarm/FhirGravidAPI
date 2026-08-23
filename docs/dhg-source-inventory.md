@@ -13,10 +13,10 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
 | `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology |
 | `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
-| `vitalMeasurementsBeforePregnancy` | Ja | Ikke eksponert fordi DHG ikke leverer measurement time som kreves for disse vital signs |
+| `vitalMeasurementsBeforePregnancy` | Ja | Positive height (`cm`), pre-pregnancy weight (`kg`) og BMI eksponeres som base R4 Observations uten konstruert measurement time eller Vital Signs profile claim |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
-| `antenatalAppointments` | Ja | Encounter-datoer og eksplisitte measurements/findings |
-| `pointsOfContact` | Ja | Ikke eksponert; fasaden er ikke en directory/demographics source |
+| `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |
+| `pointsOfContact` | Ja | Jordmor og maternity healthcare centre eksponeres konservativt i `CareTeam`; GP og birth institute utelates, og det gjøres ingen directory lookup |
 | `birthStatus` | Ja | Ikke eksponert i første release for active pregnancy |
 
 Hver resource DTO aksepterer ukjente JSON properties for forward compatibility. Eksakte property names er fortsatt case-sensitive, inkludert `bMI`. Resources merket `metadata.enteredInError=true` ekskluderes. Se [mappingmatrisen](mapping.md) for oppførsel på feltnivå.

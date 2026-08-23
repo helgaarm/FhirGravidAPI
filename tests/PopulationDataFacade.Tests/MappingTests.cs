@@ -26,7 +26,11 @@ public sealed class MappingTests
             {
                 Metadata = ResourceMetadata("tests"),
                 Hbv = false,
-                Hiv = true
+                HbvCore = true,
+                BloodAntibodies = false,
+                RubellaAntigen = true,
+                Hiv = true,
+                Syphilis = null
             }
         });
 
@@ -42,7 +46,18 @@ public sealed class MappingTests
         Assert.Equal(PopulationCodes.Volven8340, hivResult.System);
         Assert.Equal("T002", hivResult.Code);
         Assert.Equal("Positiv", hivResult.Display);
-        Assert.Equal(2, snapshot.Observations.Count);
+
+        Assert.Equal("T002", Assert.IsType<CodedValue>(Assert.Single(
+            snapshot.Observations,
+            x => x.Code == PopulationCodes.HbvCoreAntibodyTestResult).Value).Code);
+        Assert.Equal("T008", Assert.IsType<CodedValue>(Assert.Single(
+            snapshot.Observations,
+            x => x.Code == PopulationCodes.BloodTypeAntibodyTestResult).Value).Code);
+        Assert.Equal("T002", Assert.IsType<CodedValue>(Assert.Single(
+            snapshot.Observations,
+            x => x.Code == PopulationCodes.RubellaIgg).Value).Code);
+        Assert.DoesNotContain(snapshot.Observations, x => x.Code == PopulationCodes.SyphilisTestResult);
+        Assert.Equal(5, snapshot.Observations.Count);
     }
 
     [Fact]
@@ -59,6 +74,83 @@ public sealed class MappingTests
         });
 
         Assert.Empty(snapshot.Observations);
+    }
+
+    [Fact]
+    public void Marked_points_of_contact_are_mapped_to_a_patient_care_team()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            PointsOfContact = new DhgPointsOfContact
+            {
+                Metadata = ResourceMetadata("contacts"),
+                GeneralPractitioner = new DhgPersonAndOrganization { Name = "Skal ikke eksponeres" },
+                Midwife = new DhgPersonAndOrganization
+                {
+                    Name = "  Kari Jordmor  ",
+                    OrganizationName = "Sentrum jordmortjeneste"
+                },
+                BirthInstitute = "Skal ikke eksponeres",
+                MaternityHealthcareCentre = "  Sentrum helsestasjon  "
+            }
+        });
+
+        var source = Assert.Single(snapshot.CareTeams!);
+        Assert.Equal("Kari Jordmor", source.Midwife?.Name);
+        Assert.Equal("Sentrum jordmortjeneste", source.Midwife?.OrganizationName);
+        Assert.Equal("Sentrum helsestasjon", source.MaternityHealthcareCentre);
+
+        var careTeam = Assert.Single(new FhirPopulationMapper().MapCareTeams(snapshot));
+        Assert.Equal(CareTeam.CareTeamStatus.Active, careTeam.Status);
+        Assert.NotNull(careTeam.Subject);
+        Assert.Equal("Patient/patient-1", careTeam.Subject.Reference);
+        Assert.Equal("Kari Jordmor", Assert.IsType<Practitioner>(careTeam.Contained[0]).Name[0].Text);
+        Assert.Equal("Sentrum jordmortjeneste", Assert.IsType<Organization>(careTeam.Contained[1]).Name);
+        Assert.Equal("Sentrum helsestasjon", Assert.IsType<Organization>(careTeam.Contained[2]).Name);
+        Assert.Equal(2, careTeam.Participant.Count);
+        var midwife = careTeam.Participant[0];
+        Assert.Equal("Jordmor", Assert.Single(midwife.Role).Text);
+        Assert.NotNull(midwife.Member);
+        Assert.NotNull(midwife.OnBehalfOf);
+        Assert.Equal("#midwife", midwife.Member.Reference);
+        Assert.Equal("#midwife-organization", midwife.OnBehalfOf.Reference);
+        var healthcareCentre = careTeam.Participant[1];
+        Assert.Equal("Helsestasjon", Assert.Single(healthcareCentre.Role).Text);
+        Assert.NotNull(healthcareCentre.Member);
+        Assert.Equal("#maternity-healthcare-centre", healthcareCentre.Member.Reference);
+        Assert.Empty(careTeam.ManagingOrganization);
+
+        var json = new FhirJsonSerializer().SerializeToString(careTeam);
+        Assert.DoesNotContain("Skal ikke eksponeres", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Unmarked_or_entered_in_error_points_of_contact_are_not_exposed()
+    {
+        var unmarkedOnly = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            PointsOfContact = new DhgPointsOfContact
+            {
+                Metadata = ResourceMetadata("contacts"),
+                GeneralPractitioner = new DhgPersonAndOrganization { Name = "Fastlege" },
+                BirthInstitute = "Fødeinstitusjon"
+            }
+        });
+        var enteredInError = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            PointsOfContact = new DhgPointsOfContact
+            {
+                Metadata = ResourceMetadata("contacts", enteredInError: true),
+                Midwife = new DhgPersonAndOrganization { Name = "Jordmor" },
+                MaternityHealthcareCentre = "Helsestasjon"
+            }
+        });
+
+        Assert.Empty(unmarkedOnly.CareTeams!);
+        Assert.Empty(enteredInError.CareTeams!);
     }
 
     [Fact]
@@ -80,6 +172,70 @@ public sealed class MappingTests
 
         Assert.DoesNotContain(snapshot.Observations, x =>
             x.Code.Code?.Contains("induced", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public void Marked_genetic_disorder_fields_are_exposed_without_interpreting_free_text()
+    {
+        const string sourceNote = "  Mor har en arvelig sykdom som ikke er kodet  ";
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            GeneticDisorders = new DhgGeneticDisorders
+            {
+                Metadata = ResourceMetadata("genetics"),
+                NoneKnown = false,
+                ParentsAreRelatives = true,
+                HipDysplasia = true,
+                Other = true,
+                Note = sourceNote
+            }
+        });
+
+        Assert.Equal(4, snapshot.Observations.Count);
+        Assert.False(Assert.IsType<BooleanValue>(Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.NoKnownGeneticDisorders).Value).Value);
+        Assert.True(Assert.IsType<BooleanValue>(Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.ParentsAreRelatives).Value).Value);
+        Assert.True(Assert.IsType<BooleanValue>(Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.OtherGeneticDisorder).Value).Value);
+        var note = Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.GeneticDisordersNote);
+        Assert.Equal(
+            "Mor har en arvelig sykdom som ikke er kodet",
+            Assert.IsType<TextValue>(note.Value).Value);
+
+        var fhirNote = Assert.Single(
+            new FhirPopulationMapper().MapObservations(snapshot),
+            observation => observation.Id?.EndsWith("genetic-note", StringComparison.Ordinal) == true);
+        Assert.Empty(fhirNote.Code.Coding);
+        Assert.Equal("Merknad om arvelige sykdommer", fhirNote.Code.Text);
+        Assert.Equal(
+            "Mor har en arvelig sykdom som ikke er kodet",
+            Assert.IsType<FhirString>(fhirNote.Value).Value);
+        Assert.DoesNotContain(snapshot.Observations,
+            observation => observation.Code.Display.Contains("hip", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Null_or_blank_marked_genetic_fields_and_unmarked_hip_dysplasia_are_omitted()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            GeneticDisorders = new DhgGeneticDisorders
+            {
+                Metadata = ResourceMetadata("genetics"),
+                HipDysplasia = true,
+                Note = "   "
+            }
+        });
+
+        Assert.Empty(snapshot.Observations);
     }
 
     [Fact]
@@ -118,13 +274,21 @@ public sealed class MappingTests
                     Metadata = ResourceMetadata("appointment-without-date"),
                     PregnancyWeek = 12,
                     MotherWeight = 67.5m,
-                    FetusesVitalSigns = []
+                    FetusesVitalSigns =
+                    [
+                        new DhgFetusVitalSigns
+                        {
+                            FetusId = 1,
+                            FetalHeartRate = 145
+                        }
+                    ]
                 }
             ]
         });
 
         Assert.Empty(snapshot.Encounters);
         Assert.Empty(snapshot.Observations);
+        Assert.Empty(snapshot.Fetuses!);
     }
 
     [Fact]
@@ -149,7 +313,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Fetal_facts_are_omitted_until_fetus_identity_can_be_represented_as_fhir_focus()
+    public void Fetal_facts_use_pregnancy_scoped_patients_as_fhir_focus()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -167,12 +331,19 @@ public sealed class MappingTests
                             FetusId = 1,
                             FetalHeartRate = 145,
                             MotherFeelsBabyMovements = true,
+                            Note = "  Normale funn  ",
                             FetalPresentationLie = new DhgCodeAndSystem
                             {
                                 Code = "1",
                                 Display = "Hodeleie",
                                 CodeSystem = "VOLVEN_8534"
                             }
+                        },
+                        new DhgFetusVitalSigns
+                        {
+                            FetusId = 2,
+                            FetalHeartRate = 150,
+                            MotherFeelsBabyMovements = false
                         }
                     ]
                 }
@@ -180,7 +351,132 @@ public sealed class MappingTests
         });
 
         Assert.Single(snapshot.Encounters);
+        Assert.Equal(2, snapshot.Fetuses!.Count);
+        Assert.Equal(6, snapshot.Observations.Count);
+
+        var firstFetusId = FetalPatientId.Create("patient-1", 1);
+        var secondFetusId = FetalPatientId.Create("patient-1", 2);
+        Assert.Matches("^fetus-[a-f0-9]{40}$", firstFetusId);
+        Assert.NotEqual(firstFetusId, secondFetusId);
+        Assert.NotEqual(firstFetusId, FetalPatientId.Create("patient-2", 1));
+        Assert.All(snapshot.Observations.Where(observation => observation.Id.Contains("-1-1", StringComparison.Ordinal)),
+            observation => Assert.Equal(firstFetusId, observation.FocusPatientId));
+        Assert.All(snapshot.Observations.Where(observation => observation.Id.Contains("-2-1", StringComparison.Ordinal)),
+            observation => Assert.Equal(secondFetusId, observation.FocusPatientId));
+
+        var heartRate = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalHeartRate &&
+            observation.FocusPatientId == firstFetusId);
+        var heartRateValue = Assert.IsType<QuantityValue>(heartRate.Value);
+        Assert.Equal(145m, heartRateValue.Value);
+        Assert.Equal("{beats}/min", heartRateValue.Code);
+        Assert.Equal("vital-signs", heartRate.Category);
+
+        var presentation = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalPresentationLie);
+        var presentationValue = Assert.IsType<CodedValue>(presentation.Value);
+        Assert.Equal(PopulationCodes.Volven8534, presentationValue.System);
+        Assert.Equal("1", presentationValue.Code);
+
+        Assert.False(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalMovementsReported &&
+            observation.FocusPatientId == secondFetusId).Value).Value);
+        Assert.Equal("Normale funn", Assert.IsType<TextValue>(Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalFindingsNote).Value).Value);
+
+        var mapper = new FhirPopulationMapper();
+        var fetalPatients = mapper.MapFetusPatients(snapshot);
+        Assert.Equal(2, fetalPatients.Count);
+        Assert.All(fetalPatients, patient =>
+        {
+            Assert.Empty(patient.Identifier);
+            Assert.Empty(patient.Name);
+            Assert.Null(patient.GenderElement);
+            Assert.Null(patient.BirthDateElement);
+        });
+        var fhirHeartRate = Assert.Single(mapper.MapObservations(snapshot), observation =>
+            observation.Id == heartRate.Id);
+        Assert.NotNull(fhirHeartRate.Subject);
+        Assert.Equal("Patient/patient-1", fhirHeartRate.Subject.Reference);
+        Assert.Equal($"Patient/{firstFetusId}", Assert.Single(fhirHeartRate.Focus).Reference);
+        Assert.Contains(fhirHeartRate.Code.Coding, coding =>
+            coding.System == PopulationCodes.SnomedCt && coding.Code == "364075005");
+        Assert.Contains(fhirHeartRate.Code.Coding, coding =>
+            coding.System == PopulationCodes.Loinc && coding.Code == "55283-6");
+    }
+
+    [Fact]
+    public void Invalid_or_unidentified_fetal_findings_are_not_exposed()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            AntenatalAppointments =
+            [
+                new DhgAntenatalAppointment
+                {
+                    Metadata = ResourceMetadata("appointment"),
+                    AppointmentDate = new DateOnly(2026, 1, 16),
+                    FetusesVitalSigns =
+                    [
+                        new DhgFetusVitalSigns { FetusId = null, FetalHeartRate = 145 },
+                        new DhgFetusVitalSigns { FetusId = 0, MotherFeelsBabyMovements = true },
+                        new DhgFetusVitalSigns
+                        {
+                            FetusId = 1,
+                            FetalHeartRate = 0,
+                            FetalPresentationLie = new DhgCodeAndSystem
+                            {
+                                Code = "1",
+                                Display = "Hodeleie",
+                                CodeSystem = "urn:unsupported"
+                            },
+                            Note = "   "
+                        }
+                    ]
+                }
+            ]
+        });
+
+        Assert.Single(snapshot.Encounters);
+        Assert.Single(snapshot.Fetuses!);
         Assert.Empty(snapshot.Observations);
+    }
+
+    [Fact]
+    public void Repeated_source_fetus_id_reuses_patient_and_keeps_newest_timestamp()
+    {
+        var firstMetadata = ResourceMetadata("appointment-1");
+        firstMetadata.LastUpdated = DateTimeOffset.Parse("2026-01-10T12:00:00+01:00");
+        var latestMetadata = ResourceMetadata("appointment-2");
+        latestMetadata.LastUpdated = DateTimeOffset.Parse("2026-01-20T12:00:00+01:00");
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            AntenatalAppointments =
+            [
+                new DhgAntenatalAppointment
+                {
+                    Metadata = firstMetadata,
+                    AppointmentDate = new DateOnly(2026, 1, 10),
+                    FetusesVitalSigns = [new DhgFetusVitalSigns { FetusId = 1, FetalHeartRate = 140 }]
+                },
+                new DhgAntenatalAppointment
+                {
+                    Metadata = latestMetadata,
+                    AppointmentDate = new DateOnly(2026, 1, 20),
+                    FetusesVitalSigns = [new DhgFetusVitalSigns { FetusId = 1, FetalHeartRate = 145 }]
+                }
+            ]
+        });
+
+        var fetus = Assert.Single(snapshot.Fetuses!);
+        Assert.Equal(latestMetadata.LastUpdated, fetus.LastUpdated);
+        var heartRates = snapshot.Observations
+            .Where(observation => observation.Code == PopulationCodes.FetalHeartRate)
+            .ToArray();
+        Assert.Equal(2, heartRates.Length);
+        Assert.All(heartRates, observation => Assert.Equal(fetus.LogicalId, observation.FocusPatientId));
     }
 
     [Fact]
@@ -426,6 +722,7 @@ public sealed class MappingTests
                 HbvCore = true,
                 Hiv = true,
                 Syphilis = true,
+                BloodAntibodies = false,
                 Chlamydia = true,
                 Toxoplasmosis = false,
                 RubellaAntigen = true,
@@ -449,15 +746,19 @@ public sealed class MappingTests
         Assert.Contains(hemoglobins, hemoglobin => hemoglobin.Note == "Tredje trimester");
         Assert.Equal(PopulationCodes.SnomedCt, PopulationCodes.Hbv.System);
         Assert.Equal("T008", Assert.IsType<CodedValue>(Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.Hbv).Value).Code);
-        Assert.DoesNotContain(snapshot.Observations, observation =>
-            new[] { "hbv-core", "rubella" }
-                .Any(name => observation.Id.Contains(name, StringComparison.Ordinal)));
+
+        var rubella = Assert.Single(snapshot.Observations, observation => observation.Code == PopulationCodes.RubellaIgg);
+        Assert.Equal(PopulationCodes.Nlk, rubella.Code.System);
+        Assert.Equal("NPU12412", rubella.Code.Code);
+        Assert.Equal("T002", Assert.IsType<CodedValue>(rubella.Value).Code);
 
         var fhirObservations = new FhirPopulationMapper().MapObservations(snapshot);
         var broadTestResults = new[]
         {
+            (PopulationCodes.HbvCoreAntibodyTestResult, "T002"),
             (PopulationCodes.HivTestResult, "T002"),
             (PopulationCodes.SyphilisTestResult, "T002"),
+            (PopulationCodes.BloodTypeAntibodyTestResult, "T008"),
             (PopulationCodes.ChlamydiaTestResult, "T002"),
             (PopulationCodes.ToxoplasmosisTestResult, "T008"),
             (PopulationCodes.HepatitisCTestResult, "T002")
@@ -552,7 +853,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Undated_pre_pregnancy_vital_measurements_are_omitted()
+    public void Undated_pre_pregnancy_measurements_are_base_R4_observations_without_effective_time()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -566,7 +867,45 @@ public sealed class MappingTests
             }
         });
 
-        Assert.Empty(snapshot.Observations);
+        Assert.Equal(3, snapshot.Observations.Count);
+        Assert.All(snapshot.Observations, observation =>
+        {
+            Assert.Equal("vital-signs", observation.Category);
+            Assert.Null(observation.Effective);
+            Assert.Equal(
+                "Før svangerskapet; measurement time er ikke oppgitt av DHG",
+                observation.Note);
+        });
+
+        var height = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.BodyHeight);
+        Assert.Equal(168m, Assert.IsType<QuantityValue>(height.Value).Value);
+        Assert.Equal("cm", Assert.IsType<QuantityValue>(height.Value).Code);
+        var weight = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.MotherWeight);
+        Assert.Equal(62.5m, Assert.IsType<QuantityValue>(weight.Value).Value);
+        Assert.Equal("kg", Assert.IsType<QuantityValue>(weight.Value).Code);
+        var bmi = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.BodyMassIndex);
+        Assert.Equal(22.1m, Assert.IsType<QuantityValue>(bmi.Value).Value);
+        Assert.Equal("kg/m2", Assert.IsType<QuantityValue>(bmi.Value).Code);
+
+        var mapper = new FhirPopulationMapper();
+        var fhir = mapper.MapObservations(snapshot);
+        Assert.All(fhir, observation =>
+        {
+            Assert.Null(observation.Effective);
+            Assert.Empty(observation.Meta?.Profile ?? []);
+            Assert.Single(observation.Note);
+        });
+        Assert.Contains(Assert.Single(fhir, observation => observation.Id == height.Id).Code.Coding,
+            coding => coding.System == PopulationCodes.Loinc && coding.Code == "8302-2");
+        Assert.Contains(Assert.Single(fhir, observation => observation.Id == bmi.Id).Code.Coding,
+            coding => coding.System == PopulationCodes.Loinc && coding.Code == "39156-5");
+        Assert.Empty(mapper.MapObservations(snapshot, new PopulationObservationSearch(
+            Date: new PopulationDateSearch(
+                PopulationDateComparison.GreaterThanOrEqual,
+                new DateOnly(2025, 1, 1)))));
     }
 
     [Fact]
@@ -744,11 +1083,16 @@ public sealed class MappingTests
         var observation = Assert.Single(
             Assert.Single(capability.Rest).Resource,
             resource => resource.Type == ResourceType.Observation.ToString());
+        var careTeam = Assert.Single(
+            Assert.Single(capability.Rest).Resource,
+            resource => resource.Type == ResourceType.CareTeam.ToString());
 
         Assert.Null(observation.Profile);
         Assert.Empty(observation.SupportedProfile);
         Assert.Contains(observation.SearchParam, parameter => parameter.Name == "category");
         Assert.Contains(observation.SearchParam, parameter => parameter.Name == "date");
+        Assert.Contains(careTeam.SearchParam, parameter => parameter.Name == "patient");
+        Assert.Contains(careTeam.SearchParam, parameter => parameter.Name == "patient.identifier");
     }
 
     [Fact]
@@ -783,6 +1127,33 @@ public sealed class MappingTests
                     "laboratory",
                     updated),
                 new PopulationObservation(
+                    "text-value",
+                    PopulationCodes.GeneticDisordersNote,
+                    new TextValue("Mor har en arvelig sykdom som ikke er kodet"),
+                    "survey",
+                    updated),
+                new PopulationObservation(
+                    "pre-pregnancy-height",
+                    PopulationCodes.BodyHeight,
+                    new QuantityValue(168m, "cm", PopulationCodes.Ucum, "cm"),
+                    "vital-signs",
+                    updated,
+                    Note: "Før svangerskapet; measurement time er ikke oppgitt av DHG"),
+                new PopulationObservation(
+                    "pre-pregnancy-weight",
+                    PopulationCodes.MotherWeight,
+                    new QuantityValue(62.5m, "kg", PopulationCodes.Ucum, "kg"),
+                    "vital-signs",
+                    updated,
+                    Note: "Før svangerskapet; measurement time er ikke oppgitt av DHG"),
+                new PopulationObservation(
+                    "pre-pregnancy-bmi",
+                    PopulationCodes.BodyMassIndex,
+                    new QuantityValue(22.1m, "kg/m²", PopulationCodes.Ucum, "kg/m2"),
+                    "vital-signs",
+                    updated,
+                    Note: "Før svangerskapet; measurement time er ikke oppgitt av DHG"),
+                new PopulationObservation(
                     "body-weight",
                     PopulationCodes.MotherWeight,
                     new QuantityValue(67.5m, "kg", PopulationCodes.Ucum, "kg"),
@@ -805,15 +1176,34 @@ public sealed class MappingTests
                             PopulationCodes.Diastolic,
                             new QuantityValue(76m, "mmHg", PopulationCodes.Ucum, "mm[Hg]"))
                     ],
-                    "encounter-1")
+                    "encounter-1"),
+                new PopulationObservation(
+                    "fetal-heart-rate",
+                    PopulationCodes.FetalHeartRate,
+                    new QuantityValue(145m, "slag/min", PopulationCodes.Ucum, "{beats}/min"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 16)),
+                    EncounterId: "encounter-1",
+                    FocusPatientId: "fetus-1")
             ],
             [new PopulationEncounter("encounter-1", new DateOnly(2026, 1, 16), updated)],
             updated,
-            true);
+            true,
+            [
+                new PopulationCareTeam(
+                    "pregnancy-care-team",
+                    new PopulationCareTeamMember("Kari Jordmor", "Sentrum jordmortjeneste"),
+                    "Sentrum helsestasjon",
+                    updated)
+            ],
+            [new PopulationFetusPatient("fetus-1", updated)]);
         var mapper = new FhirPopulationMapper();
 
         AssertValidationExample("Patient.json", mapper.MapPatient(snapshot.Patient));
+        AssertValidationExample("Patient-fetus.json", Assert.Single(mapper.MapFetusPatients(snapshot)));
         AssertValidationExample("Encounter.json", Assert.Single(mapper.MapEncounters(snapshot)));
+        AssertValidationExample("CareTeam.json", Assert.Single(mapper.MapCareTeams(snapshot)));
         foreach (var observation in mapper.MapObservations(snapshot))
             AssertValidationExample($"Observation-{observation.Id}.json", observation);
     }
@@ -828,6 +1218,7 @@ public sealed class MappingTests
             PopulationCodes.Nlk,
             PopulationCodes.Volven3303,
             PopulationCodes.Volven8340,
+            PopulationCodes.Volven8534,
             PopulationCodes.Volven8536,
             PopulationCodes.Volven8537
         };
@@ -873,9 +1264,7 @@ public sealed class MappingTests
             GeneticDisorders = new DhgGeneticDisorders
             {
                 Metadata = ResourceMetadata("genetics"),
-                HipDysplasia = true,
-                Other = true,
-                Note = "Skal ikke tolkes"
+                HipDysplasia = true
             },
             MedicalConditions = new DhgMedicalConditions
             {

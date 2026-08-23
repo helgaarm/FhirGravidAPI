@@ -11,12 +11,18 @@ public sealed record PopulationSnapshot(
     IReadOnlyList<PopulationObservation> Observations,
     IReadOnlyList<PopulationEncounter> Encounters,
     DateTimeOffset? SourceLastChanged,
-    bool HasActiveMaternityRecord);
+    bool HasActiveMaternityRecord,
+    IReadOnlyList<PopulationCareTeam>? CareTeams = null,
+    IReadOnlyList<PopulationFetusPatient>? Fetuses = null);
 
 public sealed record PopulationPatient(
     string LogicalId,
     CodedValue? PreferredLanguage,
     bool? NeedsInterpreter,
+    DateTimeOffset? LastUpdated);
+
+public sealed record PopulationFetusPatient(
+    string LogicalId,
     DateTimeOffset? LastUpdated);
 
 public sealed record PopulationObservation(
@@ -28,7 +34,8 @@ public sealed record PopulationObservation(
     PopulationEffective? Effective = null,
     IReadOnlyList<PopulationComponent>? Components = null,
     string? EncounterId = null,
-    string? Note = null);
+    string? Note = null,
+    string? FocusPatientId = null);
 
 public sealed record PopulationObservationSearch(
     PopulationCode? Code = null,
@@ -54,6 +61,16 @@ public sealed record PopulationEncounter(
     string Id,
     DateOnly Date,
     DateTimeOffset? LastUpdated);
+
+public sealed record PopulationCareTeam(
+    string Id,
+    PopulationCareTeamMember? Midwife,
+    string? MaternityHealthcareCentre,
+    DateTimeOffset? LastUpdated);
+
+public sealed record PopulationCareTeamMember(
+    string? Name,
+    string? OrganizationName);
 
 public sealed record PopulationCode(string? System, string? Code, string Display)
 {
