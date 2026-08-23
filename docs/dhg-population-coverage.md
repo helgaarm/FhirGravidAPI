@@ -10,6 +10,13 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTe
 - En manglende eller `null` DHG-verdi produserer ingen Observation. Eksplisitt `false` beholdes; DHG laboratory results bruker kodeverk 8340 `T008 |Negativ|`, mens andre booleans bruker `valueBoolean=false`.
 - `currentPregnancy.hasPrenatalDiagnosticsTests` eksponeres source-preserving som «Gitt informasjon om fosterdiagnostikk». `true` og `false` beholdes, men verdien uttrykker ikke om en undersøkelse er utført, et prøveresultat eller et samtykke.
 - De markerte genetic-disorder-feltene `noneKnown`, `parentsAreRelatives`, `other` og `note` eksponeres. Broad booleans bruker source-faithful value, og note beholdes som trimmet `valueString`; fasaden utleder ikke diagnose, berørt person eller slektskap fra teksten.
+- `hipDysplasia` eksponeres som et source-preserving familiehistorisk boolean-svar. Berørt person og klinisk diagnose utledes ikke.
+- `previousPregnancies.note` eksponeres som trimmet, uparset `valueString`; det gjøres ingen residualberegning eller inference av svangerskapsutfall eller prosedyre.
+- Korrigert termindato eksponeres som en separat text-only datofact. Den overskriver ikke andre termindatoer, og fasaden velger ikke clinical precedence eller utleder korreksjonsgrunn.
+- Samboerskap med medforelder og tilhørende note eksponeres som source-preserving social history. Appointment medication-svar og note er encounter-scoped; relasjon, husstand, legemiddel, dose, diagnose og vurdering utledes ikke.
+- Medication frequency/note og clinical-tests note eksponeres som trimmet, uparset `valueString`. De blir ikke tolket som legemiddel, dose, instruksjon, analytt, prøveresultat eller clinical assessment.
+- Broad testfelt for MRSA/VRE/ESBL, gonoré, cytomegalovirus, asymptomatisk bakteriuri og gruppe B-streptokokker eksponeres med text-only test concept og eksplisitt positivt/negativt kodeverk 8340-resultat; ingen assay- eller analyttkode konstrueres.
+- Ikke-negativ lifestyle `dailyCount` beholdes som en integer component på den aktuelle coded stimulus/frequency Observation uten konstruert unit. Edema beholdes som raw encounter-scoped integer `0..3` uten tolkning av scale-trinnene.
 - Sammensatte/andre `medicalConditions`-booleans eksponeres med presis DHG-term og `valueBoolean`; `null` utelates. De splittes ikke til separate diagnoser eller prosedyrer, og hver Observation forklarer begrensningen i `Observation.note`. Medical note beholdes som trimmet `valueString` uten semantic parsing.
 - `metadata.enteredInError=true` produserer ingen FHIR resource.
 - `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.

@@ -25,6 +25,7 @@ public sealed partial class DhgPopulationSnapshotFactory
             mother?.NeedsLanguageInterpreter,
             mother?.Metadata?.LastUpdated ?? record.Metadata?.RecordLastUpdated);
 
+        MapMotherFindings(mother, observations);
         MapCurrentPregnancy(Active(record.CurrentPregnancy), observations);
         MapPreviousPregnancies(Active(record.PreviousPregnancies), observations);
         MapGeneticDisorders(Active(record.GeneticDisorders), observations);
@@ -62,6 +63,7 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddDate(output, Id(source.Metadata, "date-last-period"), PopulationCodes.DateLastPeriod, source.DateLastPeriod, updated);
         AddDate(output, Id(source.Metadata, "due-date-last-period"), PopulationCodes.DueDateLastPeriod, source.DueDate, updated);
         AddDate(output, Id(source.Metadata, "due-date-ultrasound"), PopulationCodes.DueDateUltrasound, source.DueDateBasedOnUltrasound, updated);
+        AddDate(output, Id(source.Metadata, "due-date-corrected"), PopulationCodes.CorrectedDueDate, source.DueDateCorrectedDate, updated);
         AddInteger(
             output,
             Id(source.Metadata, "number-of-fetuses"),
@@ -89,6 +91,28 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddBoolean(output, Id(source.Metadata, "breastfeeding-guidance"), PopulationCodes.BreastfeedingGuidance, source.BreastfeedingGuidance, updated);
     }
 
+    private static void MapMotherFindings(DhgMother? source, List<PopulationObservation> output)
+    {
+        if (source is null) return;
+        var updated = source.Metadata?.LastUpdated;
+        AddBoolean(
+            output,
+            Id(source.Metadata, "cohabiting-coparent"),
+            PopulationCodes.CohabitingCoparent,
+            source.CohabitingCoparent,
+            updated,
+            category: "social-history",
+            note: "Source-svaret beholdes uten å utlede relasjon, foreldreansvar eller husstandsmedlemmer.");
+        AddText(
+            output,
+            Id(source.Metadata, "cohabiting-coparent-note"),
+            PopulationCodes.CohabitingCoparentNote,
+            source.CohabitingCoparentNote,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke til relasjon, adresse eller sosialfaglig vurdering.",
+            category: "social-history");
+    }
+
     private static void MapPreviousPregnancies(DhgPreviousPregnancies? source, List<PopulationObservation> output)
     {
         if (source is null) return;
@@ -98,6 +122,13 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddInteger(output, Id(source.Metadata, "spontaneous-miscarriages"), PopulationCodes.SpontaneousMiscarriages, source.SpontaneousMiscarriages, updated);
         AddInteger(output, Id(source.Metadata, "stillbirths-22-weeks"), PopulationCodes.StillBirths22Weeks, source.StillBirths22Weeks, updated);
         AddInteger(output, Id(source.Metadata, "ectopic-pregnancies"), PopulationCodes.EctopicPregnancies, source.NumberOfEctopicPregnancies, updated);
+        AddText(
+            output,
+            Id(source.Metadata, "previous-pregnancies-note"),
+            PopulationCodes.PreviousPregnanciesNote,
+            source.Note,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke som svangerskapsutfall, diagnose, prosedyre eller beregningsgrunnlag.");
     }
 
     private static void MapGeneticDisorders(DhgGeneticDisorders? source, List<PopulationObservation> output)
@@ -108,6 +139,13 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddBoolean(output, Id(source.Metadata, "parents-are-relatives"), PopulationCodes.ParentsAreRelatives, source.ParentsAreRelatives, updated);
         AddBoolean(output, Id(source.Metadata, "genetic-other"), PopulationCodes.OtherGeneticDisorder, source.Other, updated);
         AddText(output, Id(source.Metadata, "genetic-note"), PopulationCodes.GeneticDisordersNote, source.Note, updated);
+        AddBoolean(
+            output,
+            Id(source.Metadata, "genetic-hip-dysplasia-family-history"),
+            PopulationCodes.HipDysplasiaFamilyHistory,
+            source.HipDysplasia,
+            updated,
+            note: "Source-feltet beholdes som et familiehistorisk svar; berørt person og klinisk diagnose utledes ikke.");
     }
 
     private static void MapMedicalConditions(DhgMedicalConditions? source, List<PopulationObservation> output)
@@ -181,6 +219,20 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddBoolean(output, Id(source.Metadata, "drug-allergy"), PopulationCodes.DrugAllergy, source.DrugAllergy, updated);
         AddBoolean(output, Id(source.Metadata, "folate-before"), PopulationCodes.FolateIntake, source.Folate?.TakenBefore, updated, note: "Før svangerskapet");
         AddBoolean(output, Id(source.Metadata, "folate-during"), PopulationCodes.FolateIntake, source.Folate?.TakenDuring, updated, note: "Under svangerskapet");
+        AddText(
+            output,
+            Id(source.Metadata, "medication-frequency"),
+            PopulationCodes.MedicationFrequency,
+            source.MedicationFrequency,
+            updated,
+            note: "Uparset DHG-verdi; det utledes ikke legemiddel, dose eller standardisert frekvens.");
+        AddText(
+            output,
+            Id(source.Metadata, "medication-note"),
+            PopulationCodes.MedicationNote,
+            source.Note,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke som legemiddel, dose, indikasjon eller instruksjon.");
     }
 
     private static void MapLifestyle(DhgLifestyleFactors? source, List<PopulationObservation> output)
@@ -217,12 +269,17 @@ public sealed partial class DhgPopulationSnapshotFactory
         var note = string.IsNullOrWhiteSpace(sourceNote)
             ? context
             : $"{context}. {sourceNote}";
+        var dailyCount = source?.DailyCount;
+        IReadOnlyList<PopulationComponent>? components = dailyCount is >= 0
+            ? [new PopulationComponent(PopulationCodes.DailyStimulusCount, new IntegerValue(dailyCount.Value))]
+            : null;
         output.Add(Observation(
             Id(metadata, $"lifestyle-{code.Code}-{suffix}-{index}"),
             code,
             frequency,
             "social-history",
             updated,
+            components: components,
             note: note));
     }
 
@@ -242,6 +299,18 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddBooleanLab(output, Id(source.Metadata, "toxoplasmosis"), PopulationCodes.ToxoplasmosisTestResult, source.Toxoplasmosis, updated);
         AddBooleanLab(output, Id(source.Metadata, "rubella-igg"), PopulationCodes.RubellaIgg, source.RubellaAntigen, updated);
         AddBooleanLab(output, Id(source.Metadata, "hepatitis-c"), PopulationCodes.HepatitisCTestResult, source.HepatitisC, updated);
+        AddBooleanLab(output, Id(source.Metadata, "mrsa-vre-esbl"), PopulationCodes.MrsaVreEsblTestResult, source.MrsaVreEsbl, updated);
+        AddBooleanLab(output, Id(source.Metadata, "gonorrhea"), PopulationCodes.GonorrheaTestResult, source.Gonorrhea, updated);
+        AddBooleanLab(output, Id(source.Metadata, "cytomegalovirus"), PopulationCodes.CytomegalovirusTestResult, source.CytomegaloVirus, updated);
+        AddBooleanLab(output, Id(source.Metadata, "asymptomatic-bacteriuria"), PopulationCodes.AsymptomaticBacteriuriaTestResult, source.AsymptomaticBacteriuria, updated);
+        AddBooleanLab(output, Id(source.Metadata, "group-b-streptococci"), PopulationCodes.GroupBStreptococciTestResult, source.GroupBStreptococci, updated);
+        AddText(
+            output,
+            Id(source.Metadata, "clinical-tests-note"),
+            PopulationCodes.ClinicalTestsNote,
+            source.Note,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke som analytt, resultat, diagnose eller vurdering.");
         AddCoded(output, Id(source.Metadata, "abo-type"), PopulationCodes.AboType, ToAboValue(source.AboRh?.AboType), updated);
         AddCoded(output, Id(source.Metadata, "rhesus-d-type"), PopulationCodes.RhesusDType, ToRhesusDValue(source.AboRh?.RhesusDType), updated);
         AddQuantity(output, Id(source.Metadata, "hba1c"), PopulationCodes.HbA1c, source.BHbA1c, "mmol/mol", "mmol/mol", updated);
@@ -353,6 +422,38 @@ public sealed partial class DhgPopulationSnapshotFactory
             }
 
             AddQuantity(output, Id(source.Metadata, $"mother-weight-{index}"), PopulationCodes.MotherWeight, source.MotherWeight, "kg", "kg", source.Metadata?.LastUpdated, source.AppointmentDate, encounterId, "vital-signs");
+            AddInteger(
+                output,
+                Id(source.Metadata, $"edema-grade-{index}"),
+                PopulationCodes.EdemaGrade,
+                source.Edema is >= 0 and <= 3 ? source.Edema : null,
+                source.Metadata?.LastUpdated,
+                category: "exam",
+                effective: effective,
+                encounterId: encounterId,
+                note: "Rå DHG-grad beholdes; betydningen av skalaens enkelte trinn utledes ikke.");
+            AddBoolean(
+                output,
+                Id(source.Metadata, $"antenatal-medication-{index}"),
+                PopulationCodes.AntenatalMedicationReported,
+                source.Medication,
+                source.Metadata?.LastUpdated,
+                effective: effective,
+                encounterId: encounterId,
+                note: "Source-svaret beholdes uten å utlede legemiddel, dose, indikasjon eller behandlingsstatus.");
+            var appointmentNote = CleanText(source.Note);
+            if (appointmentNote is not null)
+            {
+                output.Add(Observation(
+                    Id(source.Metadata, $"antenatal-note-{index}"),
+                    PopulationCodes.AntenatalAppointmentNote,
+                    new TextValue(appointmentNote),
+                    "survey",
+                    source.Metadata?.LastUpdated,
+                    effective,
+                    encounterId: encounterId,
+                    note: "Source text beholdes ordrett og tolkes ikke som diagnose, legemiddel, prosedyre, måling eller vurdering."));
+            }
             MapBloodPressure(source, output, effective, encounterId, index);
             var urineProteinResult = ToUrineProteinResult(source.ProteinInUrineTestResult);
             if (urineProteinResult is not null)
@@ -517,9 +618,9 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (value is not null) output.Add(Observation(id, code, new BooleanValue(value.Value), category, updated, effective, encounterId: encounterId, note: note));
     }
 
-    private static void AddInteger(List<PopulationObservation> output, string id, PopulationCode code, int? value, DateTimeOffset? updated, string category = "survey", PopulationEffective? effective = null, string? encounterId = null)
+    private static void AddInteger(List<PopulationObservation> output, string id, PopulationCode code, int? value, DateTimeOffset? updated, string category = "survey", PopulationEffective? effective = null, string? encounterId = null, string? note = null)
     {
-        if (value is not null) output.Add(Observation(id, code, new IntegerValue(value.Value), category, updated, effective, encounterId: encounterId));
+        if (value is not null) output.Add(Observation(id, code, new IntegerValue(value.Value), category, updated, effective, encounterId: encounterId, note: note));
     }
 
     private static void AddDate(List<PopulationObservation> output, string id, PopulationCode code, DateOnly? value, DateTimeOffset? updated)
@@ -527,10 +628,10 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (value is not null) output.Add(Observation(id, code, new DateValue(value.Value), "survey", updated));
     }
 
-    private static void AddText(List<PopulationObservation> output, string id, PopulationCode code, string? value, DateTimeOffset? updated, string? note = null)
+    private static void AddText(List<PopulationObservation> output, string id, PopulationCode code, string? value, DateTimeOffset? updated, string? note = null, string category = "survey")
     {
         var text = CleanText(value);
-        if (text is not null) output.Add(Observation(id, code, new TextValue(text), "survey", updated, note: note));
+        if (text is not null) output.Add(Observation(id, code, new TextValue(text), category, updated, note: note));
     }
 
     private static void AddCoded(List<PopulationObservation> output, string id, PopulationCode code, CodedValue? value, DateTimeOffset? updated)

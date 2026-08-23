@@ -32,7 +32,7 @@ Når DHG leverer et positivt `fetusesVitalSigns[].fosterId`, opprettes en separa
 
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
-FHIR terminology bruker norske NLK-koder (NPU/NOR), SNOMED CT, nasjonale Volven-koder og UCUM units. LOINC beholdes som HL7 interoperability coding der mappingen er entydig; en verifisert norsk coding legges til når en slik finnes. «NorLOINC» er ikke et eget norsk code system. Fasaden publiserer ikke egne clinical codes. Sammensatte eller tvetydige DHG fields forblir unsupported til en clinical terminology owner har godkjent en exact mapping. Se [mappingmatrisen](docs/mapping.md).
+FHIR terminology bruker norske NLK-koder (NPU/NOR), SNOMED CT, nasjonale Volven-koder og UCUM units. LOINC beholdes som HL7 interoperability coding der mappingen er entydig; en verifisert norsk coding legges til når en slik finnes. «NorLOINC» er ikke et eget norsk code system, og fasaden publiserer ikke egne clinical codes. Et eksplisitt DHG-felt kan likevel eksponeres source-preserving med `Observation.code.text` og raw boolean, integer, date eller tekst når dette ikke krever clinical inference. Sammensatte felt splittes ikke, fritekst parses ikke, nullable booleans blir ikke `false`, og raw skala- eller count-verdier gis ikke en konstruert betydning eller unit. Felt forblir unsupported når source fact, subject/fetus identity, temporal context eller sikker FHIR resource semantics mangler. Se [mappingmatrisen](docs/mapping.md).
 
 ## Forutsetninger
 

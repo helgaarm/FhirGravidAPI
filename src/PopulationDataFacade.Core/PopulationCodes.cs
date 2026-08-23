@@ -15,6 +15,7 @@ public static class PopulationCodes
     public static readonly PopulationCode DateLastPeriod = LoincCode("8665-2", "Last menstrual period start date");
     public static readonly PopulationCode DueDateLastPeriod = Snomed("289206005", "Estimated date of delivery from last period");
     public static readonly PopulationCode DueDateUltrasound = Snomed("738070007", "Estimated date of delivery from antenatal ultrasound scan");
+    public static readonly PopulationCode CorrectedDueDate = TextOnly("Korrigert termindato");
     public static readonly PopulationCode NumberOfFetuses = Snomed("246435002", "Number of fetuses");
     public static readonly PopulationCode AssistedConception = Snomed("813541000000100", "svangerskap ved assistert befruktning");
     public static readonly PopulationCode PrenatalDiagnosticsInformationProvided = TextOnly("Gitt informasjon om fosterdiagnostikk");
@@ -26,11 +27,13 @@ public static class PopulationCodes
     public static readonly PopulationCode SpontaneousMiscarriages = Snomed("248989003", "Number of miscarriages");
     public static readonly PopulationCode StillBirths22Weeks = Snomed("252112002", "Number of stillbirths");
     public static readonly PopulationCode EctopicPregnancies = Snomed("440537001", "Number of ectopic pregnancies");
+    public static readonly PopulationCode PreviousPregnanciesNote = TextOnly("Merknad om tidligere svangerskap");
 
     public static readonly PopulationCode NoKnownGeneticDisorders = TextOnly("Ingen kjente arvelige sykdommer");
     public static readonly PopulationCode ParentsAreRelatives = Snomed("842009", "Consanguinity");
     public static readonly PopulationCode OtherGeneticDisorder = TextOnly("Annen arvelig sykdom");
     public static readonly PopulationCode GeneticDisordersNote = TextOnly("Merknad om arvelige sykdommer");
+    public static readonly PopulationCode HipDysplasiaFamilyHistory = TextOnly("Hofteleddsdysplasi i familien");
 
     public static readonly PopulationCode NothingParticularMedical = TextOnly("Ingenting spesielt");
     public static readonly PopulationCode KidneyOrUrinaryTractDisease = TextOnly("Nyre- og/eller urinveissykdom");
@@ -49,6 +52,9 @@ public static class PopulationCodes
 
     public static readonly PopulationCode DrugAllergy = Snomed("416098002", "Allergy to drug");
     public static readonly PopulationCode FolateIntake = Snomed("792807003", "Folic acid intake");
+    public static readonly PopulationCode MedicationFrequency = TextOnly("Hyppighet av legemiddelbruk");
+    public static readonly PopulationCode MedicationNote = TextOnly("Merknad om legemiddelbruk");
+    public static readonly PopulationCode DailyStimulusCount = TextOnly("Daglig antall");
 
     public static readonly PopulationCode AboType = NlkCode("NPU58582", "Ery-ABO-fenotype");
     public static readonly PopulationCode RhesusDType = NlkCode("NPU21917", "Ery-Rh-D-antigen");
@@ -63,6 +69,12 @@ public static class PopulationCodes
     public static readonly PopulationCode ToxoplasmosisTestResult = TextOnly("Prøveresultat for toksoplasmose");
     public static readonly PopulationCode RubellaIgg = NlkCode("NPU12412", "P-Rubellavirus IgG");
     public static readonly PopulationCode HepatitisCTestResult = TextOnly("Prøveresultat for hepatitt C");
+    public static readonly PopulationCode MrsaVreEsblTestResult = TextOnly("Prøveresultat for MRSA, VRE og/eller ESBL");
+    public static readonly PopulationCode GonorrheaTestResult = TextOnly("Prøveresultat for gonoré");
+    public static readonly PopulationCode CytomegalovirusTestResult = TextOnly("Prøveresultat for cytomegalovirus");
+    public static readonly PopulationCode AsymptomaticBacteriuriaTestResult = TextOnly("Prøveresultat for asymptomatisk bakteriuri");
+    public static readonly PopulationCode GroupBStreptococciTestResult = TextOnly("Prøveresultat for gruppe B-streptokokker");
+    public static readonly PopulationCode ClinicalTestsNote = TextOnly("Merknad om kliniske prøver");
     public static readonly PopulationCode HbA1c = NlkCode("NPU27300", "B-HbA1c");
     public static readonly PopulationCode GlucoseFasting = Snomed("271062006", "Fasting blood glucose measurement");
     public static readonly PopulationCode Glucose2Hour = Snomed("49167009", "Measurement of glucose 2 hours after glucose challenge for glucose tolerance test");
@@ -78,6 +90,12 @@ public static class PopulationCodes
     public static readonly PopulationCode Systolic = Snomed("4471000202106", "Systemic systolic arterial blood pressure");
     public static readonly PopulationCode Diastolic = Snomed("4481000202108", "Systemic diastolic arterial blood pressure");
     public static readonly PopulationCode UrineProtein = NlkCode("NPU04206", "Protein in urine");
+    public static readonly PopulationCode EdemaGrade = TextOnly("Ødemgrad (DHG-verdi 0–3)");
+    public static readonly PopulationCode AntenatalMedicationReported = TextOnly("Legemiddelbruk registrert ved svangerskapskontroll");
+    public static readonly PopulationCode AntenatalAppointmentNote = TextOnly("Merknad fra svangerskapskontroll");
+
+    public static readonly PopulationCode CohabitingCoparent = TextOnly("Bor sammen med medforelder");
+    public static readonly PopulationCode CohabitingCoparentNote = TextOnly("Merknad om boforhold med medforelder");
 
     public static readonly PopulationCode FetalHeartRate = Snomed("364075005", "Heart rate");
     public static readonly PopulationCode FetalPresentationLie = TextOnly("Fosterleie og -presentasjon");

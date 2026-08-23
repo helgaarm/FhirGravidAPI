@@ -4,18 +4,18 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 
 | DHG resource area | DTO support | Eksponert i første FHIR surface |
 |---|---|---|
-| `mother` | Ja | Bare preferred language og behov for tolk |
-| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted-conception status/date og counselling flags, inkludert source-preserving «Gitt informasjon om fosterdiagnostikk»; det utledes ingen gjennomført test eller testresultat |
-| `previousPregnancies` | Ja | Eksplisitte counters og uparset note |
-| `geneticDisorders` | Ja | Eksplisitte nullable booleans og uparset note |
+| `mother` | Ja | Preferred language, behov for tolk og source-preserving samboerskap med medforelder/note; øvrig demography og employment utelates |
+| `currentPregnancy` | Ja | Eksplisitte dates, inkludert separat korrigert termindato uten precedence inference, fetal count, assisted-conception status/date og counselling flags, inkludert source-preserving «Gitt informasjon om fosterdiagnostikk»; det utledes ingen gjennomført test eller testresultat |
+| `previousPregnancies` | Ja | Eksplisitte counters og source-preserving uparset note; ingen residualberegning |
+| `geneticDisorders` | Ja | Eksplisitte nullable booleans, inkludert source-preserving hofteleddsdysplasi-familiehistorikk, og uparset note |
 | `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note; sammensatte source fields beholdes som text-only concepts med field-specific limitations i `Observation.note` |
-| `medication` | Ja | Frequency-, allergy- og folate-fakta; ingen infererte legemiddelnavn |
-| `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
-| `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology |
+| `medication` | Ja | Uparset frequency/note samt allergy- og folate-fakta; ingen infererte legemiddelnavn, doser eller instrukser |
+| `lifestyleFactors` | Ja | Eksplisitte coded stimuli/frequencies og source-preserving daily-count components uten konstruert unit |
+| `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology eller presise text-only concepts; uparset note |
 | `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
 | `vitalMeasurementsBeforePregnancy` | Ja | Positive height (`cm`), pre-pregnancy weight (`kg`) og BMI eksponeres som base R4 Observations uten konstruert measurement time eller Vital Signs profile claim |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
-| `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |
+| `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings, source-preserving medication-svar/note og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |
 | `pointsOfContact` | Ja | Jordmor og maternity healthcare centre eksponeres konservativt i `CareTeam`; GP og birth institute utelates, og det gjøres ingen directory lookup |
 | `birthStatus` | Ja | Ikke eksponert i første release for active pregnancy |
 
