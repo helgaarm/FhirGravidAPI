@@ -5,10 +5,10 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | DHG resource area | DTO support | Eksponert i første FHIR surface |
 |---|---|---|
 | `mother` | Ja | Bare preferred language og behov for tolk |
-| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted-conception status/date og counselling flags; status og dato utledes ikke fra hverandre |
+| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted-conception status/date og counselling flags, inkludert source-preserving «Gitt informasjon om fosterdiagnostikk»; det utledes ingen gjennomført test eller testresultat |
 | `previousPregnancies` | Ja | Eksplisitte counters og uparset note |
 | `geneticDisorders` | Ja | Eksplisitte nullable booleans og uparset note |
-| `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note |
+| `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note; sammensatte source fields beholdes som text-only concepts med field-specific limitations i `Observation.note` |
 | `medication` | Ja | Frequency-, allergy- og folate-fakta; ingen infererte legemiddelnavn |
 | `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
 | `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology |

@@ -8,7 +8,9 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTe
 - `CareTeam` eksponerer bare DHG `pointsOfContact.midwife` og `maternityHealthcareCentre`. Person og organization er contained resources fordi fasaden ikke gjør directory lookup; HPR-, organization- eller andre identifiers konstrueres ikke.
 - GET Observation search krever `patient={logical-id}` og aksepterer valgfritt `code`, `category` og day-precision `date`. POST `_search` bruker `patient.identifier` i form body, støtter de samme filtrene og krever HelseID utenfor lokal `DevelopmentTestMode`.
 - En manglende eller `null` DHG-verdi produserer ingen Observation. Eksplisitt `false` beholdes; DHG laboratory results bruker kodeverk 8340 `T008 |Negativ|`, mens andre booleans bruker `valueBoolean=false`.
+- `currentPregnancy.hasPrenatalDiagnosticsTests` eksponeres source-preserving som «Gitt informasjon om fosterdiagnostikk». `true` og `false` beholdes, men verdien uttrykker ikke om en undersøkelse er utført, et prøveresultat eller et samtykke.
 - De markerte genetic-disorder-feltene `noneKnown`, `parentsAreRelatives`, `other` og `note` eksponeres. Broad booleans bruker source-faithful value, og note beholdes som trimmet `valueString`; fasaden utleder ikke diagnose, berørt person eller slektskap fra teksten.
+- Sammensatte/andre `medicalConditions`-booleans eksponeres med presis DHG-term og `valueBoolean`; `null` utelates. De splittes ikke til separate diagnoser eller prosedyrer, og hver Observation forklarer begrensningen i `Observation.note`. Medical note beholdes som trimmet `valueString` uten semantic parsing.
 - `metadata.enteredInError=true` produserer ingen FHIR resource.
 - `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.
 - Gestational age bruker LOINC `18185-9` og ett UCUM-day Quantity per datert appointment. Fasaden oppretter ikke en ekstra facade-specific «latest» Observation; consumer kan velge nyeste `effectiveDateTime`.

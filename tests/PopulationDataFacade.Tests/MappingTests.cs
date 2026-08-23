@@ -239,6 +239,69 @@ public sealed class MappingTests
     }
 
     [Fact]
+    public void Composite_medical_fields_and_note_are_source_preserving_with_explicit_limitations()
+    {
+        const string sourceNote = "  Tidligere operert; nærmere diagnose er ikke oppgitt  ";
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            MedicalConditions = new DhgMedicalConditions
+            {
+                Metadata = ResourceMetadata("medical"),
+                NothingParticular = false,
+                KidneyUrinaryTractDiseases = true,
+                AllergiesAsthma = false,
+                GynecologicalConditions = true,
+                Other = true,
+                Note = sourceNote
+            }
+        });
+
+        Assert.Equal(6, snapshot.Observations.Count);
+        Assert.False(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.NothingParticularMedical).Value).Value);
+        Assert.True(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.KidneyOrUrinaryTractDisease).Value).Value);
+        Assert.False(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.AllergyOrAsthma).Value).Value);
+        Assert.True(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.GynecologicalConditionOrIntervention).Value).Value);
+        Assert.True(Assert.IsType<BooleanValue>(Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.OtherMedicalCondition).Value).Value);
+
+        var note = Assert.Single(snapshot.Observations,
+            observation => observation.Code == PopulationCodes.MedicalConditionsNote);
+        Assert.Equal("Tidligere operert; nærmere diagnose er ikke oppgitt", Assert.IsType<TextValue>(note.Value).Value);
+        Assert.All(snapshot.Observations, observation =>
+        {
+            Assert.False(observation.Code.HasCoding);
+            Assert.False(string.IsNullOrWhiteSpace(observation.Note));
+        });
+
+        var fhir = new FhirPopulationMapper().MapObservations(snapshot);
+        Assert.All(fhir, observation =>
+        {
+            Assert.Empty(observation.Code.Coding);
+            Assert.Single(observation.Note);
+        });
+        var fhirNote = Assert.Single(fhir, observation => observation.Id == note.Id);
+        Assert.Equal(
+            "Tidligere operert; nærmere diagnose er ikke oppgitt",
+            Assert.IsType<FhirString>(fhirNote.Value).Value);
+
+        var omitted = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            MedicalConditions = new DhgMedicalConditions
+            {
+                Metadata = ResourceMetadata("medical-empty"),
+                Note = "   "
+            }
+        });
+        Assert.Empty(omitted.Observations);
+    }
+
+    [Fact]
     public void Blood_pressure_is_mapped_to_typed_components()
     {
         var snapshot = Create(new DhgMaternityRecord
@@ -616,6 +679,39 @@ public sealed class MappingTests
         Assert.Equal("svangerskap ved assistert befruktning", coding.Display);
         Assert.True(Assert.IsType<FhirBoolean>(fhir.Value).Value);
         Assert.Equal("2025-08-15", Assert.IsType<FhirDateTime>(fhir.Effective).Value);
+    }
+
+    [Fact]
+    public void Prenatal_diagnostics_information_preserves_true_false_and_null_without_test_inference()
+    {
+        static PopulationSnapshot Snapshot(bool? value) => Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            CurrentPregnancy = new DhgCurrentPregnancy
+            {
+                Metadata = ResourceMetadata("pregnancy"),
+                HasPrenatalDiagnosticsTests = value
+            }
+        });
+
+        var positive = Assert.Single(
+            Snapshot(true).Observations,
+            observation => observation.Code == PopulationCodes.PrenatalDiagnosticsInformationProvided);
+        Assert.True(Assert.IsType<BooleanValue>(positive.Value).Value);
+        Assert.False(positive.Code.HasCoding);
+        Assert.Equal("Gitt informasjon om fosterdiagnostikk", positive.Code.Display);
+
+        var negative = Assert.Single(
+            Snapshot(false).Observations,
+            observation => observation.Code == PopulationCodes.PrenatalDiagnosticsInformationProvided);
+        Assert.False(Assert.IsType<BooleanValue>(negative.Value).Value);
+
+        var fhir = Assert.Single(new FhirPopulationMapper().MapObservations(Snapshot(false)));
+        Assert.Empty(fhir.Code.Coding);
+        Assert.Equal("Gitt informasjon om fosterdiagnostikk", fhir.Code.Text);
+        Assert.False(Assert.IsType<FhirBoolean>(fhir.Value).Value);
+
+        Assert.Empty(Snapshot(null).Observations);
     }
 
     [Fact]
@@ -1256,24 +1352,10 @@ public sealed class MappingTests
         var snapshot = Create(new DhgMaternityRecord
         {
             Metadata = Metadata(),
-            CurrentPregnancy = new DhgCurrentPregnancy
-            {
-                Metadata = ResourceMetadata("pregnancy"),
-                HasPrenatalDiagnosticsTests = true
-            },
             GeneticDisorders = new DhgGeneticDisorders
             {
                 Metadata = ResourceMetadata("genetics"),
                 HipDysplasia = true
-            },
-            MedicalConditions = new DhgMedicalConditions
-            {
-                Metadata = ResourceMetadata("medical"),
-                KidneyUrinaryTractDiseases = true,
-                AllergiesAsthma = true,
-                GynecologicalConditions = true,
-                Other = true,
-                Note = "Skal ikke tolkes"
             },
             Medication = new DhgMedication
             {

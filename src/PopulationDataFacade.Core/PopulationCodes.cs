@@ -17,6 +17,7 @@ public static class PopulationCodes
     public static readonly PopulationCode DueDateUltrasound = Snomed("738070007", "Estimated date of delivery from antenatal ultrasound scan");
     public static readonly PopulationCode NumberOfFetuses = Snomed("246435002", "Number of fetuses");
     public static readonly PopulationCode AssistedConception = Snomed("813541000000100", "svangerskap ved assistert befruktning");
+    public static readonly PopulationCode PrenatalDiagnosticsInformationProvided = TextOnly("Gitt informasjon om fosterdiagnostikk");
     public static readonly PopulationCode BirthPreparationTalk = Snomed("702396006", "Childbirth education");
     public static readonly PopulationCode BreastfeedingGuidance = Snomed("243094003", "Breastfeeding education");
 
@@ -30,6 +31,13 @@ public static class PopulationCodes
     public static readonly PopulationCode ParentsAreRelatives = Snomed("842009", "Consanguinity");
     public static readonly PopulationCode OtherGeneticDisorder = TextOnly("Annen arvelig sykdom");
     public static readonly PopulationCode GeneticDisordersNote = TextOnly("Merknad om arvelige sykdommer");
+
+    public static readonly PopulationCode NothingParticularMedical = TextOnly("Ingenting spesielt");
+    public static readonly PopulationCode KidneyOrUrinaryTractDisease = TextOnly("Nyre- og/eller urinveissykdom");
+    public static readonly PopulationCode AllergyOrAsthma = TextOnly("Allergi og/eller astma");
+    public static readonly PopulationCode GynecologicalConditionOrIntervention = TextOnly("Gynekologisk sykdom, inngrep og/eller operasjon");
+    public static readonly PopulationCode OtherMedicalCondition = TextOnly("Annen tidligere eller nåværende sykdom");
+    public static readonly PopulationCode MedicalConditionsNote = TextOnly("Merknader/annet om tidligere eller nåværende sykdom");
 
     public static readonly PopulationCode HeartDisease = Snomed("56265001", "Heart disease");
     public static readonly PopulationCode HypertensiveDisorder = Snomed("38341003", "Hypertensive disorder");

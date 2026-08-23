@@ -79,6 +79,12 @@ public sealed partial class DhgPopulationSnapshotFactory
             source.AssistedConception?.HadAssistedConception,
             updated,
             effective: assistedConceptionDate);
+        AddBoolean(
+            output,
+            Id(source.Metadata, "prenatal-diagnostics-information-provided"),
+            PopulationCodes.PrenatalDiagnosticsInformationProvided,
+            source.HasPrenatalDiagnosticsTests,
+            updated);
         AddBoolean(output, Id(source.Metadata, "birth-preparation-talk"), PopulationCodes.BirthPreparationTalk, source.BirthPreparationTalk, updated);
         AddBoolean(output, Id(source.Metadata, "breastfeeding-guidance"), PopulationCodes.BreastfeedingGuidance, source.BreastfeedingGuidance, updated);
     }
@@ -108,6 +114,13 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
+        AddBoolean(
+            output,
+            Id(source.Metadata, "medical-nothing-particular"),
+            PopulationCodes.NothingParticularMedical,
+            source.NothingParticular,
+            updated,
+            note: "Uttrykker bare om «Ingenting spesielt» er markert i DHG. false betyr ikke at en sykdom er identifisert.");
         var fields = new (string Suffix, PopulationCode Code, bool? Value)[]
         {
             ("heart-disease", PopulationCodes.HeartDisease, source.HeartDisease),
@@ -123,6 +136,42 @@ public sealed partial class DhgPopulationSnapshotFactory
         {
             AddBoolean(output, Id(source.Metadata, $"medical-{field.Suffix}"), field.Code, field.Value, updated);
         }
+
+        AddBoolean(
+            output,
+            Id(source.Metadata, "medical-kidney-or-urinary-tract-disease"),
+            PopulationCodes.KidneyOrUrinaryTractDisease,
+            source.KidneyUrinaryTractDiseases,
+            updated,
+            note: "Sammensatt DHG-felt. Angir ikke om funnet gjelder nyresykdom, urinveissykdom eller begge.");
+        AddBoolean(
+            output,
+            Id(source.Metadata, "medical-allergy-or-asthma"),
+            PopulationCodes.AllergyOrAsthma,
+            source.AllergiesAsthma,
+            updated,
+            note: "Sammensatt DHG-felt. Angir ikke om funnet gjelder allergi, astma eller begge.");
+        AddBoolean(
+            output,
+            Id(source.Metadata, "medical-gynecological-condition-or-intervention"),
+            PopulationCodes.GynecologicalConditionOrIntervention,
+            source.GynecologicalConditions,
+            updated,
+            note: "Sammensatt DHG-felt. Angir ikke om funnet gjelder sykdom, inngrep, operasjon eller en kombinasjon.");
+        AddBoolean(
+            output,
+            Id(source.Metadata, "medical-other"),
+            PopulationCodes.OtherMedicalCondition,
+            source.Other,
+            updated,
+            note: "Angir bare om annen medisinsk tilstand er markert i DHG. Diagnose utledes ikke.");
+        AddText(
+            output,
+            Id(source.Metadata, "medical-note"),
+            PopulationCodes.MedicalConditionsNote,
+            source.Note,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke som diagnose, legemiddel, prosedyre eller berørt person.");
     }
 
     private static void MapMedication(DhgMedication? source, List<PopulationObservation> output)
@@ -478,10 +527,10 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (value is not null) output.Add(Observation(id, code, new DateValue(value.Value), "survey", updated));
     }
 
-    private static void AddText(List<PopulationObservation> output, string id, PopulationCode code, string? value, DateTimeOffset? updated)
+    private static void AddText(List<PopulationObservation> output, string id, PopulationCode code, string? value, DateTimeOffset? updated, string? note = null)
     {
         var text = CleanText(value);
-        if (text is not null) output.Add(Observation(id, code, new TextValue(text), "survey", updated));
+        if (text is not null) output.Add(Observation(id, code, new TextValue(text), "survey", updated, note: note));
     }
 
     private static void AddCoded(List<PopulationObservation> output, string id, PopulationCode code, CodedValue? value, DateTimeOffset? updated)

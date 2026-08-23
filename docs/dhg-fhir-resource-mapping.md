@@ -132,12 +132,15 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | due date from ultrasound | SNOMED CT `738070007` + LOINC `11778-8` | `valueDateTime` med day precision |
 | number of fetuses | SNOMED CT `246435002` | `valueInteger` |
 | assisted conception | SNOMED CT `813541000000100` | `valueBoolean`; source date blir `effectiveDateTime` bare ved eksplisitt `true` |
+| informasjon om fosterdiagnostikk er gitt | presis DHG-term i `CodeableConcept.text` | `valueBoolean`; uttrykker bare om informasjon er gitt, ikke om undersøkelse er utført eller hva resultatet er |
 | childbirth/breastfeeding education | SNOMED CT `702396006` / `243094003` | `valueBoolean` |
 | previous pregnancy counters | LOINC/SNOMED CT exact count concepts | `valueInteger` |
 | no known genetic disorders / other genetic disorder | presis source-term i `CodeableConcept.text` | `valueBoolean`; `null` utelates og ingen diagnose utledes |
 | consanguinity | SNOMED CT `842009` | `valueBoolean` |
 | genetic-disorder note | `Merknad om arvelige sykdommer` i `CodeableConcept.text` | trimmet, uparset `valueString` |
 | selected medical conditions | exact broad SNOMED CT disorder concept | `valueBoolean` |
+| sammensatte/andre medical fields | presis DHG-term i `CodeableConcept.text` | `valueBoolean`; feltet splittes ikke, og den konkrete semantic limitation følger i `Observation.note` |
+| medical conditions note | `Merknader/annet om tidligere eller nåværende sykdom` i `CodeableConcept.text` | trimmet, uparset `valueString`; ingen diagnosis, medication eller procedure inference |
 | drug allergy / folic acid intake | SNOMED CT `416098002` / `792807003` | `valueBoolean` |
 | lifestyle stimulus/frequency | Volven 8536 / 8537 | `valueCodeableConcept` |
 | hemoglobin | NLK `NOR05172` | UCUM `g/dL` Quantity |

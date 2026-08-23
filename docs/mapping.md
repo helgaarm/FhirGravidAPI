@@ -25,7 +25,7 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `assistedConception.hadAssistedConception`, `dateAssistedConception` | SNOMED CT `813541000000100`, `valueBoolean`, valgfri `effectiveDateTime` med day precision | DIRECT | FinnKode har norsk term «svangerskap ved assistert befruktning»; dato brukes bare når status eksplisitt er `true`, og status eller dato utledes aldri fra det andre feltet |
 | `birthPreparationTalk` | SNOMED CT `702396006`, `valueBoolean` | DIRECT | eksplisitt childbirth education fact |
 | `breastfeedingGuidance` | SNOMED CT `243094003`, `valueBoolean` | DIRECT | eksplisitt breastfeeding education fact |
-| `hasPrenatalDiagnosticsTests` | — | UNSUPPORTED | DHG-feltet skiller ikke screening fra diagnostic procedure godt nok for en sikker code |
+| `hasPrenatalDiagnosticsTests` | text-only `Observation.code`, `valueBoolean` | DIRECT | følger DHG-beskrivelsen «Gitt informasjon om fosterdiagnostikk»: `true`/`false` betyr at informasjon er/ikke er gitt, og `null` utelates; det utledes ikke test, resultat eller samtykke |
 | `numberOfPreviousPregnancies` | SNOMED CT `246211005`, `valueInteger` | DIRECT | tidligere, ikke totalt antall pregnancies |
 | `numberOfPreviousLiveBirths` | LOINC `11636-8`, `valueInteger` | DIRECT | total live births |
 | `spontaneousMiscarriages` | SNOMED CT `248989003`, `valueInteger` | DIRECT | beholdes separat |
@@ -41,7 +41,10 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `highBloodPressure` | SNOMED CT `38341003`, `valueBoolean` | DIRECT | ingen subtype inference |
 | `diabetes` | SNOMED CT `73211009`, `valueBoolean` | PARTIAL | DHG skiller ikke diabetes fra gestational diabetes |
 | `epilepsy`, `thrombosis`, `autoimmuneDisease`, `mentalHealth` | SNOMED CT `84757009`, `439127006`, `85828009`, `74732009` | DIRECT | nullable booleans beholdes |
-| sammensatte/andre medical fields og `note` | — | UNSUPPORTED | blant annet `allergiesAsthma` og gynecological condition/procedure kan ikke splittes eller kodes sikkert |
+| `nothingParticular` | text-only `Observation.code`, `valueBoolean` | DIRECT | source answer beholdes; `false` betyr ikke at en sykdom er identifisert; begrensningen følger i `Observation.note` |
+| `kidneyUrinaryTractDiseases`, `allergiesAsthma`, `gynecologicalConditions` | presis sammensatt DHG-term i `Observation.code.text`, `valueBoolean` | DIRECT | feltene splittes ikke til separate sykdommer, inngrep eller operasjoner; den feltspesifikke begrensningen følger i `Observation.note` |
+| `medicalConditions.other` | text-only `Observation.code`, `valueBoolean` | DIRECT | uttrykker bare om annen medical condition er markert; ingen diagnose utledes |
+| `medicalConditions.note` | text-only `Observation.code`, `valueString` | DIRECT | trimmet source text beholdes ordrett; `Observation.note` sier eksplisitt at teksten ikke tolkes som diagnose, legemiddel, prosedyre eller berørt person |
 | `drugAllergy` | SNOMED CT `416098002`, `valueBoolean` | DIRECT | eksplisitt fact |
 | `folate.takenBefore`, `takenDuring` | SNOMED CT `792807003`, `valueBoolean` | PARTIAL | tidscontext beholdes som annotation; statusene utledes ikke fra hverandre |
 | `medicationFrequency`, medication `note` | — | UNSUPPORTED | local enum/free text blir ikke en standard code eller `MedicationStatement` |
