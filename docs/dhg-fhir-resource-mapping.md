@@ -66,8 +66,8 @@ flowchart LR
     Semantic -->|"exact national laboratory mapping"| National["NLK / Volven"]
     Semantic -->|"HL7 interoperability mapping"| LOINC["LOINC + UCUM"]
     Semantic -->|"exact Norwegian clinical concept"| SNOMED["SNOMED CT"]
-    Semantic -->|"documented broad test or approved unparsed text field"| Text["CodeableConcept.text / valueString"]
-    Semantic -->|"ambiguous/composite/free text"| Unsupported["UNSUPPORTED"]
+    Semantic -->|"broad/text/raw source fact kan beholdes uten interpretation"| Text["CodeableConcept.text / valueString / raw value"]
+    Semantic -->|"mangler source fact, identity eller sikker resource semantics"| Unsupported["UNSUPPORTED"]
     National --> FHIR["FHIR Patient / Observation / Encounter / CareTeam"]
     LOINC --> FHIR
     SNOMED --> FHIR
@@ -83,6 +83,7 @@ flowchart LR
 | mother/record update time | `Patient.meta.lastUpdated` | bare når source timestamp finnes |
 | `mother.language` | `Patient.communication.language` | bare dokumentert Volven 3303 code system |
 | `mother.needsLanguageInterpreter` | extension `patient-interpreterRequired` | HL7 canonical URL og `valueBoolean` |
+| `mother.cohabitingCoparent` / note | separate text-only social-history Observations | nullable boolean og uparset `valueString`; ingen relasjons- eller husstandsinference |
 | positivt `fetusesVitalSigns[].fosterId` | separat fetus `Patient.id` | pregnancy-scoped SHA-256-derived logical ID basert på maternal logical ID og source `fosterId`; ingen NIN eller raw DHG identifier publiseres |
 | appointment source timestamp | fetus `Patient.meta.lastUpdated` | nyeste timestamp for samme `fosterId` beholdes |
 
@@ -130,23 +131,30 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | last menstrual period | LOINC `8665-2` | `valueDateTime` med day precision |
 | due date from last period | SNOMED CT `289206005` + LOINC `11778-8` | `valueDateTime` med day precision |
 | due date from ultrasound | SNOMED CT `738070007` + LOINC `11778-8` | `valueDateTime` med day precision |
+| corrected due date | presis DHG-term i `CodeableConcept.text` | `valueDateTime` med day precision; separat source fact uten clinical precedence inference |
 | number of fetuses | SNOMED CT `246435002` | `valueInteger` |
 | assisted conception | SNOMED CT `813541000000100` | `valueBoolean`; source date blir `effectiveDateTime` bare ved eksplisitt `true` |
 | informasjon om fosterdiagnostikk er gitt | presis DHG-term i `CodeableConcept.text` | `valueBoolean`; uttrykker bare om informasjon er gitt, ikke om undersøkelse er utført eller hva resultatet er |
 | childbirth/breastfeeding education | SNOMED CT `702396006` / `243094003` | `valueBoolean` |
 | previous pregnancy counters | LOINC/SNOMED CT exact count concepts | `valueInteger` |
+| previous-pregnancies note | presis DHG-term i `CodeableConcept.text` | trimmet, uparset `valueString`; ingen utfall eller prosedyre utledes |
 | no known genetic disorders / other genetic disorder | presis source-term i `CodeableConcept.text` | `valueBoolean`; `null` utelates og ingen diagnose utledes |
 | consanguinity | SNOMED CT `842009` | `valueBoolean` |
 | genetic-disorder note | `Merknad om arvelige sykdommer` i `CodeableConcept.text` | trimmet, uparset `valueString` |
+| family history of hip dysplasia | presis DHG-term i `CodeableConcept.text` | `valueBoolean`; berørt person og diagnose utledes ikke |
 | selected medical conditions | exact broad SNOMED CT disorder concept | `valueBoolean` |
 | sammensatte/andre medical fields | presis DHG-term i `CodeableConcept.text` | `valueBoolean`; feltet splittes ikke, og den konkrete semantic limitation følger i `Observation.note` |
 | medical conditions note | `Merknader/annet om tidligere eller nåværende sykdom` i `CodeableConcept.text` | trimmet, uparset `valueString`; ingen diagnosis, medication eller procedure inference |
 | drug allergy / folic acid intake | SNOMED CT `416098002` / `792807003` | `valueBoolean` |
+| medication frequency / note | presis DHG-term i `CodeableConcept.text` | trimmet, uparset `valueString`; ingen legemiddel-, dose- eller frequency inference |
 | lifestyle stimulus/frequency | Volven 8536 / 8537 | `valueCodeableConcept` |
+| lifestyle daily count | `Daglig antall` som text-only component code | ikke-negativ `valueInteger` component på aktuell stimulus/frequency; unit og clinical meaning utledes ikke |
 | hemoglobin | NLK `NOR05172` | UCUM `g/dL` Quantity |
 | ferritin / HbA1c | NLK `NPU19763` / `NPU27300` | UCUM Quantity |
 | HBV surface antigen | SNOMED CT `165806002` | kodeverk 8340 `T002 |Positiv|` / `T008 |Negativ|` |
 | HIV, syphilis, Chlamydia, toxoplasmosis og hepatitis C | presis DHG-term i `CodeableConcept.text`, uten konstruert code | kodeverk 8340 `T002 |Positiv|` / `T008 |Negativ|`; `null` utelates |
+| MRSA/VRE/ESBL, gonoré, cytomegalovirus, asymptomatisk bakteriuri og gruppe B-streptokokker | presis broad DHG-term i `CodeableConcept.text`, uten konstruert code | kodeverk 8340 `T002 |Positiv|` / `T008 |Negativ|`; composite/assay semantics utledes ikke |
+| clinical-tests note | presis DHG-term i `CodeableConcept.text` | trimmet, uparset `valueString`; ingen analytt, resultat eller vurdering utledes |
 | ABO / RhD | NLK `NPU58582` / `NPU21917` + LOINC `883-9` / `10331-7` | SNOMED CT `valueCodeableConcept` |
 | glucose tolerance | SNOMED CT `271062006` / `49167009` | UCUM `mmol/L` Quantity |
 | anti-D prophylaxis status | SNOMED CT `408783007` | `valueBoolean` |
@@ -156,9 +164,10 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | symphysis-fundal height | SNOMED CT `364253002` | UCUM `cm` Quantity |
 | gestational age | LOINC `18185-9` | UCUM `d` Quantity per appointment |
 | mother weight | SNOMED CT `27113001` + LOINC `29463-7` | UCUM `kg` Quantity; `effectiveDateTime` når datert |
+| appointment medication answer / note | presis DHG-term i `CodeableConcept.text` | encounter-scoped `valueBoolean` / uparset `valueString`; ingen medication eller assessment inference |
 | blood pressure | LOINC `85354-9` | component-only; SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4`, UCUM `mm[Hg]` |
 | urine protein | NLK `NPU04206` | kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` `valueCodeableConcept` |
-| edema | — | unsupported til DHG definerer scale semantics |
+| edema | presis DHG-term i `CodeableConcept.text` | encounter-scoped raw `valueInteger` `0..3`; scale-trinnenes betydning utledes ikke |
 | fetal heart rate | SNOMED CT `364075005` + LOINC `55283-6` | UCUM `{beats}/min` `valueQuantity`; fetus Patient i `focus` |
 | fetal presentation/lie | text-only code; Volven 8534 value | source-preserving `valueCodeableConcept`; fetus Patient i `focus` |
 | mother feels fetal movements | LOINC `57088-7` | `valueBoolean`; fetus Patient i `focus`; positiv SNOMED finding code brukes ikke ved et nullable boolean question |
@@ -172,10 +181,10 @@ Fasaden genererer standard FHIR R4 `Patient`, `Observation`, `Encounter` og `Car
 
 ## Bevisste exclusions
 
-- `dueDateCorrectedDate` brukes ikke uten en egen clinical precedence decision.
+- `dueDateCorrectedDate` beholdes som en separat text-only datofact. Fasaden bruker den ikke til å velge eller overskrive en klinisk gjeldende termindato og utleder ikke korreksjonsgrunn.
 - Assisted-conception status og dato utledes aldri fra hverandre. Manglende status gir ingen Observation; `false` beholdes uten dato, og dato brukes bare sammen med eksplisitt `true`.
 - Combined fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke.
-- Medication free text blir ikke `Medication` eller `MedicationStatement`.
+- Medication free text blir en source-preserving textual Observation, ikke `Medication` eller `MedicationStatement`.
 - Consent blir ikke representert som Observation. Fetal RhD result holdes tilbake fordi DHG-blokken mangler `fosterId`; et resultat kan derfor ikke bindes entydig til én fetus Patient ved flerlinger.
 - Unknown source systems/values og unsupported fields eksponeres ikke automatisk.
 

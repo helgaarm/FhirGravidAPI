@@ -166,12 +166,16 @@ public sealed class MappingTests
                 NumberOfPreviousLiveBirths = 1,
                 SpontaneousMiscarriages = 1,
                 StillBirths22Weeks = 1,
-                NumberOfEctopicPregnancies = 0
+                NumberOfEctopicPregnancies = 0,
+                Note = "  Ett annet utfall er omtalt uten struktur  "
             }
         });
 
         Assert.DoesNotContain(snapshot.Observations, x =>
             x.Code.Code?.Contains("induced", StringComparison.OrdinalIgnoreCase) == true);
+        var note = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.PreviousPregnanciesNote);
+        Assert.Equal("Ett annet utfall er omtalt uten struktur", Assert.IsType<TextValue>(note.Value).Value);
+        Assert.Contains("tolkes ikke", note.Note, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -192,7 +196,7 @@ public sealed class MappingTests
             }
         });
 
-        Assert.Equal(4, snapshot.Observations.Count);
+        Assert.Equal(5, snapshot.Observations.Count);
         Assert.False(Assert.IsType<BooleanValue>(Assert.Single(
             snapshot.Observations,
             observation => observation.Code == PopulationCodes.NoKnownGeneticDisorders).Value).Value);
@@ -202,6 +206,11 @@ public sealed class MappingTests
         Assert.True(Assert.IsType<BooleanValue>(Assert.Single(
             snapshot.Observations,
             observation => observation.Code == PopulationCodes.OtherGeneticDisorder).Value).Value);
+        var hipDysplasia = Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.HipDysplasiaFamilyHistory);
+        Assert.True(Assert.IsType<BooleanValue>(hipDysplasia.Value).Value);
+        Assert.Contains("berørt person", hipDysplasia.Note, StringComparison.Ordinal);
         var note = Assert.Single(
             snapshot.Observations,
             observation => observation.Code == PopulationCodes.GeneticDisordersNote);
@@ -217,12 +226,10 @@ public sealed class MappingTests
         Assert.Equal(
             "Mor har en arvelig sykdom som ikke er kodet",
             Assert.IsType<FhirString>(fhirNote.Value).Value);
-        Assert.DoesNotContain(snapshot.Observations,
-            observation => observation.Code.Display.Contains("hip", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Null_or_blank_marked_genetic_fields_and_unmarked_hip_dysplasia_are_omitted()
+    public void Null_or_blank_genetic_fields_are_omitted()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -230,7 +237,7 @@ public sealed class MappingTests
             GeneticDisorders = new DhgGeneticDisorders
             {
                 Metadata = ResourceMetadata("genetics"),
-                HipDysplasia = true,
+                HipDysplasia = null,
                 Note = "   "
             }
         });
@@ -576,7 +583,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Corrected_due_date_is_not_mapped_without_an_explicit_clinical_decision()
+    public void Corrected_due_date_is_preserved_without_selecting_a_clinically_preferred_due_date()
     {
         var correctedDate = new DateOnly(2026, 5, 12);
         var snapshot = Create(new DhgMaternityRecord
@@ -593,8 +600,9 @@ public sealed class MappingTests
 
         Assert.Single(snapshot.Observations, observation => observation.Code == PopulationCodes.DueDateLastPeriod);
         Assert.Single(snapshot.Observations, observation => observation.Code == PopulationCodes.DueDateUltrasound);
-        Assert.DoesNotContain(snapshot.Observations, observation =>
-            observation.Value is DateValue date && date.Value == correctedDate);
+        var corrected = Assert.Single(snapshot.Observations, observation => observation.Code == PopulationCodes.CorrectedDueDate);
+        Assert.Equal(correctedDate, Assert.IsType<DateValue>(corrected.Value).Value);
+        Assert.False(corrected.Code.HasCoding);
     }
 
     [Fact]
@@ -741,7 +749,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Medication_note_never_becomes_a_medication_resource_or_name()
+    public void Medication_note_is_preserved_as_unparsed_text_instead_of_a_medication_resource_or_name()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -754,8 +762,62 @@ public sealed class MappingTests
             }
         });
 
-        Assert.DoesNotContain(snapshot.Observations, x => x.Value is TextValue text && text.Value.Contains("Metoprolol", StringComparison.Ordinal));
+        var note = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.MedicationNote);
+        Assert.Equal("Metoprolol 50 mg", Assert.IsType<TextValue>(note.Value).Value);
+        Assert.Contains("tolkes ikke", note.Note, StringComparison.Ordinal);
         Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.DrugAllergy);
+    }
+
+    [Fact]
+    public void Maternal_household_answers_are_source_preserving_social_history_findings()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            Mother = new DhgMother
+            {
+                Metadata = ResourceMetadata("mother"),
+                CohabitingCoparent = false,
+                CohabitingCoparentNote = "  Delt bosted er omtalt i kilden  "
+            }
+        });
+
+        var cohabiting = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.CohabitingCoparent);
+        Assert.False(Assert.IsType<BooleanValue>(cohabiting.Value).Value);
+        Assert.Equal("social-history", cohabiting.Category);
+        var note = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.CohabitingCoparentNote);
+        Assert.Equal("Delt bosted er omtalt i kilden", Assert.IsType<TextValue>(note.Value).Value);
+        Assert.Equal("social-history", note.Category);
+    }
+
+    [Fact]
+    public void Appointment_medication_answer_and_note_are_encounter_scoped_without_inference()
+    {
+        var date = new DateOnly(2026, 1, 16);
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            AntenatalAppointments =
+            [
+                new DhgAntenatalAppointment
+                {
+                    Metadata = ResourceMetadata("appointment"),
+                    AppointmentDate = date,
+                    Medication = false,
+                    Note = "  Oppfølging avtalt  "
+                }
+            ]
+        });
+
+        var medication = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.AntenatalMedicationReported);
+        Assert.False(Assert.IsType<BooleanValue>(medication.Value).Value);
+        var encounter = Assert.Single(snapshot.Encounters);
+        Assert.Equal(encounter.Id, medication.EncounterId);
+        Assert.Equal(date, Assert.IsType<EffectiveDate>(medication.Effective).Value);
+        var note = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.AntenatalAppointmentNote);
+        Assert.Equal("Oppfølging avtalt", Assert.IsType<TextValue>(note.Value).Value);
+        Assert.Equal(encounter.Id, note.EncounterId);
+        Assert.Contains("tolkes ikke", note.Note, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1116,7 +1178,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Contract_invalid_measurements_ranges_and_unsupported_scales_are_omitted()
+    public void Contract_invalid_measurements_are_omitted_while_valid_raw_edema_grade_is_preserved()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -1169,7 +1231,50 @@ public sealed class MappingTests
         });
 
         Assert.Single(snapshot.Encounters);
-        Assert.Empty(snapshot.Observations);
+        var edema = Assert.Single(snapshot.Observations);
+        Assert.Equal(PopulationCodes.EdemaGrade, edema.Code);
+        Assert.Equal(2, Assert.IsType<IntegerValue>(edema.Value).Value);
+        Assert.Contains("Rå DHG-grad", edema.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Daily_stimulus_count_is_a_source_preserving_component_of_the_coded_stimulus()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            LifestyleFactors = new DhgLifestyleFactors
+            {
+                Metadata = ResourceMetadata("lifestyle"),
+                Stimuli =
+                [
+                    new DhgStimulus
+                    {
+                        StimuliType = new DhgCodeAndSystem
+                        {
+                            CodeSystem = PopulationCodes.Volven8536,
+                            Code = "TOBACCO",
+                            Display = "Tobakk"
+                        },
+                        FirstConsultation = new DhgStimuliFrequency
+                        {
+                            Frequency = new DhgCodeAndSystem
+                            {
+                                CodeSystem = PopulationCodes.Volven8537,
+                                Code = "DAILY",
+                                Display = "Daglig"
+                            },
+                            DailyCount = 0
+                        }
+                    }
+                ]
+            }
+        });
+
+        var observation = Assert.Single(snapshot.Observations);
+        var component = Assert.Single(observation.Components!);
+        Assert.Equal(PopulationCodes.DailyStimulusCount, component.Code);
+        Assert.Equal(0, Assert.IsType<IntegerValue>(component.Value).Value);
     }
 
     [Fact]
@@ -1347,7 +1452,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Ambiguous_fields_are_unsupported_instead_of_receiving_guessed_or_facade_codes()
+    public void Broad_or_unparsed_findings_are_preserved_without_guessed_or_facade_codes()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -1368,7 +1473,10 @@ public sealed class MappingTests
                 Metadata = ResourceMetadata("tests"),
                 MrsaVreEsbl = true,
                 Gonorrhea = true,
-                CytomegaloVirus = true
+                CytomegaloVirus = false,
+                AsymptomaticBacteriuria = true,
+                GroupBStreptococci = false,
+                Note = "Kontrolleres senere"
             },
             RhesusDNegative = new DhgRhesusDNegative
             {
@@ -1379,7 +1487,20 @@ public sealed class MappingTests
             }
         });
 
-        Assert.Empty(snapshot.Observations);
+        Assert.Collection(
+            snapshot.Observations,
+            observation => AssertTextBoolean(observation, PopulationCodes.HipDysplasiaFamilyHistory, true),
+            observation => AssertText(observation, PopulationCodes.MedicationFrequency, "DAILY"),
+            observation => AssertText(observation, PopulationCodes.MedicationNote, "Skal ikke tolkes"),
+            observation => AssertTextLabResult(observation, PopulationCodes.MrsaVreEsblTestResult, "T002"),
+            observation => AssertTextLabResult(observation, PopulationCodes.GonorrheaTestResult, "T002"),
+            observation => AssertTextLabResult(observation, PopulationCodes.CytomegalovirusTestResult, "T008"),
+            observation => AssertTextLabResult(observation, PopulationCodes.AsymptomaticBacteriuriaTestResult, "T002"),
+            observation => AssertTextLabResult(observation, PopulationCodes.GroupBStreptococciTestResult, "T008"),
+            observation => AssertText(observation, PopulationCodes.ClinicalTestsNote, "Kontrolleres senere"));
+
+        Assert.DoesNotContain(snapshot.Observations, observation =>
+            observation.Id.Contains("rhd", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1403,6 +1524,29 @@ public sealed class MappingTests
 
     private static PopulationSnapshot Create(DhgMaternityRecord record) =>
         new DhgPopulationSnapshotFactory().Create("patient-1", ActiveStatus, record);
+
+    private static void AssertTextBoolean(PopulationObservation observation, PopulationCode code, bool expected)
+    {
+        Assert.Equal(code, observation.Code);
+        Assert.False(observation.Code.HasCoding);
+        Assert.Equal(expected, Assert.IsType<BooleanValue>(observation.Value).Value);
+    }
+
+    private static void AssertText(PopulationObservation observation, PopulationCode code, string expected)
+    {
+        Assert.Equal(code, observation.Code);
+        Assert.False(observation.Code.HasCoding);
+        Assert.Equal(expected, Assert.IsType<TextValue>(observation.Value).Value);
+    }
+
+    private static void AssertTextLabResult(PopulationObservation observation, PopulationCode code, string expectedCode)
+    {
+        Assert.Equal(code, observation.Code);
+        Assert.False(observation.Code.HasCoding);
+        var value = Assert.IsType<CodedValue>(observation.Value);
+        Assert.Equal(PopulationCodes.Volven8340, value.System);
+        Assert.Equal(expectedCode, value.Code);
+    }
 
     private static void AssertValidationExample(string fileName, Resource resource)
     {

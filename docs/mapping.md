@@ -16,11 +16,13 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `metadata.recordLastUpdated`, resource `metadata.lastUpdated` | `meta.lastUpdated` | DIRECT | source timestamp beholdes |
 | `mother.language` | `Patient.communication.language` | DIRECT | bare dokumentert Volven 3303 code/system/display beholdes |
 | `mother.needsLanguageInterpreter` | HL7 extension `patient-interpreterRequired` | DIRECT | nullable boolean beholdes |
-| øvrige `mother`-felt | — | UNSUPPORTED | demography, employment og contact data er utenfor minimal Patient |
+| `mother.cohabitingCoparent` | text-only `Observation.code`, `valueBoolean` | DIRECT | eksplisitt social-history-svar; `false` beholdes og relasjon, foreldreansvar eller husstand utledes ikke |
+| `mother.cohabitingCoparentNote` | text-only `Observation.code`, uparset `valueString` | PARTIAL | source text beholdes uten tolkning som relasjon, adresse eller sosialfaglig vurdering |
+| øvrige `mother`-felt | — | UNSUPPORTED | demography, employment og contact data er utenfor minimal Patient/finding surface |
 | `currentPregnancy.dateLastPeriod` | LOINC `8665-2`, `valueDateTime` med day precision | DIRECT | eksplisitt dato; ingen rekalkulering |
 | `dueDate` | SNOMED CT `289206005` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
 | `dueDateBasedOnUltrasound` | SNOMED CT `738070007` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
-| `dueDateCorrectedDate` | — | UNSUPPORTED | clinical precedence og reason er ikke entydig dokumentert |
+| `dueDateCorrectedDate` | text-only `Observation.code`, `valueDateTime` med day precision | PARTIAL | den eksplisitte korrigerte datoen beholdes som en separat source fact; fasaden velger ikke hvilken termindato som er klinisk gjeldende og utleder ikke korreksjonsgrunn |
 | `numberOfFetuses` | SNOMED CT `246435002`, `valueInteger` | DIRECT | eksplisitt antall |
 | `assistedConception.hadAssistedConception`, `dateAssistedConception` | SNOMED CT `813541000000100`, `valueBoolean`, valgfri `effectiveDateTime` med day precision | DIRECT | FinnKode har norsk term «svangerskap ved assistert befruktning»; dato brukes bare når status eksplisitt er `true`, og status eller dato utledes aldri fra det andre feltet |
 | `birthPreparationTalk` | SNOMED CT `702396006`, `valueBoolean` | DIRECT | eksplisitt childbirth education fact |
@@ -31,12 +33,13 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `spontaneousMiscarriages` | SNOMED CT `248989003`, `valueInteger` | DIRECT | beholdes separat |
 | `stillBirths22weeks` | SNOMED CT `252112002`, `valueInteger` | PARTIAL | DHG threshold står i source contract; ingen snevrere standard code er lagt til |
 | `numberOfEctopicPregnancies` | SNOMED CT `440537001`, `valueInteger` | DIRECT | beholdes separat |
-| provosert abort og `previousPregnancies.note` | — | UNSUPPORTED | ingen residual calculation og ingen free-text interpretation |
+| provosert abort | — | UNSUPPORTED | det finnes ikke et eksplisitt source-felt, og fasaden gjør ingen residual calculation |
+| `previousPregnancies.note` | text-only `Observation.code`, uparset `valueString` | PARTIAL | source text beholdes uten tolkning som svangerskapsutfall, diagnose, prosedyre eller beregningsgrunnlag |
 | `geneticDisorders.noneKnown` | text-only `Observation.code`, `valueBoolean` | DIRECT | literal source answer; `false` betyr bare at «ingen kjente» ikke ble bekreftet og brukes ikke til å utlede en diagnose |
 | `geneticDisorders.parentsAreRelatives` | SNOMED CT `842009`, `valueBoolean` | DIRECT | consanguinity fact |
 | `geneticDisorders.other` | text-only `Observation.code`, `valueBoolean` | DIRECT | uttrykker bare om annen arvelig sykdom er markert; ingen sykdomstype utledes |
 | `geneticDisorders.note` | text-only `Observation.code`, `valueString` | DIRECT | trimmet source text beholdes ordrett og parses ikke til diagnose, person eller slektskap |
-| `geneticDisorders.hipDysplasia` | — | UNSUPPORTED | ikke markert for extraction i gjeldende scope; subject/family-history semantics er ikke entydig nok |
+| `geneticDisorders.hipDysplasia` | text-only `Observation.code`, `valueBoolean` | PARTIAL | source-svaret beholdes som familiehistorisk svar; berørt person og klinisk diagnose utledes ikke |
 | `medicalConditions.heartDisease` | SNOMED CT `56265001`, `valueBoolean` | DIRECT | broad DHG fact beholdes uten mer spesifikk diagnosis inference |
 | `highBloodPressure` | SNOMED CT `38341003`, `valueBoolean` | DIRECT | ingen subtype inference |
 | `diabetes` | SNOMED CT `73211009`, `valueBoolean` | PARTIAL | DHG skiller ikke diabetes fra gestational diabetes |
@@ -47,19 +50,20 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `medicalConditions.note` | text-only `Observation.code`, `valueString` | DIRECT | trimmet source text beholdes ordrett; `Observation.note` sier eksplisitt at teksten ikke tolkes som diagnose, legemiddel, prosedyre eller berørt person |
 | `drugAllergy` | SNOMED CT `416098002`, `valueBoolean` | DIRECT | eksplisitt fact |
 | `folate.takenBefore`, `takenDuring` | SNOMED CT `792807003`, `valueBoolean` | PARTIAL | tidscontext beholdes som annotation; statusene utledes ikke fra hverandre |
-| `medicationFrequency`, medication `note` | — | UNSUPPORTED | local enum/free text blir ikke en standard code eller `MedicationStatement` |
+| `medicationFrequency`, medication `note` | text-only `Observation.code`, uparset `valueString` | PARTIAL | raw source-verdier beholdes; legemiddel, dose, indikasjon, instruksjon og standardisert frekvens utledes ikke |
 | `lifestyleFactors.stimuli[].stimuliType` | Volven 8536 som `Observation.code` | DIRECT | bare dokumentert national code system godtas |
 | stimulus frequency | Volven 8537 som `valueCodeableConcept` | DIRECT | first consultation og week 36 blir separate Observations med annotation |
-| stimulus `dailyCount` | — | UNSUPPORTED | ingen entydig generic national/standard code er dokumentert |
+| stimulus `dailyCount` | text-only component code, `valueInteger` | PARTIAL | ikke-negativ raw count beholdes som component på den aktuelle coded stimulus/frequency Observation; unit eller clinical interpretation utledes ikke |
 | `clinicalTests.hemoglobin`, `hemoglobinAt3rdTrimester` | NLK `NOR05172`, UCUM `g/dL` | DIRECT | samme analysis code; third trimester markeres med annotation; NILAR brukes som mapping reference |
 | `ferritin`, `bHbA1c` | NLK `NPU19763`, `NPU27300` | DIRECT | units følger DHG/NLK contract |
 | `hbv` | SNOMED CT `165806002`; kodeverk 8340 `T002`/`T008` result | DIRECT | DHG identifiserer uttrykkelig hepatitis B surface antigen; `true` betyr `Positiv`, `false` betyr `Negativ`, og `null` utelates |
 | `hbvCore`, `bloodAntibodies`, `hiv`, `syphilis`, `chlamydia`, `toxoplasmosis`, `hepatitisC` | presis DHG-term i `Observation.code.text`; kodeverk 8340 `T002`/`T008` result | PARTIAL | public DHG contract definerer `true` som positivt prøvesvar, `false` som negativt og `null` som ikke tatt; ingen mer spesifikk analytt, antistoffidentitet eller facade code konstrueres |
 | `rubellaAntigen` | NLK `NPU12412` P-Rubellavirus IgG; kodeverk 8340 `T002`/`T008` result | DIRECT | mappingen følger den autoritative DHG-beskrivelsen og NLK-koden, ikke det misvisende JSON-feltnavnet; `null` utelates |
-| `asymptomaticBacteriuria`, `groupBStreptococci` | — | UNSUPPORTED | feltene må verifiseres mot autorisert gjeldende DHG contract før de kan publiseres |
+| `asymptomaticBacteriuria`, `groupBStreptococci` | presis DHG-term i `Observation.code.text`; kodeverk 8340 `T002`/`T008` result | PARTIAL | nullable source-resultat beholdes uten å konstruere analytt- eller assay-code |
 | `aboRh.aboType`, `rhesusDType` | NLK `NPU58582`, `NPU21917` + LOINC `883-9`, `10331-7`; SNOMED CT coded value | DIRECT | norske laboratory codes er med; LOINC beholdes som interoperabel tilleggskoding; ukjente enum values eksponeres ikke |
 | `glucoseTolerance.*Level` | SNOMED CT `271062006`, `49167009`; UCUM `mmol/L` | DIRECT | positiv value kreves; test date blir `effectiveDateTime` med day precision |
-| `mrsaVreEsbl`, `gonorrhea`, `cytomegaloVirus`, clinical `note` | — | UNSUPPORTED | source identifiserer ikke en entydig assay/finding code |
+| `mrsaVreEsbl`, `gonorrhea`, `cytomegaloVirus` | presis DHG-term i `Observation.code.text`; kodeverk 8340 `T002`/`T008` result | PARTIAL | broad/composite source-resultat beholdes uten å konstruere analytt-, organisme- eller assay-code |
+| clinical `note` | text-only `Observation.code`, uparset `valueString` | PARTIAL | source text beholdes uten tolkning som analytt, resultat, diagnose eller vurdering |
 | `rhesusDNegative.prophylaxisAtWeek28` | SNOMED CT `408783007`, `valueBoolean` | DIRECT | antenatal anti-D prophylaxis status |
 | øvrige `rhesusDNegative`-felt | — | UNSUPPORTED | consent krever annen FHIR resource; fetal result mangler `fosterId` og kan derfor ikke bindes entydig til ett foster ved flerlinger |
 | `vitalMeasurementsBeforePregnancy.height` | SNOMED CT `50373000` + LOINC `8302-2`, UCUM `cm`, `valueQuantity` | PARTIAL | standard FHIR R4 base Observation med `category=vital-signs`; manglende source measurement time betyr at `effective[x]` utelates og Vital Signs profile conformance ikke deklareres |
@@ -67,11 +71,13 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `vitalMeasurementsBeforePregnancy.bMI` | SNOMED CT `60621009` + LOINC `39156-5`, UCUM `kg/m2`, `valueQuantity` | PARTIAL | positive source value beholdes som base R4 Observation; ingen measurement time eller profile conformance utledes |
 | `symphysisFundalHeights[].measurement` | SNOMED CT `364253002`, UCUM `cm` | DIRECT | bare positiv value; measurement date blir `effectiveDateTime` med day precision |
 | `antenatalAppointments[].appointmentDate` | `Encounter.period` | DIRECT | Encounter status forblir `unknown` |
+| appointment `medication` | text-only `Observation.code`, `valueBoolean` | PARTIAL | encounter-scoped source-svar beholdes; legemiddel, dose, indikasjon og behandlingsstatus utledes ikke |
+| appointment `note` | text-only `Observation.code`, uparset `valueString` | PARTIAL | encounter-scoped source text beholdes uten tolkning som diagnose, legemiddel, prosedyre, måling eller vurdering |
 | gestational week/day | LOINC `18185-9`, UCUM `d` | DIRECT | ett exact total-day Quantity per datert appointment; original `week+day` beholdes som annotation |
 | mother weight | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | norsk SNOMED CT coding og HL7 interoperability coding; refererer til Encounter når appointment date finnes |
 | blood pressure `NNN/NN` | LOINC `85354-9`; components SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4` | PARTIAL | positive, sikkert parsbare components publiseres som standard FHIR R4 Observation uten draft canonical |
 | protein in urine | NLK `NPU04206` med kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` | DIRECT | DHG enum `Neg`, `Spor`, `1+`, `2+`, `3+` oversettes eksplisitt; ukjente values utelates |
-| edema | — | UNSUPPORTED | DHG definerer bare accepted integer `0..3`, ikke betydningen av hvert scale-trinn; rå integer publiseres ikke |
+| edema | text-only `Observation.code`, `valueInteger` | PARTIAL | raw DHG-grad `0..3` beholdes encounter-scoped; betydningen av hvert scale-trinn utledes ikke |
 | `fetusesVitalSigns[].fosterId` | minimal pregnancy-scoped `Patient.id`; referert fra `Observation.focus` | DIRECT | bare positivt, eksplisitt `fosterId`; ID-en avledes deterministisk fra maternal logical ID og `fosterId`, inneholder ikke NIN, og brukes ikke som clinical identifier |
 | `fetusesVitalSigns[].fetalHeartRate` | SNOMED CT `364075005` + LOINC `55283-6`, UCUM `{beats}/min`, `valueQuantity` | DIRECT | bare positiv source value fra datert appointment; mor er `subject`, foster-Patient er `focus` |
 | `fetusesVitalSigns[].fetalPresentationLie` | text-only `Observation.code`; Volven 8534 i `valueCodeableConcept` | DIRECT | source code/system/display beholdes bare når code system er dokumentert Volven 8534; method utledes ikke |
