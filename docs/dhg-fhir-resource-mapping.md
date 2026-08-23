@@ -105,6 +105,7 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | due date from last period | SNOMED CT `289206005` + LOINC `11778-8` | `valueDateTime` med day precision |
 | due date from ultrasound | SNOMED CT `738070007` + LOINC `11778-8` | `valueDateTime` med day precision |
 | number of fetuses | SNOMED CT `246435002` | `valueInteger` |
+| assisted conception | SNOMED CT `813541000000100` | `valueBoolean`; source date blir `effectiveDateTime` bare ved eksplisitt `true` |
 | childbirth/breastfeeding education | SNOMED CT `702396006` / `243094003` | `valueBoolean` |
 | previous pregnancy counters | LOINC/SNOMED CT exact count concepts | `valueInteger` |
 | consanguinity | SNOMED CT `842009` | `valueBoolean` |
@@ -134,7 +135,7 @@ Fasaden genererer standard FHIR R4 `Patient`, `Observation` og `Encounter` resou
 ## Bevisste exclusions
 
 - `dueDateCorrectedDate` brukes ikke uten en egen clinical precedence decision.
-- Assisted-conception status og dato eksponeres ikke uten en verifisert kode i norsk SNOMED CT, og feltene utledes aldri fra hverandre.
+- Assisted-conception status og dato utledes aldri fra hverandre. Manglende status gir ingen Observation; `false` beholdes uten dato, og dato brukes bare sammen med eksplisitt `true`.
 - Combined fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke.
 - Medication free text blir ikke `Medication` eller `MedicationStatement`.
 - Consent og fetal RhD result blir ikke feilaktig representert som mother-subject Observation.

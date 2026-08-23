@@ -5,7 +5,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | DHG resource area | DTO support | Eksponert i første FHIR surface |
 |---|---|---|
 | `mother` | Ja | Bare preferred language og behov for tolk |
-| `currentPregnancy` | Ja | Eksplisitte dates, fetal count og counselling flags; assisted conception er ikke eksponert uten verifisert norsk terminology |
+| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted-conception status/date og counselling flags; status og dato utledes ikke fra hverandre |
 | `previousPregnancies` | Ja | Eksplisitte counters og uparset note |
 | `geneticDisorders` | Ja | Eksplisitte nullable booleans og uparset note |
 | `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note |

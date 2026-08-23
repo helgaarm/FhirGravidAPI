@@ -55,6 +55,17 @@ public sealed partial class DhgPopulationSnapshotFactory
             PopulationCodes.NumberOfFetuses,
             source.NumberOfFetuses is > 0 ? source.NumberOfFetuses : null,
             updated);
+        var assistedConceptionDate = source.AssistedConception?.HadAssistedConception == true &&
+                                     source.AssistedConception.DateAssistedConception is not null
+            ? new EffectiveDate(source.AssistedConception.DateAssistedConception.Value)
+            : null;
+        AddBoolean(
+            output,
+            Id(source.Metadata, "assisted-conception"),
+            PopulationCodes.AssistedConception,
+            source.AssistedConception?.HadAssistedConception,
+            updated,
+            effective: assistedConceptionDate);
         AddBoolean(output, Id(source.Metadata, "birth-preparation-talk"), PopulationCodes.BirthPreparationTalk, source.BirthPreparationTalk, updated);
         AddBoolean(output, Id(source.Metadata, "breastfeeding-guidance"), PopulationCodes.BreastfeedingGuidance, source.BreastfeedingGuidance, updated);
     }

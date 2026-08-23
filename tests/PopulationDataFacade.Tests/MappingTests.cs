@@ -231,7 +231,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Assisted_conception_fields_remain_unsupported_without_a_verified_national_code()
+    public void Assisted_conception_date_does_not_infer_status_and_status_does_not_infer_date()
     {
         var dateOnly = Create(new DhgMaternityRecord
         {
@@ -259,7 +259,35 @@ public sealed class MappingTests
                 }
             }
         });
-        var statusAndDate = Create(new DhgMaternityRecord
+        var falseStatusAndDate = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            CurrentPregnancy = new DhgCurrentPregnancy
+            {
+                Metadata = ResourceMetadata("false-status-and-date"),
+                AssistedConception = new DhgAssistedConception
+                {
+                    HadAssistedConception = false,
+                    DateAssistedConception = new DateOnly(2025, 8, 15)
+                }
+            }
+        });
+
+        Assert.DoesNotContain(dateOnly.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
+        var trueObservation = Assert.Single(statusOnly.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
+        Assert.True(Assert.IsType<BooleanValue>(trueObservation.Value).Value);
+        Assert.Null(trueObservation.Effective);
+
+        var falseObservation = Assert.Single(falseStatusAndDate.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
+        Assert.False(Assert.IsType<BooleanValue>(falseObservation.Value).Value);
+        Assert.Null(falseObservation.Effective);
+    }
+
+    [Fact]
+    public void Assisted_conception_maps_verified_norwegian_snomed_code_and_explicit_date()
+    {
+        var expectedDate = new DateOnly(2025, 8, 15);
+        var snapshot = Create(new DhgMaternityRecord
         {
             Metadata = Metadata(),
             CurrentPregnancy = new DhgCurrentPregnancy
@@ -268,14 +296,22 @@ public sealed class MappingTests
                 AssistedConception = new DhgAssistedConception
                 {
                     HadAssistedConception = true,
-                    DateAssistedConception = new DateOnly(2025, 8, 15)
+                    DateAssistedConception = expectedDate
                 }
             }
         });
 
-        Assert.DoesNotContain(dateOnly.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
-        Assert.DoesNotContain(statusOnly.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
-        Assert.DoesNotContain(statusAndDate.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
+        var source = Assert.Single(snapshot.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
+        Assert.True(Assert.IsType<BooleanValue>(source.Value).Value);
+        Assert.Equal(expectedDate, Assert.IsType<EffectiveDate>(source.Effective).Value);
+
+        var fhir = Assert.Single(new FhirPopulationMapper().MapObservations(snapshot, PopulationCodes.AssistedConception));
+        var coding = Assert.Single(fhir.Code.Coding);
+        Assert.Equal(PopulationCodes.SnomedCt, coding.System);
+        Assert.Equal("813541000000100", coding.Code);
+        Assert.Equal("svangerskap ved assistert befruktning", coding.Display);
+        Assert.True(Assert.IsType<FhirBoolean>(fhir.Value).Value);
+        Assert.Equal("2025-08-15", Assert.IsType<FhirDateTime>(fhir.Effective).Value);
     }
 
     [Fact]

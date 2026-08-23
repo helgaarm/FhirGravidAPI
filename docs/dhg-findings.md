@@ -15,7 +15,7 @@ Denne loggen skiller verifiserte implementeringsbeslutninger fra uavklarte klini
 - Nullable booleans beholder alle tre tilstander: true, false og fraværende.
 - Facade-owned clinical codes er fjernet. LOINC, SNOMED CT, NLK, Volven og UCUM brukes bare ved exact semantic match; HL7 core extension brukes for interpreter requirement.
 - Blood pressure er en component-only Observation uten en konkurrerende top-level text value.
-- `dueDateCorrectedDate` eksponeres ikke uten en eksplisitt clinical precedence decision. Assisted-conception status og dato eksponeres ikke fordi den tidligere koden tilhører UK Clinical Edition og ikke er verifisert i norsk SNOMED CT; feltene utledes heller aldri fra hverandre.
+- `dueDateCorrectedDate` eksponeres ikke uten en eksplisitt clinical precedence decision. Assisted-conception status bruker SNOMED CT `813541000000100`, som FinnKode returnerer med norsk term «svangerskap ved assistert befruktning». Dato brukes bare som `effectiveDateTime` når status eksplisitt er `true`; status og dato utledes aldri fra hverandre.
 - FHIR kalenderdatoer serialiseres som `valueDateTime`/`effectiveDateTime` med day precision, fordi `date` ikke er tillatt i disse FHIR R4 choice-elementene.
 - Fetus-spesifikke facts og edema grade er flyttet til unsupported. Førstnevnte krever strukturert fetus `focus`; sistnevnte mangler autoritativ scale semantics.
 - DHG positivity/range constraints håndheves før FHIR mapping uten å introdusere egne clinical reference ranges.

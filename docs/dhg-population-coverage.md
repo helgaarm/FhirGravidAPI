@@ -45,6 +45,7 @@ Det finnes ikke et eget «NorLOINC»-system. Norske laboratory concepts publiser
 | body weight | `http://snomed.info/sct|27113001` eller `http://loinc.org|29463-7` |
 | blood pressure panel | `http://loinc.org|85354-9` |
 | estimated delivery date | `http://loinc.org|11778-8` |
+| pregnancy resulting from assisted conception | `http://snomed.info/sct|813541000000100` |
 
 Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481000202108` sammen med LOINC `8480-6` og `8462-4`. Panelkoden forblir LOINC `85354-9` fordi det ikke er verifisert en entydig norsk SNOMED CT panelkode.
 
@@ -59,6 +60,6 @@ Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481
 - Blood pressure eksponeres bare når dokumentert `systolic/diastolic` format kan parses sikkert.
 - Numeric values med DHG positivity constraint utelates når de er `0` eller negative. Dette innfører ingen clinical reference ranges.
 - Edema grade og fetus-spesifikke facts eksponeres ikke før henholdsvis scale semantics og en strukturert FHIR `focus`-strategi er godkjent.
-- Pre-pregnancy height, weight og BMI holdes tilbake fordi DHG ikke leverer measurement time. Assisted-conception fields holdes tilbake til en norsk SNOMED CT-mapping er verifisert.
+- Pre-pregnancy height, weight og BMI holdes tilbake fordi DHG ikke leverer measurement time.
 
 Full field classification finnes i [mapping.md](mapping.md). Query-eksempler finnes i [examples/fhir-queries.md](../examples/fhir-queries.md). Terminology og units krever fortsatt godkjenning fra clinical terminology owner før DHG Test/Production.

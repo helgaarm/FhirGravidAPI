@@ -22,7 +22,7 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `dueDateBasedOnUltrasound` | SNOMED CT `738070007` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
 | `dueDateCorrectedDate` | — | UNSUPPORTED | clinical precedence og reason er ikke entydig dokumentert |
 | `numberOfFetuses` | SNOMED CT `246435002`, `valueInteger` | DIRECT | eksplisitt antall |
-| `assistedConception.*` | — | UNSUPPORTED | tidligere kode er fra UK Clinical Edition og er ikke verifisert i norsk SNOMED CT; status og dato utledes aldri fra hverandre |
+| `assistedConception.hadAssistedConception`, `dateAssistedConception` | SNOMED CT `813541000000100`, `valueBoolean`, valgfri `effectiveDateTime` med day precision | DIRECT | FinnKode har norsk term «svangerskap ved assistert befruktning»; dato brukes bare når status eksplisitt er `true`, og status eller dato utledes aldri fra det andre feltet |
 | `birthPreparationTalk` | SNOMED CT `702396006`, `valueBoolean` | DIRECT | eksplisitt childbirth education fact |
 | `breastfeedingGuidance` | SNOMED CT `243094003`, `valueBoolean` | DIRECT | eksplisitt breastfeeding education fact |
 | `hasPrenatalDiagnosticsTests` | — | UNSUPPORTED | DHG-feltet skiller ikke screening fra diagnostic procedure godt nok for en sikker code |

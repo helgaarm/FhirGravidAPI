@@ -15,6 +15,7 @@ public static class PopulationCodes
     public static readonly PopulationCode DueDateLastPeriod = Snomed("289206005", "Estimated date of delivery from last period");
     public static readonly PopulationCode DueDateUltrasound = Snomed("738070007", "Estimated date of delivery from antenatal ultrasound scan");
     public static readonly PopulationCode NumberOfFetuses = Snomed("246435002", "Number of fetuses");
+    public static readonly PopulationCode AssistedConception = Snomed("813541000000100", "svangerskap ved assistert befruktning");
     public static readonly PopulationCode BirthPreparationTalk = Snomed("702396006", "Childbirth education");
     public static readonly PopulationCode BreastfeedingGuidance = Snomed("243094003", "Breastfeeding education");
 
