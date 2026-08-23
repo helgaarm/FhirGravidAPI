@@ -22,8 +22,7 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `dueDateBasedOnUltrasound` | SNOMED CT `738070007` + LOINC `11778-8`, `valueDateTime` med day precision | DIRECT | method beholdes i SNOMED CT concept |
 | `dueDateCorrectedDate` | — | UNSUPPORTED | clinical precedence og reason er ikke entydig dokumentert |
 | `numberOfFetuses` | SNOMED CT `246435002`, `valueInteger` | DIRECT | eksplisitt antall |
-| `assistedConception.hadAssistedConception` | SNOMED CT `813541000000100`, `valueBoolean` | DIRECT | ingen avledning |
-| `assistedConception.dateAssistedConception` | `Observation.effectiveDateTime` med day precision | PARTIAL | brukes bare når `hadAssistedConception=true`; dato alene utleder aldri IVF-status |
+| `assistedConception.*` | — | UNSUPPORTED | tidligere kode er fra UK Clinical Edition og er ikke verifisert i norsk SNOMED CT; status og dato utledes aldri fra hverandre |
 | `birthPreparationTalk` | SNOMED CT `702396006`, `valueBoolean` | DIRECT | eksplisitt childbirth education fact |
 | `breastfeedingGuidance` | SNOMED CT `243094003`, `valueBoolean` | DIRECT | eksplisitt breastfeeding education fact |
 | `hasPrenatalDiagnosticsTests` | — | UNSUPPORTED | DHG-feltet skiller ikke screening fra diagnostic procedure godt nok for en sikker code |
@@ -53,18 +52,15 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `asymptomaticBacteriuria`, `groupBStreptococci` | — | UNSUPPORTED | feltene må verifiseres mot autorisert gjeldende DHG contract før de kan publiseres |
 | `aboRh.aboType`, `rhesusDType` | NLK `NPU58582`, `NPU21917` + LOINC `883-9`, `10331-7`; SNOMED CT coded value | DIRECT | norske laboratory codes er med; LOINC beholdes som interoperabel tilleggskoding; ukjente enum values eksponeres ikke |
 | `glucoseTolerance.*Level` | SNOMED CT `271062006`, `49167009`; UCUM `mmol/L` | DIRECT | positiv value kreves; test date blir `effectiveDateTime` med day precision |
-| `asymptomaticBacteriuria` | SNOMED CT `236630004`, `valueBoolean` | DIRECT | eksplisitt DHG fact |
 | `mrsaVreEsbl`, `gonorrhea`, `cytomegaloVirus`, clinical `note` | — | UNSUPPORTED | source identifiserer ikke en entydig assay/finding code |
 | `rhesusDNegative.prophylaxisAtWeek28` | SNOMED CT `408783007`, `valueBoolean` | DIRECT | antenatal anti-D prophylaxis status |
 | øvrige `rhesusDNegative`-felt | — | UNSUPPORTED | consent krever annen FHIR resource; fetal result kan ikke få mother som subject |
-| `vitalMeasurementsBeforePregnancy.height` | SNOMED CT `1153637007` + LOINC `8302-2`, UCUM `cm` | DIRECT | norsk SNOMED CT coding og profile-required LOINC; mangler `effective[x]` og deklarerer derfor ikke profile conformance |
-| `prePregnancyWeight` | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | source sier ikke at målingen er self reported; pre-pregnancy context beholdes som annotation; ingen profile claim uten `effective[x]` |
-| `bMI` | LOINC `39156-5`, UCUM `kg/m2` | DIRECT | wire name er eksakt `bMI` |
+| `vitalMeasurementsBeforePregnancy.height`, `prePregnancyWeight`, `bMI` | — | UNSUPPORTED | DHG leverer ikke measurement time; FHIR R4 Vital Signs krever temporal context, og dato konstrueres ikke |
 | `symphysisFundalHeights[].measurement` | SNOMED CT `364253002`, UCUM `cm` | DIRECT | bare positiv value; measurement date blir `effectiveDateTime` med day precision |
 | `antenatalAppointments[].appointmentDate` | `Encounter.period` | DIRECT | Encounter status forblir `unknown` |
 | gestational week/day | LOINC `18185-9`, UCUM `d` | DIRECT | ett exact total-day Quantity per datert appointment; original `week+day` beholdes som annotation |
-| mother weight | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | norsk SNOMED CT coding og profile-required LOINC; refererer til Encounter og deklarerer norsk Body Weight profile når appointment date gir `effective[x]` |
-| blood pressure `NNN/NN` | LOINC `85354-9`; components SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4` | PARTIAL | positive, sikkert parsbare components publiseres; Blood Pressure-canonical deklareres ikke fordi draft-profilen ikke kan kompileres av pinned validator |
+| mother weight | SNOMED CT `27113001` + LOINC `29463-7`, UCUM `kg` | DIRECT | norsk SNOMED CT coding og HL7 interoperability coding; refererer til Encounter når appointment date finnes |
+| blood pressure `NNN/NN` | LOINC `85354-9`; components SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4` | PARTIAL | positive, sikkert parsbare components publiseres som standard FHIR R4 Observation uten draft canonical |
 | protein in urine | NLK `NPU04206` med kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` | DIRECT | DHG enum `Neg`, `Spor`, `1+`, `2+`, `3+` oversettes eksplisitt; ukjente values utelates |
 | edema | — | UNSUPPORTED | DHG definerer bare accepted integer `0..3`, ikke betydningen av hvert scale-trinn; rå integer publiseres ikke |
 | fetal heart rate, presentation/lie og mother feels fetal movements | — | UNSUPPORTED | `fosterId` kan ikke bare ligge i resource ID; facts publiseres ikke før en godkjent pregnancy-scoped `Observation.focus`/identifier-strategi finnes |
@@ -76,14 +72,14 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 - Fasaden publiserer ingen facade-specific `Observation.code` under `urn:nhn:population-data`.
 - HL7 core extension brukes for interpreter requirement.
 - NLK er det nasjonale laboratoriesystemet. Kodene er internasjonale NPU-koder eller norske NOR-koder; «NorLOINC» er ikke et eget code system.
-- LOINC brukes der HL7 eller en norsk FHIR-profile krever det. Når en entydig norsk SNOMED CT- eller NLK-kode finnes, publiseres den sammen med LOINC. UCUM brukes for machine-readable units.
+- LOINC brukes som HL7 interoperability coding der mappingen er entydig. Når en entydig norsk SNOMED CT- eller NLK-kode finnes, publiseres den sammen med LOINC. UCUM brukes for machine-readable units.
 - NLK og Volven brukes bare når DHG contract eller en autoritativ national source gir en entydig mapping.
 - SNOMED CT brukes for eksakte clinical concepts som er verifisert som active i den norske terminology service. ICD-10 brukes ikke for broad booleans eller measurements; DHG-feltene er ikke tilstrekkelige til å etablere en konkret diagnosis.
-- En Observation kan ha flere standard `Coding`-verdier når de uttrykker komplementær og sann semantics, for eksempel norsk SNOMED CT sammen med profile-required LOINC. Rekkefølgen i `CodeableConcept.coding` uttrykker ikke prioritet.
-- `meta.profile` publiseres bare når generert output er validert mot en pinned package. Datert mother weight valideres mot `hl7.fhir.no.domain.vitalsigns#0.9.74` med `hl7.fhir.no.basis#2.2.2`. Blood pressure beholder profilens codings, men deklarerer ikke canonical før draft-profilens slicing kan kompileres av pinned validator. Undated height/pre-pregnancy weight deklarerer heller ikke profile conformance fordi `effective[x]` er mandatory.
-- NILAR `NilarObservation` brukes som mapping reference for laboratory code og UCUM. Fasaden deklarerer ikke NILAR `meta.profile`: profilen krever blant annet en mandatory `diagnosticreportref` extension til en faktisk `DiagnosticReport` og report-specific terminology som DHG snapshot-mappingen ikke leverer.
+- En Observation kan ha flere standard `Coding`-verdier når de uttrykker komplementær og sann semantics, for eksempel norsk SNOMED CT sammen med LOINC. Rekkefølgen i `CodeableConcept.coding` uttrykker ikke prioritet.
+- Alle Observations bruker standard FHIR R4 `Observation` base resource. Fasaden publiserer ikke spesialiserte profiler i `meta.profile` eller `CapabilityStatement.supportedProfile`.
+- NILAR `NilarObservation` brukes bare som mapping reference for laboratory code og UCUM. Fasaden deklarerer ikke NILAR-conformance fordi dagens DHG snapshot-mapping ikke leverer profilens mandatory `DiagnosticReport` reference og report-specific terminology.
 - Ukjent code system, ny enum value eller free text oversettes aldri automatisk til en standard code.
 - Numeric measurements med en dokumentert DHG positivity constraint utelates når value er `0` eller negativ. `numberOfFetuses` må være positiv, pregnancy week må være positiv, days after full week må være `0..6`, og blood pressure components må være positive. Dette er source-contract validation, ikke clinical reference-range inference.
 - Terminology, code version og units må fortsatt godkjennes av clinical terminology owner før DHG Test/Production.
 
-Autoritative referanser: [DHG Resources](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/api/resourcesmd/), [Norsk laboratoriekodeverk (NLK)](https://www.helsedirektoratet.no/digitalisering-og-e-helse/helsefaglige-kodeverk/nlk), [veileder for NLK](https://www.helsedirektoratet.no/veiledere/veileder-for-norsk-laboratoriekodeverk-nlk), [NILAR/Pasientens Prøvesvar](https://github.com/HL7Norway/NILAR), [NilarObservation](https://hl7norway.github.io/NILAR/DiagnosticReportIG/CurrentBuild/StructureDefinition-nilar-observation.html), [Norwegian national Vital Signs](https://hl7.no/fhir/no-domain/vitalsigns/), [HL7 FHIR R4 Vital Signs](https://hl7.org/fhir/R4/observation-vitalsigns.html), [Helsedirektoratet om SNOMED CT](https://www.helsedirektoratet.no/digitalisering-og-e-helse/snomed-ct) og [FinnKode](https://finnkode.helsedirektoratet.no/).
+Autoritative referanser: [DHG Resources](https://utviklerportal.nhn.no/informasjonstjenester/digitalt-helsekort-for-gravide/digitalt-helsekort-for-gravide-api/hit-maternity-record-api/docs/api/resourcesmd/), [Norsk laboratoriekodeverk (NLK)](https://www.helsedirektoratet.no/digitalisering-og-e-helse/helsefaglige-kodeverk/nlk), [veileder for NLK](https://www.helsedirektoratet.no/veiledere/veileder-for-norsk-laboratoriekodeverk-nlk), [NILAR/Pasientens Prøvesvar](https://github.com/HL7Norway/NILAR), [NilarObservation](https://hl7norway.github.io/NILAR/DiagnosticReportIG/CurrentBuild/StructureDefinition-nilar-observation.html), [HL7 FHIR R4 Observation](https://hl7.org/fhir/R4/observation.html), [Helsedirektoratet om SNOMED CT](https://www.helsedirektoratet.no/digitalisering-og-e-helse/snomed-ct) og [FinnKode](https://finnkode.helsedirektoratet.no/).

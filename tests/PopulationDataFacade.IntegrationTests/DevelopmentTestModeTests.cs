@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using PopulationDataFacade.Api.Security;
 using PopulationDataFacade.Core;
 using Xunit;
 
@@ -18,6 +19,33 @@ namespace PopulationDataFacade.IntegrationTests;
 
 public sealed class DevelopmentTestModeTests
 {
+    [Theory]
+    [InlineData("patient-1", true)]
+    [InlineData("Patient.1", true)]
+    [InlineData("patient_1", false)]
+    [InlineData("patient/1", false)]
+    [InlineData("", false)]
+    public void Synthetic_logical_id_uses_the_FHIR_id_format(string logicalId, bool expected) =>
+        Assert.Equal(expected, PatientContextOptions.IsLogicalIdFormat(logicalId));
+
+    [Fact]
+    public void Synthetic_logical_ids_are_unique_and_never_equal_a_configured_nin()
+    {
+        var duplicateIds = new Dictionary<string, SyntheticPatientOptions>
+        {
+            ["one"] = new() { LogicalId = "patient-1", NationalIdentityNumber = "01019012345" },
+            ["two"] = new() { LogicalId = "patient-1", NationalIdentityNumber = "02029012345" }
+        };
+        var ninAsId = new Dictionary<string, SyntheticPatientOptions>
+        {
+            ["one"] = new() { LogicalId = "02029012345", NationalIdentityNumber = "01019012345" },
+            ["two"] = new() { LogicalId = "patient-2", NationalIdentityNumber = "02029012345" }
+        };
+
+        Assert.False(PatientContextOptions.HaveUniqueLogicalIds(duplicateIds));
+        Assert.False(PatientContextOptions.LogicalIdsDoNotContainNins(ninAsId));
+    }
+
     [Theory]
     [InlineData("Testing", "Test")]
     [InlineData("Production", "Test")]
@@ -137,6 +165,32 @@ public sealed class DevelopmentTestModeTests
     }
 
     [Fact]
+    public async Task Local_observation_post_search_supports_category_and_date_filters()
+    {
+        await using var factory = new DevelopmentTestModeFactory();
+        using var client = factory.CreateClient();
+        using var content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("patient.identifier", "01019012345"),
+            new KeyValuePair<string, string>("category", "vital-signs"),
+            new KeyValuePair<string, string>("date", "ge2026-01-18")
+        ]);
+
+        using var response = await client.PostAsync(
+            "/fhir/Observation/_search",
+            content,
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, json.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(
+            "obs-weight",
+            json.RootElement.GetProperty("entry")[0].GetProperty("resource").GetProperty("id").GetString());
+    }
+
+    [Fact]
     public async Task HelseId_TEST_token_mode_starts_without_private_JWKs()
     {
         await using var factory = new DevelopmentTestModeFactory(useTestTokenUtility: true);
@@ -189,6 +243,8 @@ public sealed class DevelopmentTestModeTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(schema.GetProperty("properties").TryGetProperty("patient.identifier", out _));
         Assert.True(schema.GetProperty("properties").TryGetProperty("code", out _));
+        Assert.True(schema.GetProperty("properties").TryGetProperty("category", out _));
+        Assert.True(schema.GetProperty("properties").TryGetProperty("date", out _));
         Assert.DoesNotContain("X-Patient-Context", operation.ToString());
     }
 

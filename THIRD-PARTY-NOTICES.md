@@ -58,21 +58,16 @@ Direkte dependencies kan også forekomme transitively i andre projects. Deres li
 
 NuGet markerer `Microsoft.NETCore.Platforms` 5.0.0 og `System.Security.AccessControl` 5.0.0 som legacy. De godtas bare som exact-version transitive dependencies i test-projects og er ikke en del av application runtime graph. `scripts/check-nuget-deprecations.ps1` avviser disse pakkene hvis de blir direct/runtime dependencies, og avviser alle andre deprecations frem til de er oppgradert eller eksplisitt gjennomgått.
 
-## FHIR profile-validation toolchain
+## FHIR R4 base-validation tooling
 
-FHIR profile validation er build/test tooling og inngår ikke i application runtime:
+FHIR validation er build/test tooling og inngår ikke i application runtime:
 
 | Component | Pinned version | Declared license | Use |
 | --- | --- | --- | --- |
 | [Firely Terminal](https://www.nuget.org/packages/Firely.Terminal/3.5.0) | 3.5.0 | BSD-3-Clause | Validator CLI |
-| `hl7.fhir.r4.core` | 4.0.1 | CC0-1.0 | FHIR R4 validation definitions |
-| `hl7.terminology.r4` | 7.1.0 | CC0-1.0 | FHIR terminology definitions |
-| `hl7.fhir.uv.extensions.r4` | 5.2.0 | CC0-1.0 | FHIR extensions dependency |
-| `hl7.fhir.uv.tools.r4` | 0.9.0 | CC0-1.0 | IG tooling dependency |
-| `hl7.fhir.no.domain.vitalsigns` | 0.9.74 | CC0-1.0, med separate LOINC/SNOMED IP notices | Norsk Vital Signs profile validation |
-| `hl7.fhir.no.basis` | 2.2.2 | Package manifest declares no license | Required Norwegian base-profile validation dependency; legal terms must be confirmed before redistribution |
+| `hl7.fhir.r4.core` | 4.0.1 | CC0-1.0 | Standard FHIR R4 base definitions |
 
-Den offisielle Vital Signs `package.tgz` lastes bare ned under validation og avvises hvis SHA-256 avviker fra den pinnede verdien i `scripts/validate-fhir-profiles.ps1`. Package-cache og den nedlastede filen distribueres ikke fra repositoryet. Bruk av LOINC og SNOMED CT følger IP-notices i den publiserte norske implementation guiden.
+CI validerer representative mapper-genererte resources mot standard `hl7.fhir.r4.core#4.0.1`. Ingen norsk draft Vital Signs-package eller NoBasis-package installeres eller brukes.
 
 ## Dependencies for Go authentication gateway
 

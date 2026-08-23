@@ -34,6 +34,17 @@ public sealed class PatientContextHeaderOperationFilter(
                     Type = "string",
                     Description = "Valgfritt system|code Observation filter."
                 };
+                properties["category"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Description = "Valgfritt code eller system|code Observation category filter."
+                };
+                properties["date"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Format = "date",
+                    Description = "Valgfri FHIR date search: yyyy-MM-dd med optional eq, ne, gt, lt, ge eller le prefix."
+                };
             }
 
             operation.RequestBody = new OpenApiRequestBody

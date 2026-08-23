@@ -231,7 +231,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Assisted_conception_status_and_date_are_not_inferred_from_each_other()
+    public void Assisted_conception_fields_remain_unsupported_without_a_verified_national_code()
     {
         var dateOnly = Create(new DhgMaternityRecord
         {
@@ -273,11 +273,9 @@ public sealed class MappingTests
             }
         });
 
-        Assert.DoesNotContain(dateOnly.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
-        var status = Assert.Single(statusOnly.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
-        Assert.Null(status.Effective);
-        var datedStatus = Assert.Single(statusAndDate.Observations, observation => observation.Code == PopulationCodes.AssistedConception);
-        Assert.Equal(new DateOnly(2025, 8, 15), Assert.IsType<EffectiveDate>(datedStatus.Effective).Value);
+        Assert.DoesNotContain(dateOnly.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
+        Assert.DoesNotContain(statusOnly.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
+        Assert.DoesNotContain(statusAndDate.Observations, observation => observation.Id.Contains("assisted-conception", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -424,9 +422,7 @@ public sealed class MappingTests
         var fhirRhesusD = Assert.Single(fhirObservations, observation => observation.Id == rhesusD.Id);
         Assert.Contains(fhirRhesusD.Code.Coding, coding => coding.System == PopulationCodes.Loinc && coding.Code == "10331-7");
         Assert.All(fhirObservations, observation =>
-            Assert.DoesNotContain(
-                PopulationProfiles.NilarObservation,
-                observation.Meta?.Profile ?? []));
+            Assert.Empty(observation.Meta?.Profile ?? []));
     }
 
     [Fact]
@@ -441,13 +437,6 @@ public sealed class MappingTests
                 DateLastPeriod = new DateOnly(2025, 8, 1),
                 DueDate = new DateOnly(2026, 5, 8),
                 DueDateBasedOnUltrasound = new DateOnly(2026, 5, 10)
-            },
-            VitalMeasurementsBeforePregnancy = new DhgVitalMeasurementsBeforePregnancy
-            {
-                Metadata = ResourceMetadata("vitals"),
-                Height = 168m,
-                PrePregnancyWeight = 62.5m,
-                BMI = 22.1m
             },
             AntenatalAppointments =
             [
@@ -470,41 +459,16 @@ public sealed class MappingTests
         Assert.Contains(observations, observation => observation.Code.Coding.Any(coding => coding.System == PopulationCodes.SnomedCt && coding.Code == "289206005"));
         Assert.Contains(observations, observation => observation.Code.Coding.Any(coding => coding.System == PopulationCodes.SnomedCt && coding.Code == "738070007"));
 
-        var height = Assert.Single(observations, observation => observation.Code.Coding.Any(coding => coding.Code == "8302-2"));
-        Assert.Contains(height.Code.Coding, coding =>
-            coding.System == PopulationCodes.SnomedCt && coding.Code == "1153637007");
-        Assert.DoesNotContain(PopulationProfiles.NorwegianVitalSignsBodyWeight, height.Meta?.Profile ?? []);
-
-        Assert.Equal(2, observations.Count(observation => observation.Code.Coding.Any(coding => coding.Code == "29463-7")));
-        var prePregnancyWeight = Assert.Single(observations, observation =>
-            observation.Encounter is null &&
-            observation.Code.Coding.Any(coding => coding.Code == "29463-7"));
-        Assert.Contains(prePregnancyWeight.Code.Coding, coding =>
-            coding.System == PopulationCodes.SnomedCt && coding.Code == "27113001");
-        Assert.DoesNotContain(prePregnancyWeight.Code.Coding, coding => coding.Code == "1162389000");
-        Assert.DoesNotContain(
-            PopulationProfiles.NorwegianVitalSignsBodyWeight,
-            prePregnancyWeight.Meta?.Profile ?? []);
-
         var appointmentWeight = Assert.Single(observations, observation =>
             observation.Encounter is not null &&
             observation.Code.Coding.Any(coding => coding.Code == "29463-7"));
         Assert.Contains(appointmentWeight.Code.Coding, coding =>
             coding.System == PopulationCodes.SnomedCt && coding.Code == "27113001");
-        Assert.Contains(
-            PopulationProfiles.NorwegianVitalSignsBodyWeight,
-            appointmentWeight.Meta?.Profile ?? []);
-
-        var bmi = Assert.Single(observations, observation => observation.Code.Coding.Any(coding => coding.Code == "39156-5"));
-        var bmiValue = Assert.IsType<Quantity>(bmi.Value);
-        Assert.Equal(22.1m, bmiValue.Value);
-        Assert.Equal("kg/m2", bmiValue.Code);
+        Assert.Empty(appointmentWeight.Meta?.Profile ?? []);
 
         var pressure = Assert.Single(observations, observation => observation.Code.Coding.Any(coding => coding.Code == "85354-9"));
         Assert.Null(pressure.Value);
-        Assert.DoesNotContain(
-            PopulationProfiles.NorwegianVitalSignsBloodPressure,
-            pressure.Meta?.Profile ?? []);
+        Assert.Empty(pressure.Meta?.Profile ?? []);
         Assert.Contains(pressure.Component, component =>
             component.Code.Coding.Any(coding => coding.Code == "8480-6") &&
             component.Code.Coding.Any(coding =>
@@ -517,6 +481,74 @@ public sealed class MappingTests
         var byStandardCode = mapper.MapObservations(snapshot, new PopulationCode(PopulationCodes.Loinc, "85354-9", string.Empty));
         Assert.Single(byStandardCode);
         Assert.DoesNotContain(observations.SelectMany(observation => observation.Code.Coding), coding => coding.System?.StartsWith("urn:nhn:", StringComparison.Ordinal) == true);
+        Assert.All(observations, observation => Assert.Empty(observation.Meta?.Profile ?? []));
+        Assert.All(observations, observation =>
+            Assert.DoesNotContain("\"profile\"", new FhirJsonSerializer().SerializeToString(observation), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Undated_pre_pregnancy_vital_measurements_are_omitted()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            VitalMeasurementsBeforePregnancy = new DhgVitalMeasurementsBeforePregnancy
+            {
+                Metadata = ResourceMetadata("vitals"),
+                Height = 168m,
+                PrePregnancyWeight = 62.5m,
+                BMI = 22.1m
+            }
+        });
+
+        Assert.Empty(snapshot.Observations);
+    }
+
+    [Fact]
+    public void Observation_search_filters_category_and_effective_date()
+    {
+        var updated = DateTimeOffset.Parse("2026-01-16T12:30:00+01:00");
+        var snapshot = new PopulationSnapshot(
+            new PopulationPatient("patient-1", null, null, updated),
+            [
+                new PopulationObservation(
+                    "lab",
+                    PopulationCodes.Hemoglobin,
+                    new QuantityValue(12.4m, "g/dL", PopulationCodes.Ucum, "g/dL"),
+                    "laboratory",
+                    updated),
+                new PopulationObservation(
+                    "weight-1",
+                    PopulationCodes.MotherWeight,
+                    new QuantityValue(67.5m, "kg", PopulationCodes.Ucum, "kg"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 16))),
+                new PopulationObservation(
+                    "weight-2",
+                    PopulationCodes.MotherWeight,
+                    new QuantityValue(68m, "kg", PopulationCodes.Ucum, "kg"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 20)))
+            ],
+            [],
+            updated,
+            true);
+        var mapper = new FhirPopulationMapper();
+
+        var result = mapper.MapObservations(snapshot, new PopulationObservationSearch(
+            CategorySystem: "http://terminology.hl7.org/CodeSystem/observation-category",
+            CategoryCode: "vital-signs",
+            Date: new PopulationDateSearch(
+                PopulationDateComparison.GreaterThanOrEqual,
+                new DateOnly(2026, 1, 18))));
+        var unknownSystem = mapper.MapObservations(snapshot, new PopulationObservationSearch(
+            CategorySystem: "urn:unknown",
+            CategoryCode: "vital-signs"));
+
+        Assert.Equal("weight-2", Assert.Single(result).Id);
+        Assert.Empty(unknownSystem);
     }
 
     [Fact]
@@ -641,41 +673,78 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Capability_statement_advertises_only_profiles_the_facade_can_produce()
+    public void Capability_statement_uses_the_standard_R4_base_resource_without_profile_claims()
     {
         var capability = new FhirPopulationMapper().CapabilityStatement(new Uri("https://localhost/"));
         var observation = Assert.Single(
             Assert.Single(capability.Rest).Resource,
             resource => resource.Type == ResourceType.Observation.ToString());
 
-        Assert.Contains(PopulationProfiles.NorwegianVitalSignsBodyWeight, observation.SupportedProfile);
-        Assert.DoesNotContain(PopulationProfiles.NorwegianVitalSignsBloodPressure, observation.SupportedProfile);
-        Assert.DoesNotContain(PopulationProfiles.NilarObservation, observation.SupportedProfile);
+        Assert.Null(observation.Profile);
+        Assert.Empty(observation.SupportedProfile);
+        Assert.Contains(observation.SearchParam, parameter => parameter.Name == "category");
+        Assert.Contains(observation.SearchParam, parameter => parameter.Name == "date");
     }
 
     [Fact]
-    public void Pinned_profile_validation_examples_match_mapper_output()
+    public void Standard_R4_validation_examples_match_production_mapper_output()
     {
-        var snapshot = Create(new DhgMaternityRecord
-        {
-            Metadata = Metadata(),
-            AntenatalAppointments =
+        var updated = DateTimeOffset.Parse("2026-01-16T12:30:00+01:00");
+        var snapshot = new PopulationSnapshot(
+            new PopulationPatient("patient-1", null, null, updated),
             [
-                new DhgAntenatalAppointment
-                {
-                    Metadata = ResourceMetadata("appointment"),
-                    AppointmentDate = new DateOnly(2026, 1, 16),
-                    MotherWeight = 67.5m,
-                    BloodPressure = "118/76"
-                }
-            ]
-        });
-        var observations = new FhirPopulationMapper().MapObservations(snapshot);
+                new PopulationObservation(
+                    "date-value",
+                    PopulationCodes.DateLastPeriod,
+                    new DateValue(new DateOnly(2025, 8, 1)),
+                    "survey",
+                    updated),
+                new PopulationObservation(
+                    "boolean-value",
+                    PopulationCodes.BirthPreparationTalk,
+                    new BooleanValue(true),
+                    "survey",
+                    updated),
+                new PopulationObservation(
+                    "coded-value",
+                    PopulationCodes.Hbv,
+                    new CodedValue(PopulationCodes.Volven8340, "T002", "Positiv"),
+                    "laboratory",
+                    updated),
+                new PopulationObservation(
+                    "body-weight",
+                    PopulationCodes.MotherWeight,
+                    new QuantityValue(67.5m, "kg", PopulationCodes.Ucum, "kg"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 16)),
+                    EncounterId: "encounter-1"),
+                new PopulationObservation(
+                    "blood-pressure",
+                    PopulationCodes.BloodPressure,
+                    null,
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 16)),
+                    [
+                        new PopulationComponent(
+                            PopulationCodes.Systolic,
+                            new QuantityValue(118m, "mmHg", PopulationCodes.Ucum, "mm[Hg]")),
+                        new PopulationComponent(
+                            PopulationCodes.Diastolic,
+                            new QuantityValue(76m, "mmHg", PopulationCodes.Ucum, "mm[Hg]"))
+                    ],
+                    "encounter-1")
+            ],
+            [new PopulationEncounter("encounter-1", new DateOnly(2026, 1, 16), updated)],
+            updated,
+            true);
+        var mapper = new FhirPopulationMapper();
 
-        AssertProfileExample(
-            "Observation-body-weight.json",
-            Assert.Single(observations, observation =>
-                observation.Meta?.Profile?.Contains(PopulationProfiles.NorwegianVitalSignsBodyWeight) == true));
+        AssertValidationExample("Patient.json", mapper.MapPatient(snapshot.Patient));
+        AssertValidationExample("Encounter.json", Assert.Single(mapper.MapEncounters(snapshot)));
+        foreach (var observation in mapper.MapObservations(snapshot))
+            AssertValidationExample($"Observation-{observation.Id}.json", observation);
     }
 
     [Fact]
@@ -780,16 +849,16 @@ public sealed class MappingTests
     private static PopulationSnapshot Create(DhgMaternityRecord record) =>
         new DhgPopulationSnapshotFactory().Create("patient-1", ActiveStatus, record);
 
-    private static void AssertProfileExample(string fileName, Observation observation)
+    private static void AssertValidationExample(string fileName, Resource resource)
     {
         var expectedPath = Path.Combine(AppContext.BaseDirectory, "validation", fileName);
         var expected = JsonNode.Parse(File.ReadAllText(expectedPath));
-        var actualJson = new FhirJsonSerializer().SerializeToString(observation);
+        var actualJson = new FhirJsonSerializer().SerializeToString(resource);
         var actual = JsonNode.Parse(actualJson);
 
         Assert.True(
             JsonNode.DeepEquals(expected, actual),
-            $"Generated FHIR resource did not match pinned profile example {fileName}. Actual: {actualJson}");
+            $"Generated FHIR resource did not match R4 validation example {fileName}. Actual: {actualJson}");
     }
 
     private static DhgRecordMetadata Metadata() => new()

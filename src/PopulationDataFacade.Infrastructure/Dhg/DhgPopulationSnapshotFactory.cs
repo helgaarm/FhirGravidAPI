@@ -31,7 +31,6 @@ public sealed partial class DhgPopulationSnapshotFactory
         MapLifestyle(Active(record.LifestyleFactors), observations);
         MapClinicalTests(Active(record.ClinicalTests), observations);
         MapRhesus(Active(record.RhesusDNegative), observations);
-        MapVitalMeasurements(Active(record.VitalMeasurementsBeforePregnancy), observations);
         MapSymphysisFundalHeights(record.SymphysisFundalHeights, observations);
         MapAntenatalAppointments(record.AntenatalAppointments, observations, encounters);
 
@@ -56,17 +55,6 @@ public sealed partial class DhgPopulationSnapshotFactory
             PopulationCodes.NumberOfFetuses,
             source.NumberOfFetuses is > 0 ? source.NumberOfFetuses : null,
             updated);
-        var assistedConceptionDate = source.AssistedConception?.HadAssistedConception == true &&
-            source.AssistedConception.DateAssistedConception is not null
-                ? new EffectiveDate(source.AssistedConception.DateAssistedConception.Value)
-                : null;
-        AddBoolean(
-            output,
-            Id(source.Metadata, "assisted-conception"),
-            PopulationCodes.AssistedConception,
-            source.AssistedConception?.HadAssistedConception,
-            updated,
-            effective: assistedConceptionDate);
         AddBoolean(output, Id(source.Metadata, "birth-preparation-talk"), PopulationCodes.BirthPreparationTalk, source.BirthPreparationTalk, updated);
         AddBoolean(output, Id(source.Metadata, "breastfeeding-guidance"), PopulationCodes.BreastfeedingGuidance, source.BreastfeedingGuidance, updated);
     }
@@ -182,24 +170,6 @@ public sealed partial class DhgPopulationSnapshotFactory
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
         AddBoolean(output, Id(source.Metadata, "rhd-prophylaxis-week28"), PopulationCodes.RhesusProphylaxis, source.ProphylaxisAtWeek28, updated, "therapy");
-    }
-
-    private static void MapVitalMeasurements(DhgVitalMeasurementsBeforePregnancy? source, List<PopulationObservation> output)
-    {
-        if (source is null) return;
-        var updated = source.Metadata?.LastUpdated;
-        AddQuantity(output, Id(source.Metadata, "height"), PopulationCodes.Height, source.Height, "cm", "cm", updated, category: "vital-signs", note: "Før svangerskapet");
-        AddQuantity(output, Id(source.Metadata, "pre-pregnancy-weight"), PopulationCodes.PrePregnancyWeight, source.PrePregnancyWeight, "kg", "kg", updated, category: "vital-signs", note: "Før svangerskapet");
-        if (source.BMI is > 0)
-        {
-            output.Add(Observation(
-                Id(source.Metadata, "bmi"),
-                PopulationCodes.PrePregnancyBmi,
-                new QuantityValue(source.BMI.Value, "kg/m²", PopulationCodes.Ucum, "kg/m2"),
-                "vital-signs",
-                updated,
-                note: "Før svangerskapet"));
-        }
     }
 
     private static void MapSymphysisFundalHeights(IEnumerable<DhgSymphysisFundalHeight>? sources, List<PopulationObservation> output)

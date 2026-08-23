@@ -2,11 +2,14 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +38,19 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Contains("\"name\":\"identifier\"", json);
         Assert.Contains("\"name\":\"patient.identifier\"", json);
         Assert.Contains("POST _search accepts NIN", json);
+
+        using var document = JsonDocument.Parse(json);
+        var observation = document.RootElement
+            .GetProperty("rest")[0]
+            .GetProperty("resource")
+            .EnumerateArray()
+            .Single(resource => resource.GetProperty("type").GetString() == "Observation");
+        Assert.False(observation.TryGetProperty("profile", out _));
+        Assert.False(observation.TryGetProperty("supportedProfile", out _));
+        Assert.Contains(observation.GetProperty("searchParam").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "category");
+        Assert.Contains(observation.GetProperty("searchParam").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "date");
     }
 
     [Fact]
@@ -87,6 +103,69 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("searchset", json.RootElement.GetProperty("type").GetString());
         Assert.Equal(0, json.RootElement.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
+    public async Task Observation_search_filters_category_and_date_without_profile_claims()
+    {
+        using var client = factory.CreateClient();
+        var context = await IssueContextAsync(client);
+        using var request = Authorized(
+            HttpMethod.Get,
+            $"/fhir/Observation?patient={context.PatientId}&category=vital-signs&date=ge2026-01-18",
+            context.Token);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, json.RootElement.GetProperty("total").GetInt32());
+        var observation = json.RootElement.GetProperty("entry")[0].GetProperty("resource");
+        Assert.Equal("obs-weight", observation.GetProperty("id").GetString());
+        Assert.False(observation.GetProperty("meta").TryGetProperty("profile", out _));
+    }
+
+    [Fact]
+    public async Task Observation_search_rejects_an_invalid_date_filter()
+    {
+        using var client = factory.CreateClient();
+        var context = await IssueContextAsync(client);
+        using var request = Authorized(
+            HttpMethod.Get,
+            $"/fhir/Observation?patient={context.PatientId}&date=2026-99-99",
+            context.Token);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Post_search_has_a_server_enforced_body_limit_and_rejects_chunked_oversize()
+    {
+        using var client = factory.CreateClient();
+        var endpoint = factory.Services.GetServices<EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/fhir/Observation/_search");
+        var sizeLimit = endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>();
+        Assert.NotNull(sizeLimit);
+        Assert.Equal(4096, sizeLimit.MaxRequestBodySize);
+
+        using var request = Authorized(HttpMethod.Post, "/fhir/Observation/_search");
+        request.Headers.TransferEncodingChunked = true;
+        request.Content = new StreamContent(new MemoryStream(
+            Encoding.UTF8.GetBytes("patient.identifier=" + new string('1', 5000))));
+        request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            "application/x-www-form-urlencoded");
+        request.Content.Headers.ContentLength = null;
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/fhir+json", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -251,7 +330,17 @@ public sealed class FixedPopulationDataService : IPopulationDataService
         var updated = DateTimeOffset.Parse("2026-01-16T12:30:00+01:00");
         return Task.FromResult(new PopulationSnapshot(
             new PopulationPatient(context.LogicalId, new CodedValue("urn:ietf:bcp:47", "no", "Norsk"), false, updated),
-            [new PopulationObservation("obs-1", PopulationCodes.Hemoglobin, new QuantityValue(12.4m, "g/dL", PopulationCodes.Ucum, "g/dL"), "laboratory", updated)],
+            [
+                new PopulationObservation("obs-1", PopulationCodes.Hemoglobin, new QuantityValue(12.4m, "g/dL", PopulationCodes.Ucum, "g/dL"), "laboratory", updated),
+                new PopulationObservation(
+                    "obs-weight",
+                    PopulationCodes.MotherWeight,
+                    new QuantityValue(68m, "kg", PopulationCodes.Ucum, "kg"),
+                    "vital-signs",
+                    updated,
+                    new EffectiveDate(new DateOnly(2026, 1, 20)),
+                    EncounterId: "encounter-1")
+            ],
             [new PopulationEncounter("encounter-1", new DateOnly(2026, 1, 16), updated)],
             updated,
             true));

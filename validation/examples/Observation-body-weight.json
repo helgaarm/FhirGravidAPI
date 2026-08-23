@@ -1,24 +1,17 @@
 {
   "resourceType": "Observation",
-  "id": "appointment-mother-weight-1",
+  "id": "body-weight",
   "meta": {
-    "lastUpdated": "2026-01-16T12:30:00+01:00",
-    "profile": [
-      "http://hl7.no/fhir/no-domain/vitalsigns/StructureDefinition/no-domain-VitalSigns-Observation-bodyweight"
-    ]
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
   },
   "status": "unknown",
-  "category": [
-    {
-      "coding": [
-        {
-          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-          "code": "vital-signs"
-        }
-      ],
-      "text": "vital-signs"
-    }
-  ],
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "vital-signs"
+    }],
+    "text": "vital-signs"
+  }],
   "code": {
     "coding": [
       {
@@ -34,9 +27,7 @@
     ],
     "text": "Body weight"
   },
-  "subject": {
-    "reference": "Patient/patient-1"
-  },
+  "subject": { "reference": "Patient/patient-1" },
   "effectiveDateTime": "2026-01-16",
   "valueQuantity": {
     "value": 67.5,
@@ -44,7 +35,5 @@
     "system": "http://unitsofmeasure.org",
     "code": "kg"
   },
-  "encounter": {
-    "reference": "Encounter/appointment-antenatal-1"
-  }
+  "encounter": { "reference": "Encounter/encounter-1" }
 }

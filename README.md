@@ -18,17 +18,17 @@ GET /fhir/Patient/{id}
 GET /fhir/Observation?patient={id}[&code={system}|{code}]
 GET /fhir/Encounter?patient={id}
 POST /fhir/Patient/_search                 identifier={nin}
-POST /fhir/Observation/_search     patient.identifier={nin}[&code={system}|{code}]
+POST /fhir/Observation/_search     patient.identifier={nin}[&code={system}|{code}][&category={code}][&date={prefix}{yyyy-MM-dd}]
 POST /fhir/Encounter/_search       patient.identifier={nin}
 ```
 
-POST `_search` tar fødselsnummeret i en liten `application/x-www-form-urlencoded` request body og krever ikke `X-Patient-Context`. Utenfor lokal `DevelopmentTestMode`, inkludert Production, krever operasjonene et gyldig HelseID DPoP access-token med fasadens `population.read`-policy. Fasaden lager da en stabil, pseudonym FHIR `Patient.id` med HMAC; fødselsnummeret returneres aldri. I lokal `DevelopmentTestMode` er bare fødselsnummer som finnes i et konfigurert syntetisk alias tillatt, og aliasets `LogicalId` brukes.
+POST `_search` tar fødselsnummeret i en `application/x-www-form-urlencoded` request body på maksimalt 4096 bytes og krever ikke `X-Patient-Context`. Utenfor lokal `DevelopmentTestMode`, inkludert Production, krever operasjonene et gyldig HelseID DPoP access-token med fasadens `population.read`-policy. Fasaden lager da en stabil, pseudonym FHIR `Patient.id` med HMAC; fødselsnummeret returneres aldri. I lokal `DevelopmentTestMode` er bare fødselsnummer som finnes i et konfigurert syntetisk alias tillatt, og aliasets `LogicalId` brukes.
 
 GET-søk med fødselsnummer i URL støttes med hensikt ikke, fordi query strings kan havne i nettleserhistorikk, proxylogger og telemetry. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) og [FHIR-eksempler](examples/fhir-queries.md) for de to flytene.
 
 Alle FHIR-svar har `application/fhir+json`. Søk uten treff returnerer en tom `searchset`-Bundle. Feil returneres som `OperationOutcome`. Fasaden tilbyr med hensikt ikke `$populate`.
 
-FHIR terminology bruker norske NLK-koder (NPU/NOR), SNOMED CT, nasjonale Volven-koder og UCUM units. LOINC beholdes der HL7 eller en norsk FHIR-profile krever koden; da legges en entydig norsk coding til når en slik finnes. «NorLOINC» er ikke et eget norsk code system. Fasaden publiserer ikke egne clinical codes. Sammensatte eller tvetydige DHG fields forblir unsupported til en clinical terminology owner har godkjent en exact mapping. Se [mappingmatrisen](docs/mapping.md).
+FHIR terminology bruker norske NLK-koder (NPU/NOR), SNOMED CT, nasjonale Volven-koder og UCUM units. LOINC beholdes som HL7 interoperability coding der mappingen er entydig; en verifisert norsk coding legges til når en slik finnes. «NorLOINC» er ikke et eget norsk code system. Fasaden publiserer ikke egne clinical codes. Sammensatte eller tvetydige DHG fields forblir unsupported til en clinical terminology owner har godkjent en exact mapping. Se [mappingmatrisen](docs/mapping.md).
 
 ## Forutsetninger
 
@@ -59,7 +59,7 @@ $env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<syntet
 
 Alias-konfigurasjon er kun tillatt utenfor Production. Endepunktet `POST /test/patient-context/{alias}` er deaktivert i Production. Normalt bindes en beskyttet kontekst til det autentiserte HelseID-subjektet og kan ikke gjenbrukes av en annen innlogget bruker; Development-testmodus binder den i stedet til et fast konfigurert test-subjekt. En godkjent produksjonsmekanisme for ekstern utstedelse av `X-Patient-Context` er ikke implementert. Dette blokkerer de kontekstbaserte GET-operasjonene i Production, men ikke HelseID-beskyttet POST `_search`.
 
-For et lokalt alias er `LogicalId` den ikke-sensitive FHIR-ID-en operatøren velger, for eksempel `patient-test-1`. Alias-endepunktet returnerer denne verdien som `patientId` og pakker koblingen mellom logisk ID, syntetisk fødselsnummer, subjekt og utløp i `patientContext`. I autentisert POST `_search` genereres i stedet en deterministisk, ikke-reverserbar `Patient.id` med HMAC. Ingen av variantene eksponerer fødselsnummeret som FHIR identifier. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for hele flyten.
+For et lokalt alias er `LogicalId` den ikke-sensitive FHIR-ID-en operatøren velger, for eksempel `patient-test-1`. Den må følge FHIR `id`-formatet `[A-Za-z0-9.-]{1,64}`, være unik med case-sensitive sammenligning og kan ikke være lik et konfigurert fødselsnummer. Alias-endepunktet returnerer denne verdien som `patientId` og pakker koblingen mellom logisk ID, syntetisk fødselsnummer, subjekt og utløp i `patientContext`. I autentisert POST `_search` genereres i stedet en deterministisk, ikke-reverserbar `Patient.id` med HMAC. Ingen av variantene eksponerer fødselsnummeret som FHIR identifier. Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md) for hele flyten.
 
 ### Anonym Swagger mot DHG Test
 

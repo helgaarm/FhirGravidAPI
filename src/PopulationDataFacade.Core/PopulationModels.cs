@@ -30,6 +30,24 @@ public sealed record PopulationObservation(
     string? EncounterId = null,
     string? Note = null);
 
+public sealed record PopulationObservationSearch(
+    PopulationCode? Code = null,
+    string? CategorySystem = null,
+    string? CategoryCode = null,
+    PopulationDateSearch? Date = null);
+
+public sealed record PopulationDateSearch(PopulationDateComparison Comparison, DateOnly Value);
+
+public enum PopulationDateComparison
+{
+    Equal,
+    NotEqual,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual
+}
+
 public sealed record PopulationComponent(PopulationCode Code, PopulationValue Value);
 
 public sealed record PopulationEncounter(

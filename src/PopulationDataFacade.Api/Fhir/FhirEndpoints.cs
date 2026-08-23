@@ -1,11 +1,16 @@
 using Hl7.Fhir.Model;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
 using PopulationDataFacade.Api.Security;
 using PopulationDataFacade.Core;
+using System.Globalization;
 
 namespace PopulationDataFacade.Api.Fhir;
 
 public static class FhirEndpoints
 {
+    private const long MaximumSearchFormBytes = 4096;
+
     public static RouteGroupBuilder MapPopulationFhirApi(
         this IEndpointRouteBuilder endpoints,
         bool requireAuthorization = true)
@@ -35,6 +40,7 @@ public static class FhirEndpoints
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json");
 
         group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchPatientByIdentifier")
             .WithDescription("FHIR POST search med NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
@@ -42,6 +48,7 @@ public static class FhirEndpoints
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
         group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchObservationsByPatientIdentifier")
             .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
@@ -49,6 +56,7 @@ public static class FhirEndpoints
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
 
         group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchEncountersByPatientIdentifier")
             .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
@@ -80,12 +88,22 @@ public static class FhirEndpoints
         IFhirPopulationMapper mapper,
         CancellationToken cancellationToken)
     {
-        var form = await ReadSearchFormAsync(httpContext, cancellationToken, "patient.identifier", "code");
+        var form = await ReadSearchFormAsync(
+            httpContext,
+            cancellationToken,
+            "patient.identifier",
+            "code",
+            "category",
+            "date");
         var requestContext = contextFactory.CreateForNinSearch(
             httpContext,
             RequiredSingleValue(form, "patient.identifier"));
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
-        var resources = mapper.MapObservations(snapshot, ParseCode(OptionalSingleValue(form, "code"))).Cast<Resource>();
+        var search = ParseObservationSearch(
+            OptionalSingleValue(form, "code"),
+            OptionalSingleValue(form, "category"),
+            OptionalSingleValue(form, "date"));
+        var resources = mapper.MapObservations(snapshot, search).Cast<Resource>();
         return FhirHttp.Result(mapper.SearchBundle(resources, ServiceBase(httpContext)));
     }
 
@@ -120,6 +138,8 @@ public static class FhirEndpoints
     private static async Task<IResult> SearchObservationsAsync(
         string? patient,
         string? code,
+        string? category,
+        string? date,
         HttpContext httpContext,
         PatientRequestContextFactory contextFactory,
         IPopulationDataService service,
@@ -129,8 +149,8 @@ public static class FhirEndpoints
         var patientId = RequiredPatient(patient);
         var requestContext = contextFactory.Create(httpContext, patientId);
         var snapshot = await service.GetSnapshotAsync(requestContext, cancellationToken);
-        var filter = ParseCode(code);
-        var resources = mapper.MapObservations(snapshot, filter).Cast<Resource>();
+        var search = ParseObservationSearch(code, category, date);
+        var resources = mapper.MapObservations(snapshot, search).Cast<Resource>();
         return FhirHttp.Result(mapper.SearchBundle(resources, ServiceBase(httpContext)));
     }
 
@@ -164,12 +184,79 @@ public static class FhirEndpoints
         return new PopulationCode(code[..separator], code[(separator + 1)..], string.Empty);
     }
 
+    private static PopulationObservationSearch ParseObservationSearch(
+        string? code,
+        string? category,
+        string? date)
+    {
+        string? categorySystem = null;
+        string? categoryCode = null;
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var separator = category.IndexOf('|');
+            if (separator < 0)
+            {
+                categoryCode = category;
+            }
+            else
+            {
+                if (separator == 0 || separator == category.Length - 1)
+                    throw new PopulationDataException(
+                        PopulationErrorKind.InvalidPatientContext,
+                        "Category must use either code or system|code token form.");
+                categorySystem = category[..separator];
+                categoryCode = category[(separator + 1)..];
+            }
+        }
+
+        return new PopulationObservationSearch(
+            ParseCode(code),
+            categorySystem,
+            categoryCode,
+            ParseDate(date));
+    }
+
+    private static PopulationDateSearch? ParseDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var comparison = PopulationDateComparison.Equal;
+        var dateValue = value;
+        if (value.Length > 2)
+        {
+            comparison = value[..2] switch
+            {
+                "eq" => PopulationDateComparison.Equal,
+                "ne" => PopulationDateComparison.NotEqual,
+                "gt" => PopulationDateComparison.GreaterThan,
+                "lt" => PopulationDateComparison.LessThan,
+                "ge" => PopulationDateComparison.GreaterThanOrEqual,
+                "le" => PopulationDateComparison.LessThanOrEqual,
+                _ => comparison
+            };
+            if (value[..2] is "eq" or "ne" or "gt" or "lt" or "ge" or "le")
+                dateValue = value[2..];
+        }
+
+        if (!DateOnly.TryParseExact(
+                dateValue,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var date))
+            throw new PopulationDataException(
+                PopulationErrorKind.InvalidPatientContext,
+                "Date must use optional eq, ne, gt, lt, ge, or le prefix followed by yyyy-MM-dd.");
+        return new PopulationDateSearch(comparison, date);
+    }
+
     private static async Task<IFormCollection> ReadSearchFormAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken,
         params string[] allowedParameters)
     {
-        const long maximumFormBytes = 4096;
+        var requestSizeFeature = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (requestSizeFeature is { IsReadOnly: false })
+            requestSizeFeature.MaxRequestBodySize = MaximumSearchFormBytes;
         var contentType = httpContext.Request.ContentType;
         var parameterSeparator = contentType?.IndexOf(';') ?? -1;
         var mediaType = parameterSeparator >= 0
@@ -182,7 +269,7 @@ public static class FhirEndpoints
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
                 "FHIR POST search requires application/x-www-form-urlencoded content.");
-        if (httpContext.Request.ContentLength is > maximumFormBytes)
+        if (httpContext.Request.ContentLength is > MaximumSearchFormBytes)
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
                 "The FHIR POST search form is too large.");
@@ -192,7 +279,7 @@ public static class FhirEndpoints
         {
             form = await httpContext.Request.ReadFormAsync(cancellationToken);
         }
-        catch (InvalidDataException exception)
+        catch (Exception exception) when (exception is InvalidDataException or BadHttpRequestException)
         {
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
@@ -202,7 +289,7 @@ public static class FhirEndpoints
 
         var parsedCharacterCount = form.Sum(field =>
             field.Key.Length + field.Value.Sum(value => value?.Length ?? 0));
-        if (parsedCharacterCount > maximumFormBytes)
+        if (parsedCharacterCount > MaximumSearchFormBytes)
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
                 "The FHIR POST search form is too large.");

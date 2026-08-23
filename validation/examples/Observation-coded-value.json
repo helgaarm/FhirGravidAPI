@@ -1,0 +1,31 @@
+{
+  "resourceType": "Observation",
+  "id": "coded-value",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "laboratory"
+    }],
+    "text": "laboratory"
+  }],
+  "code": {
+    "coding": [{
+      "system": "http://snomed.info/sct",
+      "code": "165806002",
+      "display": "Hepatitis B surface antigen detected"
+    }],
+    "text": "Hepatitis B surface antigen detected"
+  },
+  "subject": { "reference": "Patient/patient-1" },
+  "valueCodeableConcept": {
+    "coding": [{
+      "system": "urn:oid:2.16.578.1.12.4.1.1.8340",
+      "code": "T002"
+    }],
+    "text": "Positiv"
+  }
+}

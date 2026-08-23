@@ -50,12 +50,12 @@ jobs:
       - name: Test
         run: dotnet test PopulationDataFacade.slnx --configuration Release --no-build
 
-      - name: Restore pinned FHIR profile validator
+      - name: Restore pinned FHIR R4 validator
         run: dotnet tool restore
 
-      - name: Validate generated examples against pinned Norwegian profiles
+      - name: Validate generated examples against standard FHIR R4 base
         shell: pwsh
-        run: ./scripts/validate-fhir-profiles.ps1
+        run: ./scripts/validate-fhir-r4.ps1
 
       - name: Test authentication gateway
         working-directory: auth-gateway

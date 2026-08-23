@@ -57,5 +57,5 @@ Retries gjelder kun DHG GET og kun nettverksfeil, timeout, 408, 429, 502, 503 og
 - kontrollbesøk blir `Encounter`; målinger kan referere til besøket.
 - nullable boolean mappes bare når verdien finnes. `false` beholdes eksplisitt; vanlige clinical facts bruker `valueBoolean: false`, mens DHG laboratory booleans bruker nasjonal coded result `T008 |Negativ|` fra kodeverk 8340.
 - source `lastUpdated` går til `meta.lastUpdated`; måledato går til `effective[x]`.
-- clinical codes bruker bare verifisert SNOMED CT, NLK, Volven eller profile-required LOINC; quantities bruker UCUM. NLK er det norske laboratoriesystemet og inneholder NPU- og NOR-koder.
+- clinical codes bruker bare verifisert SNOMED CT, NLK, Volven eller HL7-recommended LOINC; quantities bruker UCUM. NLK er det norske laboratoriesystemet og inneholder NPU- og NOR-koder.
 - ukjente kodesystemer, enum values og free text tolereres i DHG DTO, men eksponeres ikke automatisk i FHIR.

@@ -1,0 +1,25 @@
+{
+  "resourceType": "Observation",
+  "id": "boolean-value",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "survey"
+    }],
+    "text": "survey"
+  }],
+  "code": {
+    "coding": [{
+      "system": "http://snomed.info/sct",
+      "code": "702396006",
+      "display": "Childbirth education"
+    }],
+    "text": "Childbirth education"
+  },
+  "subject": { "reference": "Patient/patient-1" },
+  "valueBoolean": true
+}

@@ -64,17 +64,21 @@ builder.Services.AddOptions<PatientContextOptions>()
     .Validate(options => !string.IsNullOrWhiteSpace(options.HeaderName) &&
                          options.HeaderName.All(character => char.IsAsciiLetterOrDigit(character) || character == '-'),
         "PatientContext:HeaderName must be a non-empty HTTP header token containing letters, digits, or hyphens.")
-    .Validate(options => options.TestAliases.All(alias =>
+        .Validate(options => options.TestAliases.All(alias =>
             !string.IsNullOrWhiteSpace(alias.Key) &&
-            !string.IsNullOrWhiteSpace(alias.Value.LogicalId) &&
+            PatientContextOptions.IsLogicalIdFormat(alias.Value.LogicalId) &&
             !string.IsNullOrWhiteSpace(alias.Value.NationalIdentityNumber) &&
             PatientContextOptions.IsNationalIdentityNumberFormat(alias.Value.NationalIdentityNumber)),
-        "Every PatientContext:TestAliases entry must define an alias, LogicalId, and an 11-digit NationalIdentityNumber.")
+        "Every PatientContext:TestAliases entry must define an alias, a valid FHIR LogicalId, and an 11-digit NationalIdentityNumber.")
     .Validate(options => options.TestAliases.Values
             .Select(patient => patient.NationalIdentityNumber)
             .Distinct(StringComparer.Ordinal)
             .Count() == options.TestAliases.Count,
         "Every PatientContext:TestAliases entry must use a unique NationalIdentityNumber.")
+    .Validate(options => PatientContextOptions.HaveUniqueLogicalIds(options.TestAliases),
+        "Every PatientContext:TestAliases entry must use a unique, case-sensitive LogicalId.")
+    .Validate(options => PatientContextOptions.LogicalIdsDoNotContainNins(options.TestAliases),
+        "PatientContext:TestAliases LogicalId values must not equal any configured NationalIdentityNumber.")
     .Validate(options => developmentTestMode.Enabled ||
                          PatientContextOptions.IsPatientIdHmacKeyValid(options.PatientIdHmacKey),
         "PatientContext:PatientIdHmacKey must be a Base64-encoded secret of at least 32 bytes outside DevelopmentTestMode.")

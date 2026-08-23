@@ -6,6 +6,7 @@ public interface IFhirPopulationMapper
 {
     Patient MapPatient(PopulationPatient patient);
     IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null);
+    IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationObservationSearch search);
     IReadOnlyList<Encounter> MapEncounters(PopulationSnapshot snapshot);
     Bundle SearchBundle(IEnumerable<Resource> resources, Uri? serviceBase = null);
     CapabilityStatement CapabilityStatement(Uri serviceBase);
@@ -40,10 +41,15 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         return patient;
     }
 
-    public IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null)
+    public IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationCode? filter = null) =>
+        MapObservations(snapshot, new PopulationObservationSearch(Code: filter));
+
+    public IReadOnlyList<Observation> MapObservations(PopulationSnapshot snapshot, PopulationObservationSearch search)
     {
         return snapshot.Observations
-            .Where(x => filter is null || PopulationCodes.Matches(x.Code, filter))
+            .Where(x => search.Code is null || PopulationCodes.Matches(x.Code, search.Code))
+            .Where(x => MatchesCategory(x, search))
+            .Where(x => MatchesDate(x.Effective, search.Date))
             .Select(x => MapObservation(snapshot.Patient.LogicalId, x))
             .ToArray();
     }
@@ -127,11 +133,10 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
 
     private static Observation MapObservation(string patientId, PopulationObservation source)
     {
-        var profiles = ObservationProfiles(source);
         var observation = new Observation
         {
             Id = source.Id,
-            Meta = Meta(source.LastUpdated, profiles),
+            Meta = Meta(source.LastUpdated),
             Status = ObservationStatus.Unknown,
             Code = ToCodeableConcept(source.Code),
             Subject = new ResourceReference($"Patient/{patientId}"),
@@ -180,12 +185,6 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         params CapabilityStatement.TypeRestfulInteraction[] interactions) => new()
     {
         Type = resourceType.ToString(),
-        SupportedProfile = resourceType is ResourceType.Observation
-            ?
-            [
-                PopulationProfiles.NorwegianVitalSignsBodyWeight
-            ]
-            : [],
         Interaction = interactions
             .Select(interaction => new CapabilityStatement.ResourceInteractionComponent { Code = interaction })
             .ToList(),
@@ -208,6 +207,18 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                     Name = "code",
                     Type = SearchParamType.Token,
                     Definition = "http://hl7.org/fhir/SearchParameter/clinical-code"
+                },
+                new CapabilityStatement.SearchParamComponent
+                {
+                    Name = "category",
+                    Type = SearchParamType.Token,
+                    Definition = "http://hl7.org/fhir/SearchParameter/Observation-category"
+                },
+                new CapabilityStatement.SearchParamComponent
+                {
+                    Name = "date",
+                    Type = SearchParamType.Date,
+                    Definition = "http://hl7.org/fhir/SearchParameter/clinical-date"
                 }
             ]
             : resourceType is ResourceType.Encounter
@@ -238,33 +249,42 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
                     : []
     };
 
-    private static IReadOnlyList<string> ObservationProfiles(PopulationObservation source)
+    private static Meta? Meta(DateTimeOffset? lastUpdated) => lastUpdated is null
+        ? null
+        : new Meta { LastUpdated = lastUpdated };
+
+    private static bool MatchesCategory(PopulationObservation observation, PopulationObservationSearch search)
     {
-        if (!string.Equals(source.Category, "vital-signs", StringComparison.Ordinal) ||
-            source.Effective is null)
-        {
-            return [];
-        }
-
-        if (source.Code == PopulationCodes.MotherWeight &&
-            source.Value is QuantityValue { System: PopulationCodes.Ucum, Code: "kg" })
-        {
-            return [PopulationProfiles.NorwegianVitalSignsBodyWeight];
-        }
-
-        return [];
+        if (search.CategoryCode is null) return true;
+        const string observationCategorySystem =
+            "http://terminology.hl7.org/CodeSystem/observation-category";
+        return (search.CategorySystem is null ||
+                string.Equals(search.CategorySystem, observationCategorySystem, StringComparison.Ordinal)) &&
+               string.Equals(observation.Category, search.CategoryCode, StringComparison.Ordinal);
     }
 
-    private static Meta? Meta(DateTimeOffset? lastUpdated, IReadOnlyList<string>? profiles = null)
+    private static bool MatchesDate(PopulationEffective? effective, PopulationDateSearch? search)
     {
-        if (lastUpdated is null && (profiles is null || profiles.Count == 0))
-            return null;
+        if (search is null) return true;
+        var value = effective switch
+        {
+            EffectiveDate date => date.Value,
+            EffectiveDateTime instant => DateOnly.FromDateTime(instant.Value.Date),
+            _ => (DateOnly?)null
+        };
+        if (value is null) return false;
 
-        var meta = new Meta { LastUpdated = lastUpdated };
-        if (profiles is { Count: > 0 })
-            meta.Profile = profiles.ToList();
-
-        return meta;
+        var comparison = value.Value.CompareTo(search.Value);
+        return search.Comparison switch
+        {
+            PopulationDateComparison.Equal => comparison == 0,
+            PopulationDateComparison.NotEqual => comparison != 0,
+            PopulationDateComparison.GreaterThan => comparison > 0,
+            PopulationDateComparison.LessThan => comparison < 0,
+            PopulationDateComparison.GreaterThanOrEqual => comparison >= 0,
+            PopulationDateComparison.LessThanOrEqual => comparison <= 0,
+            _ => false
+        };
     }
 
     private static CodeableConcept ToCodeableConcept(CodedValue value) =>

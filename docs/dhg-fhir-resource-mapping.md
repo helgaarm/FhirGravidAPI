@@ -56,14 +56,14 @@ POST `_search` med NIN i form body krever HelseID i autentisert drift og bruker 
 - Observation og Encounter status er `unknown`, fordi DHG ikke leverer en entydig FHIR status.
 - `Observation.code` bruker LOINC, SNOMED CT, NLK eller Volven. Facade-specific clinical codes publiseres ikke.
 - Quantities bruker UCUM.
-- `meta.profile` settes bare når den konkrete resource-instansen oppfyller mandatory profile constraints.
+- Alle Observations bruker standard FHIR R4 `Observation` base resource uten spesialiserte `meta.profile` claims.
 - Unknown code system, enum value eller free text blir ikke automatisk oversatt til en standard code.
 
 ```mermaid
 flowchart LR
     DHG["DHG active record"] --> Semantic["Semantic allowlist"]
     Semantic -->|"exact national laboratory mapping"| National["NLK / Volven"]
-    Semantic -->|"profile-required / HL7 mapping"| LOINC["LOINC + UCUM"]
+    Semantic -->|"HL7 interoperability mapping"| LOINC["LOINC + UCUM"]
     Semantic -->|"exact Norwegian clinical concept"| SNOMED["SNOMED CT"]
     Semantic -->|"ambiguous/composite/free text"| Unsupported["UNSUPPORTED"]
     National --> FHIR["FHIR Patient / Observation / Encounter"]
@@ -105,7 +105,6 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | due date from last period | SNOMED CT `289206005` + LOINC `11778-8` | `valueDateTime` med day precision |
 | due date from ultrasound | SNOMED CT `738070007` + LOINC `11778-8` | `valueDateTime` med day precision |
 | number of fetuses | SNOMED CT `246435002` | `valueInteger` |
-| assisted conception | SNOMED CT `813541000000100` | `valueBoolean`; explicit date kan bli `effectiveDateTime` bare ved true status |
 | childbirth/breastfeeding education | SNOMED CT `702396006` / `243094003` | `valueBoolean` |
 | previous pregnancy counters | LOINC/SNOMED CT exact count concepts | `valueInteger` |
 | consanguinity | SNOMED CT `842009` | `valueBoolean` |
@@ -118,36 +117,24 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | ABO / RhD | NLK `NPU58582` / `NPU21917` + LOINC `883-9` / `10331-7` | SNOMED CT `valueCodeableConcept` |
 | glucose tolerance | SNOMED CT `271062006` / `49167009` | UCUM `mmol/L` Quantity |
 | anti-D prophylaxis status | SNOMED CT `408783007` | `valueBoolean` |
-| body height | SNOMED CT `1153637007` + LOINC `8302-2` | UCUM `cm` Quantity |
-| pre-pregnancy weight | SNOMED CT `27113001` + LOINC `29463-7` | UCUM `kg` Quantity; «før svangerskapet» som annotation |
-| BMI | LOINC `39156-5` | UCUM `kg/m2` Quantity |
 | symphysis-fundal height | SNOMED CT `364253002` | UCUM `cm` Quantity |
 | gestational age | LOINC `18185-9` | UCUM `d` Quantity per appointment |
-| mother weight | SNOMED CT `27113001` + LOINC `29463-7` | UCUM `kg` Quantity; norsk Body Weight profile når datert |
-| blood pressure | LOINC `85354-9` | component-only; SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4`, UCUM `mm[Hg]`; profile codings uten canonical claim |
+| mother weight | SNOMED CT `27113001` + LOINC `29463-7` | UCUM `kg` Quantity; `effectiveDateTime` når datert |
+| blood pressure | LOINC `85354-9` | component-only; SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4`, UCUM `mm[Hg]` |
 | urine protein | NLK `NPU04206` | kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` `valueCodeableConcept` |
 | edema | — | unsupported til DHG definerer scale semantics |
 | fetal facts | — | unsupported til `fosterId` kan representeres som godkjent FHIR `focus`/identifier |
 
-## Profile conformance
+## FHIR R4 conformance
 
-Fasaden bruker [Norwegian national Vital Signs](https://hl7.no/fhir/no-domain/vitalsigns/) for de instances der source semantics og mandatory elements er komplette:
+Fasaden genererer standard FHIR R4 `Patient`, `Observation` og `Encounter` resources. Den deklarerer ingen draft Vital Signs canonical i `meta.profile` og annonserer ingen spesialiserte profiler i `CapabilityStatement.supportedProfile`. Codings, UCUM units, `vital-signs` category og `effectiveDateTime` beholdes som ordinære R4-elementer der source semantics støtter dem. CI validerer representative mapper-genererte resources mot pinned `hl7.fhir.r4.core#4.0.1`, uten norsk draft-package.
 
-| Observation | `meta.profile` | Begrunnelse |
-|---|---|---|
-| datert mother weight fra appointment | `.../no-domain-VitalSigns-Observation-bodyweight` | norsk SNOMED CT coding, profile-required LOINC, `vital-signs` category, `effective[x]` og UCUM `kg` finnes |
-| datert blood pressure med begge components | ingen profile claim | codings beholdes, men `hl7.fhir.no.domain.vitalsigns#0.9.74` har slicing som pinned Firely Terminal `3.5.0` ikke kan kompilere; canonical annonseres ikke uten bestått validation |
-| height og pre-pregnancy weight | ingen profile claim | DHG leverer ikke measurement time; profilene krever `effective[x]`, men entydige profile codings beholdes |
-| fetal facts | ingen FHIR resource | mother kan være `subject`, men fetus må kunne identifiseres strukturert som `focus`; opaque resource-ID er ikke tilstrekkelig |
-
-Body Weight-eksemplet i `validation/examples` er generert fra samme mapper og låst av en regression test. CI bruker Firely Terminal `3.5.0`, `hl7.fhir.no.domain.vitalsigns#0.9.74` og `hl7.fhir.no.basis#2.2.2`; den offisielle package-filen kontrolleres mot pinned SHA-256 før validation.
-
-[NILAR/Pasientens Prøvesvar](https://github.com/HL7Norway/NILAR) brukes som mapping reference for laboratory Observations: NLK brukes når analysis er entydig og Quantity bruker UCUM. Fasaden deklarerer ikke `NilarObservation` i `meta.profile`. NILAR-profilen krever en `diagnosticreportref` extension til en faktisk `DiagnosticReport` og report-specific bindings som ikke finnes i dagens DHG semantic snapshot. Å legge på profilen uten disse elementene ville vært et feilaktig conformance claim.
+[NILAR/Pasientens Prøvesvar](https://github.com/HL7Norway/NILAR) brukes bare som mapping reference for laboratory Observations: NLK brukes når analysis er entydig og Quantity bruker UCUM. Fasaden deklarerer ikke `NilarObservation` conformance fordi dagens DHG semantic snapshot ikke leverer profilens mandatory `DiagnosticReport` reference og report-specific bindings.
 
 ## Bevisste exclusions
 
 - `dueDateCorrectedDate` brukes ikke uten en egen clinical precedence decision.
-- Assisted-conception date utleder aldri assisted-conception status.
+- Assisted-conception status og dato eksponeres ikke uten en verifisert kode i norsk SNOMED CT, og feltene utledes aldri fra hverandre.
 - Combined fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke.
 - Medication free text blir ikke `Medication` eller `MedicationStatement`.
 - Consent og fetal RhD result blir ikke feilaktig representert som mother-subject Observation.
@@ -155,6 +142,6 @@ Body Weight-eksemplet i `validation/examples` er generert fra samme mapper og l�
 
 ## Search response
 
-Observation og Encounter search returnerer `Bundle.type=searchset`, `Bundle.total` og entries med `search.mode=match`. Valgfritt Observation `code` filter bruker exact `system|code` matching mot alle publiserte standard `Coding` entries. Fravær av en Observation betyr ikke `false`.
+Observation og Encounter search returnerer `Bundle.type=searchset`, `Bundle.total` og entries med `search.mode=match`. Observation støtter `code`, `category` og day-precision `date` med `eq`, `ne`, `gt`, `lt`, `ge` eller `le`. `code` bruker exact `system|code` matching mot alle publiserte standard `Coding` entries. De samme filtrene støttes av sikker POST `_search`. Fravær av en Observation betyr ikke `false`.
 
 NIN brukes bare i POST form body ved `_search` og inngår aldri i returned Bundle, resource identifiers, logs eller telemetry.

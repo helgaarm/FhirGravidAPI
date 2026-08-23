@@ -46,7 +46,11 @@ Invoke-RestMethod `
   -Method Post `
   -Uri "$facadeBase/fhir/Observation/_search" `
   -ContentType "application/x-www-form-urlencoded" `
-  -Body @{ "patient.identifier" = $patientNin }
+  -Body @{
+    "patient.identifier" = $patientNin
+    category = "vital-signs"
+    date = "ge2026-01-01"
+  }
 
 Invoke-RestMethod `
   -Method Post `
@@ -104,11 +108,11 @@ Alle populated observations:
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId" -Headers $headers
 ```
 
-Et standardisert BMI fact (`system|code` URI-encodes av `EscapeDataString`):
+Datert body weight (`system|code` URI-encodes av `EscapeDataString`):
 
 ```powershell
-$token = [Uri]::EscapeDataString("http://loinc.org|39156-5")
-Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" -Headers $headers
+$token = [Uri]::EscapeDataString("http://loinc.org|29463-7")
+Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token&category=vital-signs&date=ge2026-01-01" -Headers $headers
 ```
 
 Gestational-age history bruker LOINC `18185-9`. Velg nyeste `effectiveDateTime` client-side; fasaden lager ikke en duplicate facade-specific «latest» Observation:

@@ -1,0 +1,74 @@
+{
+  "resourceType": "Observation",
+  "id": "blood-pressure",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "vital-signs"
+    }],
+    "text": "vital-signs"
+  }],
+  "code": {
+    "coding": [{
+      "system": "http://loinc.org",
+      "code": "85354-9",
+      "display": "Blood pressure panel with all children optional"
+    }],
+    "text": "Blood pressure panel with all children optional"
+  },
+  "subject": { "reference": "Patient/patient-1" },
+  "effectiveDateTime": "2026-01-16",
+  "component": [
+    {
+      "code": {
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "4471000202106",
+            "display": "Systemic systolic arterial blood pressure"
+          },
+          {
+            "system": "http://loinc.org",
+            "code": "8480-6",
+            "display": "Systolic blood pressure"
+          }
+        ],
+        "text": "Systemic systolic arterial blood pressure"
+      },
+      "valueQuantity": {
+        "value": 118,
+        "unit": "mmHg",
+        "system": "http://unitsofmeasure.org",
+        "code": "mm[Hg]"
+      }
+    },
+    {
+      "code": {
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "4481000202108",
+            "display": "Systemic diastolic arterial blood pressure"
+          },
+          {
+            "system": "http://loinc.org",
+            "code": "8462-4",
+            "display": "Diastolic blood pressure"
+          }
+        ],
+        "text": "Systemic diastolic arterial blood pressure"
+      },
+      "valueQuantity": {
+        "value": 76,
+        "unit": "mmHg",
+        "system": "http://unitsofmeasure.org",
+        "code": "mm[Hg]"
+      }
+    }
+  ],
+  "encounter": { "reference": "Encounter/encounter-1" }
+}

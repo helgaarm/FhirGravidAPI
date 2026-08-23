@@ -70,6 +70,8 @@ Endpoint slår opp konfigurert alias og returnerer:
 
 Responsen inneholder ikke NIN. `patientId` er nøyaktig den konfigurerte `LogicalId`. Den beskyttede verdien inneholder logical ID, NIN, subject binding og expiry. Default lifetime er ti minutter.
 
+Alle konfigurerte `LogicalId`-verdier må følge FHIR `id`-formatet `[A-Za-z0-9.-]{1,64}`, være unike med case-sensitive sammenligning og være forskjellige fra alle konfigurerte NIN-verdier. Startup avvises hvis disse invariantene brytes.
+
 ## 3. Kall FHIR endpoints
 
 For en Patient read i Swagger skriver du inn:

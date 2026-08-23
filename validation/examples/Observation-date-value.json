@@ -1,0 +1,25 @@
+{
+  "resourceType": "Observation",
+  "id": "date-value",
+  "meta": {
+    "lastUpdated": "2026-01-16T12:30:00+01:00"
+  },
+  "status": "unknown",
+  "category": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+      "code": "survey"
+    }],
+    "text": "survey"
+  }],
+  "code": {
+    "coding": [{
+      "system": "http://loinc.org",
+      "code": "8665-2",
+      "display": "Last menstrual period start date"
+    }],
+    "text": "Last menstrual period start date"
+  },
+  "subject": { "reference": "Patient/patient-1" },
+  "valueDateTime": "2025-08-01"
+}

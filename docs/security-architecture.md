@@ -31,7 +31,7 @@ flowchart LR
 
 Development test mode endrer bare de to første pilene: Swagger/FHIR-caller er anonym, og fasaden henter DPoP-bound DHG authorization server-side. Normalt brukes `client_credentials`; en ekstra HelseID TEST-token provider som er disabled by default, kan i stedet opprette et nytt token/proof-par for hver eksakte DHG request, i samsvar med smartOppgaves test flow. Modusen krever lokal Development, loopback-only listeners og en kjent loopback peer; eksponering via proxy, tunnel eller port forwarding er forbudt. Den krever DHG Test og avvises i alle andre environments og mot Production.
 
-FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. NIN kan mottas transient i en liten POST form body og inngår derfra i request context før det sendes i påkrevd outbound DHG header. I autentisert drift krever POST-ruten HelseID `population.read` og danner en deterministisk pseudonym FHIR-ID med en separat HMAC-SHA-256 key. I lokal `DevelopmentTestMode` må NIN i stedet matche et konfigurert syntetisk alias. NIN er aldri en FHIR identifier, URL parameter, response field, log field eller telemetry tag.
+FHIR layer mottar aldri DHG JSON paths eller en alternativ data source. NIN kan mottas transient i en POST form body med en serverhåndhevet grense på 4096 bytes og inngår derfra i request context før det sendes i påkrevd outbound DHG header. I autentisert drift krever POST-ruten HelseID `population.read` og danner en deterministisk pseudonym FHIR-ID med en separat HMAC-SHA-256 key. I lokal `DevelopmentTestMode` må NIN i stedet matche et konfigurert syntetisk alias. NIN er aldri en FHIR identifier, URL parameter, response field, log field eller telemetry tag.
 
 ## Implementerte controls
 

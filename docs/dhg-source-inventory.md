@@ -5,7 +5,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | DHG resource area | DTO support | Eksponert i første FHIR surface |
 |---|---|---|
 | `mother` | Ja | Bare preferred language og behov for tolk |
-| `currentPregnancy` | Ja | Eksplisitte dates, fetal count, assisted conception og counselling flags |
+| `currentPregnancy` | Ja | Eksplisitte dates, fetal count og counselling flags; assisted conception er ikke eksponert uten verifisert norsk terminology |
 | `previousPregnancies` | Ja | Eksplisitte counters og uparset note |
 | `geneticDisorders` | Ja | Eksplisitte nullable booleans og uparset note |
 | `medicalConditions` | Ja | Eksplisitte nullable booleans og uparset note |
@@ -13,7 +13,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `lifestyleFactors` | Ja | Eksplisitte coded stimuli og frequency components |
 | `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology |
 | `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
-| `vitalMeasurementsBeforePregnancy` | Ja | Høyde, pre-pregnancy weight og BMI |
+| `vitalMeasurementsBeforePregnancy` | Ja | Ikke eksponert fordi DHG ikke leverer measurement time som kreves for disse vital signs |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
 | `antenatalAppointments` | Ja | Encounter-datoer og eksplisitte measurements/findings |
 | `pointsOfContact` | Ja | Ikke eksponert; fasaden er ikke en directory/demographics source |

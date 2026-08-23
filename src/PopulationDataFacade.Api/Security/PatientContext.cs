@@ -18,6 +18,23 @@ public sealed class PatientContextOptions
     public static bool IsNationalIdentityNumberFormat(string value) =>
         value.Length == 11 && value.All(char.IsAsciiDigit);
 
+    public static bool IsLogicalIdFormat(string value) =>
+        value.Length is >= 1 and <= 64 &&
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '.');
+
+    public static bool HaveUniqueLogicalIds(IReadOnlyDictionary<string, SyntheticPatientOptions> aliases) =>
+        aliases.Values.Select(patient => patient.LogicalId)
+            .Distinct(StringComparer.Ordinal)
+            .Count() == aliases.Count;
+
+    public static bool LogicalIdsDoNotContainNins(IReadOnlyDictionary<string, SyntheticPatientOptions> aliases)
+    {
+        var nationalIdentityNumbers = aliases.Values
+            .Select(patient => patient.NationalIdentityNumber)
+            .ToHashSet(StringComparer.Ordinal);
+        return aliases.Values.All(patient => !nationalIdentityNumbers.Contains(patient.LogicalId));
+    }
+
     public static bool IsPatientIdHmacKeyValid(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return false;

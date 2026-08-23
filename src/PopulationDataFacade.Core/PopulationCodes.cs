@@ -15,7 +15,6 @@ public static class PopulationCodes
     public static readonly PopulationCode DueDateLastPeriod = Snomed("289206005", "Estimated date of delivery from last period");
     public static readonly PopulationCode DueDateUltrasound = Snomed("738070007", "Estimated date of delivery from antenatal ultrasound scan");
     public static readonly PopulationCode NumberOfFetuses = Snomed("246435002", "Number of fetuses");
-    public static readonly PopulationCode AssistedConception = Snomed("813541000000100", "Pregnancy resulting from assisted conception");
     public static readonly PopulationCode BirthPreparationTalk = Snomed("702396006", "Childbirth education");
     public static readonly PopulationCode BreastfeedingGuidance = Snomed("243094003", "Breastfeeding education");
 
@@ -49,9 +48,6 @@ public static class PopulationCodes
 
     public static readonly PopulationCode RhesusProphylaxis = Snomed("408783007", "Antenatal anti-D prophylaxis status");
 
-    public static readonly PopulationCode Height = Snomed("1153637007", "Body height");
-    public static readonly PopulationCode PrePregnancyWeight = Snomed("27113001", "Body weight");
-    public static readonly PopulationCode PrePregnancyBmi = LoincCode("39156-5", "Body mass index (BMI) [Ratio]");
     public static readonly PopulationCode SymphysisFundalHeight = Snomed("364253002", "Fundal height of uterus");
     public static readonly PopulationCode GestationalAge = LoincCode("18185-9", "Gestational age");
     public static readonly PopulationCode MotherWeight = Snomed("27113001", "Body weight");
@@ -67,8 +63,7 @@ public static class PopulationCodes
             [(DueDateUltrasound.System, DueDateUltrasound.Code)] = [LoincCode("11778-8", "Delivery date Estimated")],
             [(AboType.System, AboType.Code)] = [LoincCode("883-9", "ABO group [Type] in Blood")],
             [(RhesusDType.System, RhesusDType.Code)] = [LoincCode("10331-7", "Rh [Type] in Blood")],
-            [(Height.System, Height.Code)] = [LoincCode("8302-2", "Body height")],
-            [(PrePregnancyWeight.System, PrePregnancyWeight.Code)] = [LoincCode("29463-7", "Body weight")],
+            [(MotherWeight.System, MotherWeight.Code)] = [LoincCode("29463-7", "Body weight")],
             [(Systolic.System, Systolic.Code)] = [LoincCode("8480-6", "Systolic blood pressure")],
             [(Diastolic.System, Diastolic.Code)] = [LoincCode("8462-4", "Diastolic blood pressure")]
         };
