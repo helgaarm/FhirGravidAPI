@@ -169,6 +169,11 @@ public sealed partial class DhgPopulationSnapshotFactory
         AddQuantity(output, Id(source.Metadata, "hemoglobin-3trimester"), PopulationCodes.Hemoglobin, source.HemoglobinAtThirdTrimester, "g/dL", "g/dL", updated, note: "Tredje trimester");
         AddQuantity(output, Id(source.Metadata, "ferritin"), PopulationCodes.Ferritin, source.Ferritin, "µg/L", "ug/L", updated);
         AddBooleanLab(output, Id(source.Metadata, "hbv"), PopulationCodes.Hbv, source.Hbv, updated);
+        AddBooleanLab(output, Id(source.Metadata, "hiv"), PopulationCodes.HivTestResult, source.Hiv, updated);
+        AddBooleanLab(output, Id(source.Metadata, "syphilis"), PopulationCodes.SyphilisTestResult, source.Syphilis, updated);
+        AddBooleanLab(output, Id(source.Metadata, "chlamydia"), PopulationCodes.ChlamydiaTestResult, source.Chlamydia, updated);
+        AddBooleanLab(output, Id(source.Metadata, "toxoplasmosis"), PopulationCodes.ToxoplasmosisTestResult, source.Toxoplasmosis, updated);
+        AddBooleanLab(output, Id(source.Metadata, "hepatitis-c"), PopulationCodes.HepatitisCTestResult, source.HepatitisC, updated);
         AddCoded(output, Id(source.Metadata, "abo-type"), PopulationCodes.AboType, ToAboValue(source.AboRh?.AboType), updated);
         AddCoded(output, Id(source.Metadata, "rhesus-d-type"), PopulationCodes.RhesusDType, ToRhesusDValue(source.AboRh?.RhesusDType), updated);
         AddQuantity(output, Id(source.Metadata, "hba1c"), PopulationCodes.HbA1c, source.BHbA1c, "mmol/mol", "mmol/mol", updated);

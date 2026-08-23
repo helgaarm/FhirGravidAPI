@@ -17,7 +17,7 @@ public sealed class MappingTests
     };
 
     [Fact]
-    public void False_is_mapped_but_null_is_omitted()
+    public void Laboratory_false_is_negative_true_is_positive_and_null_is_omitted()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -35,7 +35,14 @@ public sealed class MappingTests
         Assert.Equal(PopulationCodes.Volven8340, result.System);
         Assert.Equal("T008", result.Code);
         Assert.Equal("Negativ", result.Display);
-        Assert.DoesNotContain(snapshot.Observations, x => x.Id.Contains("hiv", StringComparison.Ordinal));
+
+        var hiv = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.HivTestResult);
+        Assert.False(hiv.Code.HasCoding);
+        var hivResult = Assert.IsType<CodedValue>(hiv.Value);
+        Assert.Equal(PopulationCodes.Volven8340, hivResult.System);
+        Assert.Equal("T002", hivResult.Code);
+        Assert.Equal("Positiv", hivResult.Display);
+        Assert.Equal(2, snapshot.Observations.Count);
     }
 
     [Fact]
@@ -71,7 +78,8 @@ public sealed class MappingTests
             }
         });
 
-        Assert.DoesNotContain(snapshot.Observations, x => x.Code.Code.Contains("induced", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(snapshot.Observations, x =>
+            x.Code.Code?.Contains("induced", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     [Fact]
@@ -404,7 +412,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Laboratory_observations_use_verified_nlk_or_snomed_codes_and_ucum_units()
+    public void Laboratory_observations_use_verified_codings_or_exact_source_text_and_ucum_units()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -442,8 +450,30 @@ public sealed class MappingTests
         Assert.Equal(PopulationCodes.SnomedCt, PopulationCodes.Hbv.System);
         Assert.Equal("T008", Assert.IsType<CodedValue>(Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.Hbv).Value).Code);
         Assert.DoesNotContain(snapshot.Observations, observation =>
-            new[] { "hbv-core", "hiv", "syphilis", "chlamydia", "toxoplasmosis", "rubella", "hepatitis-c" }
+            new[] { "hbv-core", "rubella" }
                 .Any(name => observation.Id.Contains(name, StringComparison.Ordinal)));
+
+        var fhirObservations = new FhirPopulationMapper().MapObservations(snapshot);
+        var broadTestResults = new[]
+        {
+            (PopulationCodes.HivTestResult, "T002"),
+            (PopulationCodes.SyphilisTestResult, "T002"),
+            (PopulationCodes.ChlamydiaTestResult, "T002"),
+            (PopulationCodes.ToxoplasmosisTestResult, "T008"),
+            (PopulationCodes.HepatitisCTestResult, "T002")
+        };
+        foreach (var (code, expectedResult) in broadTestResults)
+        {
+            var source = Assert.Single(snapshot.Observations, observation => observation.Code == code);
+            Assert.False(source.Code.HasCoding);
+            Assert.Equal(expectedResult, Assert.IsType<CodedValue>(source.Value).Code);
+
+            var fhir = Assert.Single(fhirObservations, observation => observation.Id == source.Id);
+            Assert.Empty(fhir.Code.Coding);
+            Assert.Equal(code.Display, fhir.Code.Text);
+            var fhirResult = Assert.IsType<CodeableConcept>(fhir.Value);
+            Assert.Equal(expectedResult, Assert.Single(fhirResult.Coding).Code);
+        }
 
         var abo = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.AboType);
         Assert.Equal(PopulationCodes.Nlk, abo.Code.System);
@@ -452,7 +482,6 @@ public sealed class MappingTests
         Assert.Equal(PopulationCodes.Nlk, rhesusD.Code.System);
         Assert.Equal("NPU21917", rhesusD.Code.Code);
 
-        var fhirObservations = new FhirPopulationMapper().MapObservations(snapshot);
         var fhirAbo = Assert.Single(fhirObservations, observation => observation.Id == abo.Id);
         Assert.Contains(fhirAbo.Code.Coding, coding => coding.System == PopulationCodes.Loinc && coding.Code == "883-9");
         var fhirRhesusD = Assert.Single(fhirObservations, observation => observation.Id == rhesusD.Id);
@@ -748,6 +777,12 @@ public sealed class MappingTests
                     "laboratory",
                     updated),
                 new PopulationObservation(
+                    "text-code",
+                    PopulationCodes.HivTestResult,
+                    new CodedValue(PopulationCodes.Volven8340, "T008", "Negativ"),
+                    "laboratory",
+                    updated),
+                new PopulationObservation(
                     "body-weight",
                     PopulationCodes.MotherWeight,
                     new QuantityValue(67.5m, "kg", PopulationCodes.Ucum, "kg"),
@@ -803,7 +838,20 @@ public sealed class MappingTests
             .ToArray();
 
         Assert.NotEmpty(publishedCodes);
-        Assert.All(publishedCodes, code => Assert.Contains(code.System, allowedSystems));
+        Assert.All(publishedCodes, code =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(code.Display));
+            if (!code.HasCoding)
+            {
+                Assert.Null(code.System);
+                Assert.Null(code.Code);
+                return;
+            }
+
+            Assert.NotNull(code.System);
+            Assert.NotNull(code.Code);
+            Assert.Contains(code.System!, allowedSystems);
+        });
 
         var patient = new FhirPopulationMapper().MapPatient(
             new PopulationPatient("patient-1", null, true, null));

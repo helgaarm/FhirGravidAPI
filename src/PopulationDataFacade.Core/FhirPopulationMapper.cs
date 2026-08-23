@@ -290,13 +290,16 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
     private static CodeableConcept ToCodeableConcept(CodedValue value) =>
         new(value.System, value.Code, value.Display);
 
-    private static CodeableConcept ToCodeableConcept(PopulationCode value) => new()
+    private static CodeableConcept ToCodeableConcept(PopulationCode value)
     {
-        Coding = PopulationCodes.CodingsFor(value)
-            .Select(coding => new Coding(coding.System, coding.Code, coding.Display))
-            .ToList(),
-        Text = value.Display
-    };
+        var concept = new CodeableConcept { Text = value.Display };
+        foreach (var coding in PopulationCodes.CodingsFor(value))
+        {
+            concept.Coding.Add(new Coding(coding.System!, coding.Code!, coding.Display));
+        }
+
+        return concept;
+    }
 
     private static DataType? ToDataType(PopulationValue? value) => value switch
     {

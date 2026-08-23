@@ -55,7 +55,12 @@ public sealed record PopulationEncounter(
     DateOnly Date,
     DateTimeOffset? LastUpdated);
 
-public sealed record PopulationCode(string System, string Code, string Display);
+public sealed record PopulationCode(string? System, string? Code, string Display)
+{
+    public bool HasCoding =>
+        !string.IsNullOrWhiteSpace(System) &&
+        !string.IsNullOrWhiteSpace(Code);
+}
 
 public abstract record PopulationValue;
 public sealed record BooleanValue(bool Value) : PopulationValue;

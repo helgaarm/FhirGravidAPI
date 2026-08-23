@@ -48,7 +48,8 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `clinicalTests.hemoglobin`, `hemoglobinAt3rdTrimester` | NLK `NOR05172`, UCUM `g/dL` | DIRECT | samme analysis code; third trimester markeres med annotation; NILAR brukes som mapping reference |
 | `ferritin`, `bHbA1c` | NLK `NPU19763`, `NPU27300` | DIRECT | units følger DHG/NLK contract |
 | `hbv` | SNOMED CT `165806002`; kodeverk 8340 `T002`/`T008` result | DIRECT | DHG identifiserer uttrykkelig hepatitis B surface antigen; `true` betyr `Positiv`, `false` betyr `Negativ`, og `null` utelates |
-| `hbvCore`, `hiv`, `syphilis`, `bloodAntibodies`, `chlamydia`, `toxoplasmosis`, `rubellaAntigen`, `hepatitisC` | — | UNSUPPORTED | public DHG contract identifiserer ikke assay/analytt/method med samme presisjon som tidligere foreslåtte koder; ingen kode gjettes |
+| `hiv`, `syphilis`, `chlamydia`, `toxoplasmosis`, `hepatitisC` | presis DHG-term i `Observation.code.text`; kodeverk 8340 `T002`/`T008` result | PARTIAL | public DHG contract definerer `true` som positivt prøvesvar, `false` som negativt og `null` som ikke tatt; ingen assay-specific eller facade code konstrueres |
+| `hbvCore`, `bloodAntibodies`, `rubellaAntigen` | — | UNSUPPORTED | public DHG-navn og beskrivelser er motstridende om antigen/antibody eller avviker fra JSON contract; ingen analytt gjettes |
 | `asymptomaticBacteriuria`, `groupBStreptococci` | — | UNSUPPORTED | feltene må verifiseres mot autorisert gjeldende DHG contract før de kan publiseres |
 | `aboRh.aboType`, `rhesusDType` | NLK `NPU58582`, `NPU21917` + LOINC `883-9`, `10331-7`; SNOMED CT coded value | DIRECT | norske laboratory codes er med; LOINC beholdes som interoperabel tilleggskoding; ukjente enum values eksponeres ikke |
 | `glucoseTolerance.*Level` | SNOMED CT `271062006`, `49167009`; UCUM `mmol/L` | DIRECT | positiv value kreves; test date blir `effectiveDateTime` med day precision |
@@ -79,6 +80,7 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 - Alle Observations bruker standard FHIR R4 `Observation` base resource. Fasaden publiserer ikke spesialiserte profiler i `meta.profile` eller `CapabilityStatement.supportedProfile`.
 - NILAR `NilarObservation` brukes bare som mapping reference for laboratory code og UCUM. Fasaden deklarerer ikke NILAR-conformance fordi dagens DHG snapshot-mapping ikke leverer profilens mandatory `DiagnosticReport` reference og report-specific terminology.
 - Ukjent code system, ny enum value eller free text oversettes aldri automatisk til en standard code.
+- Når DHG dokumenterer et entydig broad test result, men ingen entydig norsk eller internasjonal analyttkode er verifisert, kan `Observation.code` bruke source-preserving `CodeableConcept.text` uten `Coding`. Slike Observations kan ikke treffes med `code=system|code` før en standard coding er godkjent.
 - Numeric measurements med en dokumentert DHG positivity constraint utelates når value er `0` eller negativ. `numberOfFetuses` må være positiv, pregnancy week må være positiv, days after full week må være `0..6`, og blood pressure components må være positive. Dette er source-contract validation, ikke clinical reference-range inference.
 - Terminology, code version og units må fortsatt godkjennes av clinical terminology owner før DHG Test/Production.
 

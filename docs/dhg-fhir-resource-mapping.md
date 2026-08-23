@@ -54,7 +54,7 @@ POST `_search` med NIN i form body krever HelseID i autentisert drift og bruker 
 - Measurement date blir `effectiveDateTime` med day precision. FHIR R4 tillater ikke `date` i `Observation.effective[x]` eller `Observation.value[x]`.
 - Alle Observations refererer til `Patient/{logical-id}`. Appointment-derived Observations refererer også til Encounter.
 - Observation og Encounter status er `unknown`, fordi DHG ikke leverer en entydig FHIR status.
-- `Observation.code` bruker LOINC, SNOMED CT, NLK eller Volven. Facade-specific clinical codes publiseres ikke.
+- `Observation.code` bruker LOINC, SNOMED CT, NLK eller Volven når en exact mapping finnes. Et dokumentert broad DHG test result kan bruke presis source term i `CodeableConcept.text` uten `Coding`; facade-specific clinical codes publiseres ikke.
 - Quantities bruker UCUM.
 - Alle Observations bruker standard FHIR R4 `Observation` base resource uten spesialiserte `meta.profile` claims.
 - Unknown code system, enum value eller free text blir ikke automatisk oversatt til en standard code.
@@ -65,10 +65,12 @@ flowchart LR
     Semantic -->|"exact national laboratory mapping"| National["NLK / Volven"]
     Semantic -->|"HL7 interoperability mapping"| LOINC["LOINC + UCUM"]
     Semantic -->|"exact Norwegian clinical concept"| SNOMED["SNOMED CT"]
+    Semantic -->|"documented broad test; no exact code"| Text["CodeableConcept.text"]
     Semantic -->|"ambiguous/composite/free text"| Unsupported["UNSUPPORTED"]
     National --> FHIR["FHIR Patient / Observation / Encounter"]
     LOINC --> FHIR
     SNOMED --> FHIR
+    Text --> FHIR
     SNOMED -.->|"co-coding when LOINC is required"| LOINC
 ```
 
@@ -115,6 +117,7 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | hemoglobin | NLK `NOR05172` | UCUM `g/dL` Quantity |
 | ferritin / HbA1c | NLK `NPU19763` / `NPU27300` | UCUM Quantity |
 | HBV surface antigen | SNOMED CT `165806002` | kodeverk 8340 `T002 |Positiv|` / `T008 |Negativ|` |
+| HIV, syphilis, Chlamydia, toxoplasmosis og hepatitis C | presis DHG-term i `CodeableConcept.text`, uten konstruert code | kodeverk 8340 `T002 |Positiv|` / `T008 |Negativ|`; `null` utelates |
 | ABO / RhD | NLK `NPU58582` / `NPU21917` + LOINC `883-9` / `10331-7` | SNOMED CT `valueCodeableConcept` |
 | glucose tolerance | SNOMED CT `271062006` / `49167009` | UCUM `mmol/L` Quantity |
 | anti-D prophylaxis status | SNOMED CT `408783007` | `valueBoolean` |
@@ -143,6 +146,6 @@ Fasaden genererer standard FHIR R4 `Patient`, `Observation` og `Encounter` resou
 
 ## Search response
 
-Observation og Encounter search returnerer `Bundle.type=searchset`, `Bundle.total` og entries med `search.mode=match`. Observation støtter `code`, `category` og day-precision `date` med `eq`, `ne`, `gt`, `lt`, `ge` eller `le`. `code` bruker exact `system|code` matching mot alle publiserte standard `Coding` entries. De samme filtrene støttes av sikker POST `_search`. Fravær av en Observation betyr ikke `false`.
+Observation og Encounter search returnerer `Bundle.type=searchset`, `Bundle.total` og entries med `search.mode=match`. Observation støtter `code`, `category` og day-precision `date` med `eq`, `ne`, `gt`, `lt`, `ge` eller `le`. `code` bruker exact `system|code` matching mot alle publiserte standard `Coding` entries. Text-only test concepts returneres i ufiltrert eller category-filtrert search, men kan ikke treffes med `code` før en standard coding er godkjent. De samme filtrene støttes av sikker POST `_search`. Fravær av en Observation betyr ikke `false`.
 
 NIN brukes bare i POST form body ved `_search` og inngår aldri i returned Bundle, resource identifiers, logs eller telemetry.

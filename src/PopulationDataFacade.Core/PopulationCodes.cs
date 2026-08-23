@@ -43,6 +43,11 @@ public static class PopulationCodes
     public static readonly PopulationCode Hemoglobin = NlkCode("NOR05172", "B-Hemoglobin");
     public static readonly PopulationCode Ferritin = NlkCode("NPU19763", "P-Ferritin");
     public static readonly PopulationCode Hbv = Snomed("165806002", "Hepatitis B surface antigen detected");
+    public static readonly PopulationCode HivTestResult = TextOnly("Prøveresultat for HIV");
+    public static readonly PopulationCode SyphilisTestResult = TextOnly("Prøveresultat for syfilis");
+    public static readonly PopulationCode ChlamydiaTestResult = TextOnly("Prøveresultat for klamydia");
+    public static readonly PopulationCode ToxoplasmosisTestResult = TextOnly("Prøveresultat for toksoplasmose");
+    public static readonly PopulationCode HepatitisCTestResult = TextOnly("Prøveresultat for hepatitt C");
     public static readonly PopulationCode HbA1c = NlkCode("NPU27300", "B-HbA1c");
     public static readonly PopulationCode GlucoseFasting = Snomed("271062006", "Fasting blood glucose measurement");
     public static readonly PopulationCode Glucose2Hour = Snomed("49167009", "Measurement of glucose 2 hours after glucose challenge for glucose tolerance test");
@@ -60,19 +65,21 @@ public static class PopulationCodes
     private static readonly IReadOnlyDictionary<(string System, string Code), PopulationCode[]> SupplementalCodings =
         new Dictionary<(string System, string Code), PopulationCode[]>
         {
-            [(DueDateLastPeriod.System, DueDateLastPeriod.Code)] = [LoincCode("11778-8", "Delivery date Estimated")],
-            [(DueDateUltrasound.System, DueDateUltrasound.Code)] = [LoincCode("11778-8", "Delivery date Estimated")],
-            [(AboType.System, AboType.Code)] = [LoincCode("883-9", "ABO group [Type] in Blood")],
-            [(RhesusDType.System, RhesusDType.Code)] = [LoincCode("10331-7", "Rh [Type] in Blood")],
-            [(MotherWeight.System, MotherWeight.Code)] = [LoincCode("29463-7", "Body weight")],
-            [(Systolic.System, Systolic.Code)] = [LoincCode("8480-6", "Systolic blood pressure")],
-            [(Diastolic.System, Diastolic.Code)] = [LoincCode("8462-4", "Diastolic blood pressure")]
+            [(DueDateLastPeriod.System!, DueDateLastPeriod.Code!)] = [LoincCode("11778-8", "Delivery date Estimated")],
+            [(DueDateUltrasound.System!, DueDateUltrasound.Code!)] = [LoincCode("11778-8", "Delivery date Estimated")],
+            [(AboType.System!, AboType.Code!)] = [LoincCode("883-9", "ABO group [Type] in Blood")],
+            [(RhesusDType.System!, RhesusDType.Code!)] = [LoincCode("10331-7", "Rh [Type] in Blood")],
+            [(MotherWeight.System!, MotherWeight.Code!)] = [LoincCode("29463-7", "Body weight")],
+            [(Systolic.System!, Systolic.Code!)] = [LoincCode("8480-6", "Systolic blood pressure")],
+            [(Diastolic.System!, Diastolic.Code!)] = [LoincCode("8462-4", "Diastolic blood pressure")]
         };
 
     public static IEnumerable<PopulationCode> CodingsFor(PopulationCode code)
     {
+        if (!code.HasCoding) yield break;
+
         yield return code;
-        if (!SupplementalCodings.TryGetValue((code.System, code.Code), out var supplementalCodings))
+        if (!SupplementalCodings.TryGetValue((code.System!, code.Code!), out var supplementalCodings))
             yield break;
 
         foreach (var supplementalCoding in supplementalCodings)
@@ -80,12 +87,15 @@ public static class PopulationCodes
     }
 
     public static bool Matches(PopulationCode source, PopulationCode filter) =>
-        CodingsFor(source).Any(coding =>
-            string.Equals(coding.System, filter.System, StringComparison.Ordinal) &&
-            string.Equals(coding.Code, filter.Code, StringComparison.Ordinal));
+        !filter.HasCoding
+            ? source == filter
+            : CodingsFor(source).Any(coding =>
+                string.Equals(coding.System, filter.System, StringComparison.Ordinal) &&
+                string.Equals(coding.Code, filter.Code, StringComparison.Ordinal));
 
     public static PopulationCode Lifestyle(string code, string display) => new(Volven8536, code, display);
     private static PopulationCode LoincCode(string code, string display) => new(Loinc, code, display);
     private static PopulationCode NlkCode(string code, string display) => new(Nlk, code, display);
     private static PopulationCode Snomed(string code, string display) => new(SnomedCt, code, display);
+    private static PopulationCode TextOnly(string display) => new(null, null, display);
 }

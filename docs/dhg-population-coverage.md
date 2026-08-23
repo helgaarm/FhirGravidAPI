@@ -14,7 +14,7 @@ Fasaden eksponerer bare `Patient`, `Observation` og `Encounter`. Den implementer
 
 ## Publiserte terminology systems
 
-Fasaden publiserer ikke egne clinical codes under `urn:nhn:population-data`. `Observation.code` og coded values bruker bare mappings som er verifisert mot en autoritativ source:
+Fasaden publiserer ikke egne clinical codes under `urn:nhn:population-data`. `Observation.code` og coded values bruker mappings som er verifisert mot en autoritativ source. Når DHG dokumenterer et entydig broad test result uten en verifisert standard analyttkode, brukes den presise source-termen i `CodeableConcept.text` uten `Coding`:
 
 | System | Canonical URI i FHIR | Bruk |
 |---|---|---|
@@ -34,7 +34,7 @@ Noen facts har flere standard `Coding`-verdier:
 
 Det finnes ikke et eget «NorLOINC»-system. Norske laboratory concepts publiseres fra NLK. `CodeableConcept.coding` har ingen prioritetsrekkefølge; alle codings skal være sanne samtidig.
 
-`code` search matcher alle publiserte `Observation.code.coding` entries.
+`code` search matcher alle publiserte `Observation.code.coding` entries. Text-only test concepts returneres uten `code`-filter eller med `category=laboratory`, men kan ikke treffes med `code=system|code` før en standard coding er godkjent.
 
 ## Viktige query concepts
 
