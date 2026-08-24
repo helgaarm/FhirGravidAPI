@@ -85,6 +85,9 @@ public static class PopulationCodes
     public static readonly PopulationCode GlucoseFasting = Snomed("271062006", "Fasting blood glucose measurement");
     public static readonly PopulationCode Glucose2Hour = Snomed("49167009", "Measurement of glucose 2 hours after glucose challenge for glucose tolerance test");
 
+    public static readonly PopulationCode FetalRhesusDResult = TextOnly("Foster-RhD-resultat uke 24 for aktuelt svangerskap");
+    public static readonly PopulationCode FetalRhesusDResultAvailableDate = TextOnly("Dato da foster-RhD-resultat forelå");
+    public static readonly PopulationCode RhesusDNegativeNote = TextOnly("Merknad om RhD, GBS eller annet");
     public static readonly PopulationCode RhesusProphylaxis = Snomed("408783007", "Antenatal anti-D prophylaxis status");
 
     public static readonly PopulationCode SymphysisFundalHeight = Snomed("364253002", "Fundal height of uterus");

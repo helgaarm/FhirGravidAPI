@@ -12,7 +12,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `medication` | Ja | Uparset frequency/note samt allergy- og folate-fakta; ingen infererte legemiddelnavn, doser eller instrukser |
 | `lifestyleFactors` | Ja | Eksplisitte coded stimuli/frequencies og source-preserving daily-count components uten konstruert unit |
 | `clinicalTests` | Ja | Eksplisitte resultater med konservativ NLK/LOINC/SNOMED CT terminology eller presise text-only concepts; uparset note |
-| `rhesusDNegative` | Ja | Consent, resultat, resultatdato og prophylaxis |
+| `rhesusDNegative` | Ja | Aggregert foster-RhD-resultat med resultatdato, prophylaxis og uparset note; consent utelates inntil en eksplisitt FHIR `Consent`-arkitektur og policy mapping er besluttet |
 | `vitalMeasurementsBeforePregnancy` | Ja | Positive height (`cm`), pre-pregnancy weight (`kg`) og BMI eksponeres som base R4 Observations uten konstruert measurement time eller Vital Signs profile claim |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
 | `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings, source-preserving medication-svar/note og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |

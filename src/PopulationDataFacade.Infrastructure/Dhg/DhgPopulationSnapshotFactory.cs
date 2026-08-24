@@ -322,7 +322,33 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
+
+        var fetalResult = ToPositiveNegativeResult(source.FetusRhDPositiveAtWeek24);
+        if (fetalResult is not null)
+        {
+            IReadOnlyList<PopulationComponent>? components = source.DateForResult is { } resultDate
+                ? [new PopulationComponent(PopulationCodes.FetalRhesusDResultAvailableDate, new DateValue(resultDate))]
+                : null;
+
+            output.Add(Observation(
+                Id(source.Metadata, "rhd-fetal-result-week24"),
+                PopulationCodes.FetalRhesusDResult,
+                fetalResult,
+                "laboratory",
+                updated,
+                components: components,
+                note: "DHG-resultatet gjelder aktuelt svangerskap samlet: Positiv betyr at minst ett foster testet RhD-positivt; negativ betyr at alle fostre testet RhD-negativt. Resultatet er ikke knyttet til et bestemt foster."));
+        }
+
         AddBoolean(output, Id(source.Metadata, "rhd-prophylaxis-week28"), PopulationCodes.RhesusProphylaxis, source.ProphylaxisAtWeek28, updated, "therapy");
+        AddText(
+            output,
+            Id(source.Metadata, "rhd-note"),
+            PopulationCodes.RhesusDNegativeNote,
+            source.Note,
+            updated,
+            note: "Source text beholdes ordrett og tolkes ikke som RhD-resultat, GBS-resultat, diagnose, behandling eller vurdering.",
+            category: "laboratory");
     }
 
     private static void MapVitalMeasurementsBeforePregnancy(

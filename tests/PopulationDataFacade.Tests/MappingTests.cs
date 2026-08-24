@@ -1583,13 +1583,6 @@ public sealed class MappingTests
                 AsymptomaticBacteriuria = true,
                 GroupBStreptococci = false,
                 Note = "Kontrolleres senere"
-            },
-            RhesusDNegative = new DhgRhesusDNegative
-            {
-                Metadata = ResourceMetadata("rhesus"),
-                ConsentFetalRhesusTyping = true,
-                FetusRhDPositiveAtWeek24 = true,
-                DateForResult = new DateOnly(2026, 1, 16)
             }
         });
 
@@ -1604,9 +1597,122 @@ public sealed class MappingTests
             observation => AssertTextLabResult(observation, PopulationCodes.AsymptomaticBacteriuriaTestResult, "T002"),
             observation => AssertTextLabResult(observation, PopulationCodes.GroupBStreptococciTestResult, "T008"),
             observation => AssertText(observation, PopulationCodes.ClinicalTestsNote, "Kontrolleres senere"));
+    }
 
-        Assert.DoesNotContain(snapshot.Observations, observation =>
-            observation.Id.Contains("rhd", StringComparison.Ordinal));
+    [Fact]
+    public void Aggregate_fetal_rhd_result_preserves_result_date_note_and_multiple_pregnancy_semantics()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            RhesusDNegative = new DhgRhesusDNegative
+            {
+                Metadata = ResourceMetadata("rhesus"),
+                ConsentFetalRhesusTyping = true,
+                FetusRhDPositiveAtWeek24 = true,
+                ProphylaxisAtWeek28 = false,
+                DateForResult = new DateOnly(2026, 1, 16),
+                Note = "Gjelder flerlinger"
+            }
+        });
+
+        Assert.Collection(
+            snapshot.Observations,
+            result =>
+            {
+                AssertTextLabResult(result, PopulationCodes.FetalRhesusDResult, "T002");
+                Assert.Equal("laboratory", result.Category);
+                Assert.Null(result.Effective);
+                Assert.Contains("minst ett foster", result.Note, StringComparison.Ordinal);
+                Assert.Contains("alle fostre", result.Note, StringComparison.Ordinal);
+                var resultDate = Assert.Single(result.Components!);
+                Assert.Equal(PopulationCodes.FetalRhesusDResultAvailableDate, resultDate.Code);
+                Assert.Equal(new DateOnly(2026, 1, 16), Assert.IsType<DateValue>(resultDate.Value).Value);
+            },
+            prophylaxis =>
+            {
+                Assert.Equal(PopulationCodes.RhesusProphylaxis, prophylaxis.Code);
+                Assert.False(Assert.IsType<BooleanValue>(prophylaxis.Value).Value);
+                Assert.Equal("therapy", prophylaxis.Category);
+            },
+            note =>
+            {
+                AssertText(note, PopulationCodes.RhesusDNegativeNote, "Gjelder flerlinger");
+                Assert.Equal("laboratory", note.Category);
+                Assert.Contains("tolkes ikke", note.Note, StringComparison.Ordinal);
+            });
+
+        var mappedResult = Assert.Single(
+            new FhirPopulationMapper().MapObservations(snapshot),
+            observation => observation.Code.Text == PopulationCodes.FetalRhesusDResult.Display);
+        Assert.Equal("Patient/patient-1", Assert.IsType<ResourceReference>(mappedResult.Subject).Reference);
+        Assert.Empty(mappedResult.Focus);
+        Assert.Null(mappedResult.Effective);
+        Assert.Null(mappedResult.Issued);
+        var mappedValue = Assert.IsType<CodeableConcept>(mappedResult.Value);
+        var mappedValueCoding = Assert.Single(mappedValue.Coding);
+        Assert.Equal(PopulationCodes.Volven8340, mappedValueCoding.System);
+        Assert.Equal("T002", mappedValueCoding.Code);
+        var mappedResultDate = Assert.IsType<FhirDateTime>(Assert.Single(mappedResult.Component).Value);
+        Assert.Equal("2026-01-16", mappedResultDate.Value);
+    }
+
+    [Fact]
+    public void Aggregate_fetal_rhd_negative_result_is_preserved_without_a_per_fetus_identity()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            RhesusDNegative = new DhgRhesusDNegative
+            {
+                Metadata = ResourceMetadata("rhesus"),
+                FetusRhDPositiveAtWeek24 = false
+            }
+        });
+
+        var result = Assert.Single(snapshot.Observations);
+        AssertTextLabResult(result, PopulationCodes.FetalRhesusDResult, "T008");
+        Assert.Null(result.Components);
+        Assert.Contains("alle fostre", result.Note, StringComparison.Ordinal);
+        Assert.Null(result.FocusPatientId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(null)]
+    public void Fetal_rhd_consent_and_orphan_result_date_do_not_create_clinical_facts(bool? consent)
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            RhesusDNegative = new DhgRhesusDNegative
+            {
+                Metadata = ResourceMetadata("rhesus"),
+                ConsentFetalRhesusTyping = consent,
+                DateForResult = new DateOnly(2026, 1, 16)
+            }
+        });
+
+        Assert.Empty(snapshot.Observations);
+    }
+
+    [Fact]
+    public void Rhesus_note_is_preserved_without_parsing_when_no_structured_result_exists()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            RhesusDNegative = new DhgRhesusDNegative
+            {
+                Metadata = ResourceMetadata("rhesus"),
+                Note = "  GBS vurderes lokalt  "
+            }
+        });
+
+        var note = Assert.Single(snapshot.Observations);
+        AssertText(note, PopulationCodes.RhesusDNegativeNote, "GBS vurderes lokalt");
+        Assert.Contains("GBS-resultat", note.Note, StringComparison.Ordinal);
     }
 
     [Fact]
