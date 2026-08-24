@@ -366,11 +366,11 @@ public static class FhirEndpoints
     private static string? OptionalSingleValue(IFormCollection form, string name)
     {
         if (!form.TryGetValue(name, out var values)) return null;
-        if (values.Count != 1 || string.IsNullOrWhiteSpace(values[0]))
+        if (values.Count != 1)
             throw new PopulationDataException(
                 PopulationErrorKind.InvalidPatientContext,
                 $"The {name} search parameter must be supplied at most once with a value.");
-        return values[0];
+        return string.IsNullOrWhiteSpace(values[0]) ? null : values[0];
     }
 
     private static Uri ServiceBase(HttpContext context) =>

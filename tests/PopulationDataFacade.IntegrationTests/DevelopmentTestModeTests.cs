@@ -192,6 +192,52 @@ public sealed class DevelopmentTestModeTests
     }
 
     [Fact]
+    public async Task Local_observation_post_search_ignores_empty_optional_filters()
+    {
+        await using var factory = new DevelopmentTestModeFactory();
+        using var client = factory.CreateClient();
+        using var content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("patient.identifier", "01019012345"),
+            new KeyValuePair<string, string>("code", string.Empty),
+            new KeyValuePair<string, string>("category", string.Empty),
+            new KeyValuePair<string, string>("date", string.Empty)
+        ]);
+
+        using var response = await client.PostAsync(
+            "/fhir/Observation/_search",
+            content,
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Bundle", json.RootElement.GetProperty("resourceType").GetString());
+    }
+
+    [Fact]
+    public async Task Local_observation_post_search_rejects_repeated_optional_filters()
+    {
+        await using var factory = new DevelopmentTestModeFactory();
+        using var client = factory.CreateClient();
+        using var content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("patient.identifier", "01019012345"),
+            new KeyValuePair<string, string>("code", string.Empty),
+            new KeyValuePair<string, string>("code", "urn:test|unknown")
+        ]);
+
+        using var response = await client.PostAsync(
+            "/fhir/Observation/_search",
+            content,
+            TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("at most once", json);
+    }
+
+    [Fact]
     public async Task HelseId_TEST_token_mode_starts_without_private_JWKs()
     {
         await using var factory = new DevelopmentTestModeFactory(useTestTokenUtility: true);
