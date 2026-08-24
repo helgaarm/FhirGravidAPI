@@ -438,7 +438,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Appointment_without_date_is_ignored_without_partial_resources()
+    public void Appointment_without_date_preserves_resources_without_inventing_time()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -462,9 +462,22 @@ public sealed class MappingTests
             ]
         });
 
-        Assert.Empty(snapshot.Encounters);
-        Assert.Empty(snapshot.Observations);
-        Assert.Empty(snapshot.Fetuses!);
+        var encounter = Assert.Single(snapshot.Encounters);
+        Assert.Null(encounter.Date);
+        Assert.Equal(3, snapshot.Observations.Count);
+        Assert.All(snapshot.Observations, observation =>
+        {
+            Assert.Null(observation.Effective);
+            Assert.Equal(encounter.Id, observation.EncounterId);
+        });
+        var fetus = Assert.Single(snapshot.Fetuses!);
+        var fetalHeartRate = Assert.Single(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalHeartRate);
+        Assert.Equal(fetus.LogicalId, fetalHeartRate.FocusPatientId);
+
+        var mapper = new FhirPopulationMapper();
+        Assert.Null(Assert.Single(mapper.MapEncounters(snapshot)).Period);
+        Assert.All(mapper.MapObservations(snapshot), observation => Assert.Null(observation.Effective));
     }
 
     [Fact]
@@ -582,7 +595,7 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Invalid_or_unidentified_fetal_findings_are_not_exposed()
+    public void Invalid_measurements_are_omitted_while_unidentified_fetal_findings_are_preserved()
     {
         var snapshot = Create(new DhgMaternityRecord
         {
@@ -616,7 +629,58 @@ public sealed class MappingTests
 
         Assert.Single(snapshot.Encounters);
         Assert.Single(snapshot.Fetuses!);
-        Assert.Empty(snapshot.Observations);
+        Assert.Equal(2, snapshot.Observations.Count);
+        Assert.Contains(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalHeartRate &&
+            Assert.IsType<QuantityValue>(observation.Value).Value == 145m);
+        Assert.Contains(snapshot.Observations, observation =>
+            observation.Code == PopulationCodes.FetalMovementsReported &&
+            Assert.IsType<BooleanValue>(observation.Value).Value);
+        Assert.All(snapshot.Observations, observation =>
+        {
+            Assert.Null(observation.FocusPatientId);
+            Assert.Contains("mangler et positivt fosterId", observation.Note, StringComparison.Ordinal);
+        });
+
+        var mapped = new FhirPopulationMapper().MapObservations(snapshot);
+        Assert.All(mapped, observation =>
+        {
+            Assert.Equal("Patient/patient-1", Assert.IsType<ResourceReference>(observation.Subject).Reference);
+            Assert.Empty(observation.Focus);
+        });
+    }
+
+    [Fact]
+    public void Multiple_unidentified_fetus_entries_remain_distinct_without_creating_fetus_patients()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            AntenatalAppointments =
+            [
+                new DhgAntenatalAppointment
+                {
+                    Metadata = ResourceMetadata("appointment"),
+                    AppointmentDate = new DateOnly(2026, 1, 16),
+                    FetusesVitalSigns =
+                    [
+                        new DhgFetusVitalSigns { FetalHeartRate = 145 },
+                        new DhgFetusVitalSigns { FetalHeartRate = 150 }
+                    ]
+                }
+            ]
+        });
+
+        Assert.Empty(snapshot.Fetuses!);
+        Assert.Equal(2, snapshot.Observations.Count);
+        Assert.Equal(2, snapshot.Observations.Select(observation => observation.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            [145m, 150m],
+            snapshot.Observations
+                .Select(observation => Assert.IsType<QuantityValue>(observation.Value).Value)
+                .OrderBy(value => value)
+                .ToArray());
+        Assert.All(snapshot.Observations, observation => Assert.Null(observation.FocusPatientId));
     }
 
     [Fact]

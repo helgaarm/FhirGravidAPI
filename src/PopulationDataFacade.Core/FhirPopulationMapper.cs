@@ -73,7 +73,9 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             Status = Encounter.EncounterStatus.Unknown,
             Class = new Coding("http://terminology.hl7.org/CodeSystem/v3-ActCode", "AMB", "ambulatory"),
             Subject = new ResourceReference($"Patient/{snapshot.Patient.LogicalId}"),
-            Period = new Period(new FhirDateTime(x.Date.ToString("yyyy-MM-dd")), new FhirDateTime(x.Date.ToString("yyyy-MM-dd")))
+            Period = x.Date is { } date
+                ? new Period(new FhirDateTime(date.ToString("yyyy-MM-dd")), new FhirDateTime(date.ToString("yyyy-MM-dd")))
+                : null
         })
         .ToArray();
 

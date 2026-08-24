@@ -426,10 +426,11 @@ public sealed partial class DhgPopulationSnapshotFactory
         foreach (var source in appointments)
         {
             index++;
-            if (source.AppointmentDate is null) continue;
             var encounterId = Id(source.Metadata, $"antenatal-{index}");
-            var effective = new EffectiveDate(source.AppointmentDate.Value);
-            encounters.Add(new PopulationEncounter(encounterId, source.AppointmentDate.Value, source.Metadata?.LastUpdated));
+            PopulationEffective? effective = source.AppointmentDate is { } appointmentDate
+                ? new EffectiveDate(appointmentDate)
+                : null;
+            encounters.Add(new PopulationEncounter(encounterId, source.AppointmentDate, source.Metadata?.LastUpdated));
 
             if (source.PregnancyWeek is > 0 &&
                 source.DaysAfterFullPregnancyWeek is null or (>= 0 and <= 6))
@@ -503,35 +504,44 @@ public sealed partial class DhgPopulationSnapshotFactory
         DhgAntenatalAppointment appointment,
         List<PopulationObservation> output,
         Dictionary<int, PopulationFetusPatient> fetuses,
-        EffectiveDate effective,
+        PopulationEffective? effective,
         string encounterId,
         int appointmentIndex)
     {
         if (appointment.FetusesVitalSigns is null) return;
 
-        foreach (var fetus in appointment.FetusesVitalSigns
-                     .OfType<DhgFetusVitalSigns>()
-                     .Where(candidate => candidate.FetusId is > 0))
+        var fetusEntryIndex = 0;
+        foreach (var fetus in appointment.FetusesVitalSigns.OfType<DhgFetusVitalSigns>())
         {
-            var sourceFetusId = fetus.FetusId!.Value;
-            if (!fetuses.TryGetValue(sourceFetusId, out var fetusPatient))
+            fetusEntryIndex++;
+            PopulationFetusPatient? fetusPatient = null;
+            var identitySegment = $"unidentified-{fetusEntryIndex}";
+            string? identityNote = "DHG-funnet mangler et positivt fosterId og er derfor ikke knyttet til en bestemt fetus Patient.";
+
+            if (fetus.FetusId is > 0)
             {
-                fetusPatient = new PopulationFetusPatient(
-                    FetalPatientId.Create(maternalPatientId, sourceFetusId),
-                    appointment.Metadata?.LastUpdated);
-                fetuses.Add(sourceFetusId, fetusPatient);
-            }
-            else if (appointment.Metadata?.LastUpdated is { } candidateLastUpdated &&
-                     (fetusPatient.LastUpdated is null || candidateLastUpdated > fetusPatient.LastUpdated))
-            {
-                fetusPatient = fetusPatient with { LastUpdated = candidateLastUpdated };
-                fetuses[sourceFetusId] = fetusPatient;
+                var sourceFetusId = fetus.FetusId.Value;
+                identitySegment = sourceFetusId.ToString(CultureInfo.InvariantCulture);
+                identityNote = null;
+                if (!fetuses.TryGetValue(sourceFetusId, out fetusPatient))
+                {
+                    fetusPatient = new PopulationFetusPatient(
+                        FetalPatientId.Create(maternalPatientId, sourceFetusId),
+                        appointment.Metadata?.LastUpdated);
+                    fetuses.Add(sourceFetusId, fetusPatient);
+                }
+                else if (appointment.Metadata?.LastUpdated is { } candidateLastUpdated &&
+                         (fetusPatient.LastUpdated is null || candidateLastUpdated > fetusPatient.LastUpdated))
+                {
+                    fetusPatient = fetusPatient with { LastUpdated = candidateLastUpdated };
+                    fetuses[sourceFetusId] = fetusPatient;
+                }
             }
 
             if (fetus.FetalHeartRate is > 0)
             {
                 output.Add(Observation(
-                    Id(appointment.Metadata, $"fetal-heart-rate-{sourceFetusId}-{appointmentIndex}"),
+                    Id(appointment.Metadata, $"fetal-heart-rate-{identitySegment}-{appointmentIndex}"),
                     PopulationCodes.FetalHeartRate,
                     new QuantityValue(
                         fetus.FetalHeartRate.Value,
@@ -542,48 +552,52 @@ public sealed partial class DhgPopulationSnapshotFactory
                     appointment.Metadata?.LastUpdated,
                     effective,
                     encounterId: encounterId,
-                    focusPatientId: fetusPatient.LogicalId));
+                    note: identityNote,
+                    focusPatientId: fetusPatient?.LogicalId));
             }
 
             var presentation = ToCodedValue(fetus.FetalPresentationLie);
             if (presentation?.System == PopulationCodes.Volven8534)
             {
                 output.Add(Observation(
-                    Id(appointment.Metadata, $"fetal-presentation-{sourceFetusId}-{appointmentIndex}"),
+                    Id(appointment.Metadata, $"fetal-presentation-{identitySegment}-{appointmentIndex}"),
                     PopulationCodes.FetalPresentationLie,
                     presentation,
                     "exam",
                     appointment.Metadata?.LastUpdated,
                     effective,
                     encounterId: encounterId,
-                    focusPatientId: fetusPatient.LogicalId));
+                    note: identityNote,
+                    focusPatientId: fetusPatient?.LogicalId));
             }
 
             if (fetus.MotherFeelsBabyMovements is not null)
             {
                 output.Add(Observation(
-                    Id(appointment.Metadata, $"fetal-movements-{sourceFetusId}-{appointmentIndex}"),
+                    Id(appointment.Metadata, $"fetal-movements-{identitySegment}-{appointmentIndex}"),
                     PopulationCodes.FetalMovementsReported,
                     new BooleanValue(fetus.MotherFeelsBabyMovements.Value),
                     "survey",
                     appointment.Metadata?.LastUpdated,
                     effective,
                     encounterId: encounterId,
-                    focusPatientId: fetusPatient.LogicalId));
+                    note: identityNote,
+                    focusPatientId: fetusPatient?.LogicalId));
             }
 
             var note = CleanText(fetus.Note);
             if (note is not null)
             {
                 output.Add(Observation(
-                    Id(appointment.Metadata, $"fetal-note-{sourceFetusId}-{appointmentIndex}"),
+                    Id(appointment.Metadata, $"fetal-note-{identitySegment}-{appointmentIndex}"),
                     PopulationCodes.FetalFindingsNote,
                     new TextValue(note),
                     "exam",
                     appointment.Metadata?.LastUpdated,
                     effective,
                     encounterId: encounterId,
-                    focusPatientId: fetusPatient.LogicalId));
+                    note: identityNote,
+                    focusPatientId: fetusPatient?.LogicalId));
             }
         }
     }
@@ -638,7 +652,7 @@ public sealed partial class DhgPopulationSnapshotFactory
             generalPractitioner));
     }
 
-    private static void MapBloodPressure(DhgAntenatalAppointment source, List<PopulationObservation> output, EffectiveDate effective, string encounterId, int index)
+    private static void MapBloodPressure(DhgAntenatalAppointment source, List<PopulationObservation> output, PopulationEffective? effective, string encounterId, int index)
     {
         if (string.IsNullOrWhiteSpace(source.BloodPressure)) return;
         var match = BloodPressurePattern().Match(source.BloodPressure);

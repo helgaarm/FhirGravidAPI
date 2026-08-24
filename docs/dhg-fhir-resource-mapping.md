@@ -119,13 +119,13 @@ Contained resources er valgt fordi DHG-dataene ikke etablerer selvstendige lifec
 
 ## Encounter
 
-Det opprettes én Encounter for hvert appointment uten error som har `appointmentDate`:
+Det opprettes én Encounter for hvert appointment uten error. Manglende `appointmentDate` gjør ikke at source-fakta forkastes:
 
 | Source | FHIR element |
 |---|---|
 | appointment metadata ID | `Encounter.id` |
 | update time | `meta.lastUpdated` |
-| `appointmentDate` | samme date i `period.start` og `period.end` |
+| `appointmentDate` | samme date i `period.start` og `period.end` når dato finnes; ellers utelates `period` |
 | logical patient ID | `subject=Patient/{id}` |
 | facade rule | `class=AMB`, `status=unknown` |
 
@@ -175,10 +175,10 @@ Tabellen viser hovedmappingene. Fullstendig DIRECT/PARTIAL/UNSUPPORTED classific
 | blood pressure | LOINC `85354-9` | component-only; SNOMED CT `4471000202106`/`4481000202108` + LOINC `8480-6`/`8462-4`, UCUM `mm[Hg]` |
 | urine protein | NLK `NPU04206` | kodeverk 8340 `T008`/`T052`/`T048`/`T049`/`T050` `valueCodeableConcept` |
 | edema | presis DHG-term i `CodeableConcept.text` | encounter-scoped raw `valueInteger` `0..3`; scale-trinnenes betydning utledes ikke |
-| fetal heart rate | SNOMED CT `364075005` + LOINC `55283-6` | UCUM `{beats}/min` `valueQuantity`; fetus Patient i `focus` |
-| fetal presentation/lie | text-only code; Volven 8534 value | source-preserving `valueCodeableConcept`; fetus Patient i `focus` |
-| mother feels fetal movements | LOINC `57088-7` | `valueBoolean`; fetus Patient i `focus`; positiv SNOMED finding code brukes ikke ved et nullable boolean question |
-| fetus note | text-only code | uparset `valueString`; fetus Patient i `focus` |
+| fetal heart rate | SNOMED CT `364075005` + LOINC `55283-6` | UCUM `{beats}/min` `valueQuantity`; fetus Patient i `focus` bare ved positivt `fosterId` |
+| fetal presentation/lie | text-only code; Volven 8534 value | source-preserving `valueCodeableConcept`; fetus Patient i `focus` bare ved positivt `fosterId` |
+| mother feels fetal movements | LOINC `57088-7` | `valueBoolean`; valgfri fetus Patient i `focus`; positiv SNOMED finding code brukes ikke ved et nullable boolean question |
+| fetus note | text-only code | uparset `valueString`; valgfri fetus Patient i `focus` |
 
 ## FHIR R4 conformance
 
@@ -192,7 +192,7 @@ Fasaden genererer standard FHIR R4 `Patient`, `Observation`, `Encounter` og `Car
 - Assisted-conception status og dato utledes aldri fra hverandre. Manglende status gir ingen Observation; `false` beholdes uten dato, og dato brukes bare sammen med eksplisitt `true`.
 - Combined fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke.
 - Medication free text blir en source-preserving textual Observation, ikke `Medication` eller `MedicationStatement`.
-- Consent blir ikke representert som Observation. Fetal RhD result holdes tilbake fordi DHG-blokken mangler `fosterId`; et resultat kan derfor ikke bindes entydig til én fetus Patient ved flerlinger.
+- Consent blir ikke representert som Observation. Aggregert fetal RhD result, resultatdato, prophylaxis og uparset note eksponeres source-preserving uten å binde resultatet til én fetus Patient.
 - Unknown source systems/values og unsupported fields eksponeres ikke automatisk.
 
 ## Search response

@@ -20,8 +20,8 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTe
 - Sammensatte/andre `medicalConditions`-booleans eksponeres med presis DHG-term og `valueBoolean`; `null` utelates. De splittes ikke til separate diagnoser eller prosedyrer, og hver Observation forklarer begrensningen i `Observation.note`. Medical note beholdes som trimmet `valueString` uten semantic parsing.
 - `metadata.enteredInError=true` produserer ingen FHIR resource.
 - `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.
-- Gestational age bruker LOINC `18185-9` og ett UCUM-day Quantity per datert appointment. Fasaden oppretter ikke en ekstra facade-specific «latest» Observation; consumer kan velge nyeste `effectiveDateTime`.
-- Et positivt `fetusesVitalSigns[].fosterId` oppretter en separat fetus Patient. Fetal heart rate, presentation/lie, maternal report of movements og uparset fetus note blir Observations med mor som `subject`, fosteret som `focus` og antenatal appointment som `encounter`.
+- Gestational age bruker LOINC `18185-9` og ett UCUM-day Quantity per appointment med gyldig week/day. Fasaden oppretter ikke en ekstra facade-specific «latest» Observation; consumer kan velge nyeste `effectiveDateTime` blant daterte appointments, mens `effective[x]` utelates når dato mangler.
+- Et positivt `fetusesVitalSigns[].fosterId` oppretter en separat fetus Patient. Fetal heart rate, presentation/lie, maternal report of movements og uparset fetus note blir Observations med mor som `subject` og antenatal appointment som `encounter`. Fetus Patient brukes som `focus` bare når positivt `fosterId` finnes; ellers beholdes funnet uten konstruert identitet. Manglende appointment date gir Encounter uten `period` og Observations uten `effective[x]`.
 - Pre-pregnancy height, weight og BMI eksponeres som standard FHIR R4 base Observations med SNOMED CT/LOINC og UCUM. DHG leverer ingen measurement time, så `effective[x]` utelates; `meta.lastUpdated` må ikke tolkes som measurement time, og Vital Signs profile conformance deklareres ikke.
 - Etter vellykket patient selection returnerer search uten clinical treff en FHIR `searchset` Bundle med `total=0`.
 
@@ -72,12 +72,12 @@ Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481
 
 - Medication name/dose, diagnosis og andre clinical facts trekkes ikke ut fra free text.
 - Combined DHG fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke og får ingen misvisende standard code.
-- Consent eksponeres ikke som Observation. Fetal RhD result holdes tilbake fordi source-blokken mangler `fosterId` og derfor ikke kan bindes entydig til ett foster ved flerlinger.
+- Consent eksponeres ikke som Observation. Aggregert fetal RhD result, resultatdato, prophylaxis og uparset note eksponeres source-preserving uten å binde resultatet til ett foster.
 - Stimulus `dailyCount` eksponeres ikke før en semantic standard mapping er godkjent.
 - Fastlege, jordmor og maternity healthcare centre fra DHG eksponeres i `CareTeam`, inkludert de source identifiers som DHG-kontrakten tilbyr for fastlege og jordmor. Øvrige contact/demographic data, inkludert birth institute og birth-status, er utenfor gjeldende API surface.
 - Ukjente source fields, code systems og enum values tolereres i DTO, men eksponeres ikke automatisk.
 - Blood pressure eksponeres bare når dokumentert `systolic/diastolic` format kan parses sikkert.
 - Numeric values med DHG positivity constraint utelates når de er `0` eller negative. Dette innfører ingen clinical reference ranges.
-- Edema grade eksponeres ikke før scale semantics er godkjent. Fetus-spesifikke appointment facts eksponeres bare når både appointment date og et positivt `fosterId` finnes.
+- Edema grade beholdes som raw `0..3` uten å navngi scale-trinnene. Fetus-spesifikke appointment facts kan eksponeres uten appointment date eller positivt `fosterId`; de manglende `period`-, `effective[x]`- og `focus`-elementene konstrueres ikke.
 
 Full field classification finnes i [mapping.md](mapping.md). Query-eksempler finnes i [examples/fhir-queries.md](../examples/fhir-queries.md). Terminology og units krever fortsatt godkjenning fra clinical terminology owner før DHG Test/Production.

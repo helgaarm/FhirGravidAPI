@@ -59,7 +59,7 @@ public sealed record PopulationComponent(PopulationCode Code, PopulationValue Va
 
 public sealed record PopulationEncounter(
     string Id,
-    DateOnly Date,
+    DateOnly? Date,
     DateTimeOffset? LastUpdated);
 
 public sealed record PopulationCareTeam(
