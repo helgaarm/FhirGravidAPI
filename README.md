@@ -87,8 +87,14 @@ $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:DevelopmentTestMode__Enabled = "true"
 $env:HelseIdTestToken__Enabled = "true"
 $env:HelseIdTestToken__AuthKey = "<secret-auth-key>"
-$env:HelseIdTestToken__OrgnrParent = "<syntetisk-test-orgnr-9-siffer>"
+$env:HelseIdTestToken__OrgnrParent = "<syntetisk-overordnet-test-orgnr-9-siffer>"
+$env:HelseIdTestToken__OrgnrChild = "<syntetisk-behandlingssted-orgnr-9-siffer>"
 $env:HelseIdTestToken__ClientTenancyType = "1"
+$env:HelseIdTestToken__PractitionerNationalIdentityNumber = "<syntetisk-helsepersonell-fnr-11-siffer>"
+$env:HelseIdTestToken__PractitionerHprNumber = "<syntetisk-hpr-nummer>"
+$env:HelseIdTestToken__PractitionerName = "<syntetisk-helsepersonell-navn>"
+$env:HelseIdTestToken__UserRoleCode = "LE"
+$env:HelseIdTestToken__TreatmentFacilityName = "<navn-på-syntetisk-behandlingssted>"
 $env:HelseId__ClientId = "<dhg-test-client-id>"
 $env:PatientContext__TestAliases__synthetic_1__LogicalId = "patient-test-1"
 $env:PatientContext__TestAliases__synthetic_1__NationalIdentityNumber = "<approved-synthetic-nin>"
@@ -101,7 +107,7 @@ For lokal Development er .NET user-secrets tryggere enn å skrive auth key i en 
 dotnet user-secrets set "HelseIdTestToken:AuthKey" "<secret-auth-key>" --project src/PopulationDataFacade.Api
 ```
 
-Da kan linjen som setter `HelseIdTestToken__AuthKey` utelates fra miljøblokken. Alternativt kan hemmeligheten eksporteres som miljøvariabel eller leveres av en godkjent secret store. Ikke lagre `accessTokenJwt` eller `dPoPProof`: fasaden henter et nytt par for hvert DHG-kall fordi beviset bindes til eksakt HTTP-metode og URL. Ren .NET laster ikke `.env`-filer automatisk; en eventuell lokal `.env` må importeres til prosessmiljøet av utviklerverktøyet.
+Da kan linjen som setter `HelseIdTestToken__AuthKey` utelates fra miljøblokken. Organisasjonsnummer, helsepersonellidentitet, HPR-nummer og rolle må være en sammenhengende syntetisk kombinasjon som er gyldig i NHNs testdata; et vilkårlig organisasjonsnummer kan gi `AUTH-0003` fordi DHG ikke finner organisasjonsnavnet. `/status` bruker et machine-to-machine token, mens `/record` bruker et user token med HPR-identitet, `orgnr_parent`, `orgnr_child`, `nhn-user-role` og `nhn-treatment-facility-name`. Alternativt kan konfigurasjonen leveres som miljøvariabler eller fra en godkjent secret store. Ikke lagre `accessTokenJwt` eller `dPoPProof`: fasaden henter et nytt par for hvert DHG-kall fordi beviset bindes til eksakt HTTP-metode og URL. Ren .NET laster ikke `.env`-filer automatisk; en eventuell lokal `.env` må importeres til prosessmiljøet av utviklerverktøyet.
 
 I Swagger:
 
@@ -168,6 +174,8 @@ dotnet run --project src/PopulationDataFacade.Api --no-restore --no-build
 Ikke bruk `--no-build` etter endringer i kode, prosjektfiler eller pakker. Hvis restore blir stående lenge på `Determining projects to restore...`, kjør kommandoen på nytt med `--verbosity normal` og kontroller tilgangen til den konfigurerte NuGet-kilden. `NU1900` eller `Unable to load the service index` betyr at NuGet ikke når pakke- eller sårbarhetstjenesten; kontroller nettverk, DNS og eventuell proxy. Tiden etter en fullført restore er build-tid, ikke restore-tid.
 
 Kjør API-et med den eksplisitte anonyme Development-testkonfigurasjonen ovenfor, eller bruk den autentiserte to-prosessflyten. Launch-profilen starter API-et normalt på `https://localhost:7184`; dette er en direkte lokal Development-adresse, ikke den offentlige adressen for autentisert drift. Swagger UI og OpenAPI-dokumentet er tilgjengelig uten innlogging i ikke-produksjonsmiljøer på henholdsvis `/swagger` og `/openapi/v1.json`. I Production er de deaktivert som standard og HelseID-beskyttet når de aktiveres eksplisitt.
+
+Lokal Development deaktiverer Windows EventLog logging i `appsettings.Development.json` og beholder standard Console/Debug providers. Dette hindrer at en kontrollert FHIR-feil blir avbrutt dersom utviklerprosessen mangler skrivetilgang til Windows Event Log. Swagger skal derfor vise den faktiske `OperationOutcome`-responsen, for eksempel `404`, i stedet for bare `Failed to fetch`.
 
 ## Drift
 

@@ -45,9 +45,16 @@ public sealed class HelseIdTestTokenOptions
     public string Audience { get; set; } = "nhn:maternity-record";
     public string Scope { get; set; } = "nhn:maternity-record/api";
     public string OrgnrParent { get; set; } = string.Empty;
+    public string OrgnrChild { get; set; } = string.Empty;
     public bool ClientTenancy { get; set; } = true;
     public int? ClientTenancyType { get; set; }
     public string ClientName { get; set; } = "PopulationDataFacade";
+    public string PractitionerNationalIdentityNumber { get; set; } = string.Empty;
+    public string PractitionerHprNumber { get; set; } = string.Empty;
+    public string PractitionerName { get; set; } = string.Empty;
+    public string UserRoleSystem { get; set; } = "urn:oid:2.16.578.1.12.4.1.1.9060";
+    public string UserRoleCode { get; set; } = string.Empty;
+    public string TreatmentFacilityName { get; set; } = string.Empty;
 }
 
 public sealed class DhgOptionsValidator(IOptions<HelseIdOptions> helseIdOptions) : IValidateOptions<DhgOptions>
@@ -178,12 +185,29 @@ public sealed class HelseIdTestTokenOptionsValidator : IValidateOptions<HelseIdT
             failures.Add("HelseIdTestToken:Scope must be nhn:maternity-record/api.");
         if (options.OrgnrParent.Length != 9 || options.OrgnrParent.Any(character => !char.IsAsciiDigit(character)))
             failures.Add("HelseIdTestToken:OrgnrParent must contain exactly nine digits.");
+        if (options.OrgnrChild.Length != 9 || options.OrgnrChild.Any(character => !char.IsAsciiDigit(character)))
+            failures.Add("HelseIdTestToken:OrgnrChild must contain exactly nine digits.");
         if (!options.ClientTenancy)
             failures.Add("HelseIdTestToken:ClientTenancy must be true.");
         if (options.ClientTenancyType is < 0 or > 2)
             failures.Add("HelseIdTestToken:ClientTenancyType must be 0, 1, or 2 when supplied.");
         if (string.IsNullOrWhiteSpace(options.ClientName))
             failures.Add("HelseIdTestToken:ClientName is required.");
+        if (options.PractitionerNationalIdentityNumber.Length != 11 ||
+            options.PractitionerNationalIdentityNumber.Any(character => !char.IsAsciiDigit(character)))
+            failures.Add("HelseIdTestToken:PractitionerNationalIdentityNumber must contain exactly eleven digits.");
+        if (options.PractitionerHprNumber.Length is < 7 or > 9 ||
+            options.PractitionerHprNumber.Any(character => !char.IsAsciiDigit(character)))
+            failures.Add("HelseIdTestToken:PractitionerHprNumber must contain seven to nine digits.");
+        if (string.IsNullOrWhiteSpace(options.PractitionerName) || options.PractitionerName.Length > 255)
+            failures.Add("HelseIdTestToken:PractitionerName must contain 1-255 characters.");
+        if (options.UserRoleSystem != "urn:oid:2.16.578.1.12.4.1.1.9060")
+            failures.Add("HelseIdTestToken:UserRoleSystem must be the Volven 9060 coding-system OID.");
+        if (options.UserRoleCode.Length is < 2 or > 4 ||
+            options.UserRoleCode.Any(character => !char.IsAsciiLetterOrDigit(character)))
+            failures.Add("HelseIdTestToken:UserRoleCode must contain 2-4 ASCII letters or digits.");
+        if (string.IsNullOrWhiteSpace(options.TreatmentFacilityName) || options.TreatmentFacilityName.Length > 255)
+            failures.Add("HelseIdTestToken:TreatmentFacilityName must contain 1-255 characters.");
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }

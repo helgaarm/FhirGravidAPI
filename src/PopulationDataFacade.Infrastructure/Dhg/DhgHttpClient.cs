@@ -122,6 +122,12 @@ public sealed class DhgHttpClient(
         request.Headers.TryAddWithoutValidation("nhn-source-system", options.Value.SourceSystem);
         request.Headers.TryAddWithoutValidation("nhn-patient-nin", context.NationalIdentityNumber);
         request.Headers.TryAddWithoutValidation("nhn-event-id", context.CorrelationId);
+        if (!string.IsNullOrWhiteSpace(authorization.UserRoleHeader))
+            request.Headers.TryAddWithoutValidation("nhn-user-role", authorization.UserRoleHeader);
+        if (!string.IsNullOrWhiteSpace(authorization.TreatmentFacilityNameHeader))
+            request.Headers.TryAddWithoutValidation(
+                "nhn-treatment-facility-name",
+                authorization.TreatmentFacilityNameHeader);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return request;
     }

@@ -43,7 +43,7 @@ sequenceDiagram
     Api-->>Client: FHIR resource, Bundle or OperationOutcome
 ```
 
-Ved lokal testing med Swagger erstatter `DevelopmentTestMode:Enabled=true` steg 1–4 med en anonymous inbound request. Som default bruker fasaden en server-side HelseID `client_credentials` request for konfigurert DHG resource og scope. Når `HelseIdTestToken:Enabled=true`, ber den i stedet HelseIDs TEST token utility om et nytt `accessTokenJwt` og matchende `dPoPProof` bundet til eksakt DHG HTTP method og URL for hver request. Fasaden sender fortsatt et DPoP-bound HelseID token til DHG. Modusen krever host environment `Development`, `Dhg:Environment=Test`, loopback-only listeners og en kjent loopback peer. Ikke eksponer denne varianten gjennom reverse proxy, tunnel eller port forwarding.
+Ved lokal testing med Swagger erstatter `DevelopmentTestMode:Enabled=true` steg 1–4 med en anonymous inbound request. DHG tillater machine-to-machine `client_credentials` bare for `/status`. Full uthenting av `/record` krever derfor `HelseIdTestToken:Enabled=true` eller en normal HelseID user-token-flyt. TEST token utility lager et eget request-bound token/proof-par per DHG-kall: `/status` får et machine token, mens `/record` får et user token med konfigurert syntetisk HPR-identitet og organisasjonskontekst. Fasaden sender `nhn-user-role` og `nhn-treatment-facility-name` på journaloppslaget. Modusen krever host environment `Development`, `Dhg:Environment=Test`, loopback-only listeners og en kjent loopback peer. Ikke eksponer denne varianten gjennom reverse proxy, tunnel eller port forwarding.
 
 ## Påkrevd configuration
 
@@ -55,13 +55,19 @@ Relevant environment-variable-format er:
 DevelopmentTestMode__Enabled=true
 HelseIdTestToken__Enabled=true
 HelseIdTestToken__AuthKey=<secret>
-HelseIdTestToken__OrgnrParent=<nine-digit-test-organization-number>
+HelseIdTestToken__OrgnrParent=<nine-digit-parent-test-organization-number>
+HelseIdTestToken__OrgnrChild=<nine-digit-point-of-care-test-organization-number>
 HelseIdTestToken__ClientTenancyType=1
+HelseIdTestToken__PractitionerNationalIdentityNumber=<eleven-digit-synthetic-practitioner-nin>
+HelseIdTestToken__PractitionerHprNumber=<synthetic-practitioner-hpr-number>
+HelseIdTestToken__PractitionerName=<synthetic-practitioner-name>
+HelseIdTestToken__UserRoleCode=LE
+HelseIdTestToken__TreatmentFacilityName=<synthetic-point-of-care-name>
 HelseId__ClientId=<registered-test-client-id>
 PatientContext__PatientIdHmacKey=<base64-encoded-random-secret-at-least-32-bytes>
 ```
 
-Lagre bare stabil auth key og claims som configuration. Returnerte `accessTokenJwt` eller `dPoPProof` må aldri lagres, logges eller gjenbrukes. Provider henter et nytt request-bound par for hvert DHG-kall. En vanlig `.env`-fil lastes ikke automatisk av .NET og må importeres i process environment av developer tooling dersom den brukes.
+Lagre bare stabil auth key og syntetiske testclaims som configuration. `OrgnrParent`, `OrgnrChild`, practitioner NIN/HPR/name, rolle og behandlingssted må beskrive en sammenhengende testidentitet som finnes i NHNs testdata. Ellers kan `/status` lykkes mens `/record` avvises fordi DHG ikke kan etablere user organization context. Returnerte `accessTokenJwt` eller `dPoPProof` må aldri lagres, logges eller gjenbrukes. Provider henter et nytt request-bound par for hvert DHG-kall. En vanlig `.env`-fil lastes ikke automatisk av .NET og må importeres i process environment av developer tooling dersom den brukes.
 
 For lokal Development lagres auth key utenfor repository med:
 

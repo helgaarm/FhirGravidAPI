@@ -60,6 +60,19 @@ public sealed class SecurityAndHttpTests
     }
 
     [Fact]
+    public async Task Dhg_client_forwards_DHG_user_context_from_the_authorization_provider()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, "{}"));
+        var client = Client(handler, new UserContextAuthorizationProvider());
+
+        await client.GetRecordAsync("3d2d76b2-7675-46ff-a4d7-2ed3e0cb80f8", Context(), CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("%7B%22system%22%3A%22volven%22%2C%22code%22%3A%22LE%22%7D", request.UserRole);
+        Assert.Equal("Test%20facility", request.TreatmentFacilityName);
+    }
+
+    [Fact]
     public async Task Dhg_client_retries_one_resource_nonce_challenge_with_new_proof()
     {
         var call = 0;
@@ -263,11 +276,28 @@ public sealed class SecurityAndHttpTests
         }
     }
 
+    private sealed class UserContextAuthorizationProvider : IDhgAuthorizationProvider
+    {
+        public Task<DhgAuthorization> AuthorizeAsync(
+            string subjectToken,
+            HttpMethod method,
+            Uri destination,
+            string? dPoPNonce,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new DhgAuthorization(
+                "access-token",
+                "proof",
+                "%7B%22system%22%3A%22volven%22%2C%22code%22%3A%22LE%22%7D",
+                "Test%20facility"));
+    }
+
     private sealed record RecordedRequest(
         Uri Uri,
         string? PatientNin,
         string? SourceSystem,
-        string? AuthorizationScheme);
+        string? AuthorizationScheme,
+        string? UserRole,
+        string? TreatmentFacilityName);
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
     {
@@ -279,7 +309,9 @@ public sealed class SecurityAndHttpTests
                 request.RequestUri!,
                 request.Headers.TryGetValues("nhn-patient-nin", out var nin) ? nin.Single() : null,
                 request.Headers.TryGetValues("nhn-source-system", out var source) ? source.Single() : null,
-                request.Headers.Authorization?.Scheme));
+                request.Headers.Authorization?.Scheme,
+                request.Headers.TryGetValues("nhn-user-role", out var role) ? role.Single() : null,
+                request.Headers.TryGetValues("nhn-treatment-facility-name", out var facility) ? facility.Single() : null));
             return Task.FromResult(response(request));
         }
     }

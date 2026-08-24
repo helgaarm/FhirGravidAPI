@@ -8,7 +8,11 @@ public interface IDhgClient
     Task<DhgMaternityRecord> GetRecordAsync(string recordId, PatientRequestContext context, CancellationToken cancellationToken);
 }
 
-public sealed record DhgAuthorization(string AccessToken, string DPoPProof);
+public sealed record DhgAuthorization(
+    string AccessToken,
+    string DPoPProof,
+    string? UserRoleHeader = null,
+    string? TreatmentFacilityNameHeader = null);
 
 public interface IDhgAuthorizationProvider
 {

@@ -358,7 +358,13 @@ public sealed class DevelopmentTestModeFactory(
                 ["HelseIdTestToken:Enabled"] = useTestTokenUtility.ToString(),
                 ["HelseIdTestToken:AuthKey"] = useTestTokenUtility ? "integration-test-auth-key" : string.Empty,
                 ["HelseIdTestToken:OrgnrParent"] = useTestTokenUtility ? "123456789" : string.Empty,
+                ["HelseIdTestToken:OrgnrChild"] = useTestTokenUtility ? "987654321" : string.Empty,
                 ["HelseIdTestToken:ClientTenancyType"] = "1",
+                ["HelseIdTestToken:PractitionerNationalIdentityNumber"] = useTestTokenUtility ? "06828399789" : string.Empty,
+                ["HelseIdTestToken:PractitionerHprNumber"] = useTestTokenUtility ? "565505933" : string.Empty,
+                ["HelseIdTestToken:PractitionerName"] = useTestTokenUtility ? "KVART GREVLING" : string.Empty,
+                ["HelseIdTestToken:UserRoleCode"] = useTestTokenUtility ? "LE" : string.Empty,
+                ["HelseIdTestToken:TreatmentFacilityName"] = useTestTokenUtility ? "Test facility" : string.Empty,
                 ["PatientContext:TestAliases:synthetic_1:LogicalId"] = "patient-1",
                 ["PatientContext:TestAliases:synthetic_1:NationalIdentityNumber"] = "01019012345"
             }));

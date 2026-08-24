@@ -17,7 +17,8 @@ namespace PopulationDataFacade.Infrastructure.HelseId;
 public sealed class HelseIdTestTokenAuthorizationProvider(
     IHttpClientFactory httpClientFactory,
     IOptions<HelseIdTestTokenOptions> options,
-    IOptions<HelseIdOptions> helseIdOptions) : IDhgAuthorizationProvider
+    IOptions<HelseIdOptions> helseIdOptions,
+    IOptions<DhgOptions> dhgOptions) : IDhgAuthorizationProvider
 {
     private const int MaximumResponseBytes = 64 << 10;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -42,6 +43,7 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
 
         var configuration = options.Value;
         var normalizedMethod = method.Method.ToUpperInvariant();
+        var statusRequest = IsStatusRequest(destination, dhgOptions.Value.BaseUrl);
         using var activity = ActivitySource.StartActivity("HelseID TEST token", ActivityKind.Client);
         activity?.SetTag("server.address", configuration.Endpoint.Host);
         activity?.SetTag("http.request.method", "POST");
@@ -53,6 +55,7 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
             ["scope"] = new[] { configuration.Scope },
             ["clientId"] = helseIdOptions.Value.ClientId,
             ["orgnrParent"] = configuration.OrgnrParent,
+            ["orgnrChild"] = configuration.OrgnrChild,
             ["clientTenancy"] = configuration.ClientTenancy,
             ["clientAuthenticationMethodsReferences"] = "private_key_jwt",
             ["clientName"] = configuration.ClientName
@@ -76,6 +79,17 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
             },
             ["clientClaimsParameters"] = clientClaims
         };
+        if (!statusRequest)
+        {
+            payload["userClaimsParameters"] = new
+            {
+                pid = configuration.PractitionerNationalIdentityNumber,
+                hprNumber = configuration.PractitionerHprNumber,
+                name = configuration.PractitionerName,
+                securityLevel = "4",
+                network = "internett"
+            };
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, configuration.Endpoint)
         {
@@ -138,7 +152,19 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
                         PopulationErrorKind.SourceUnavailable,
                         "The HelseID TEST token response did not contain both an access token and DPoP proof.");
 
-                return new DhgAuthorization(token, proof);
+                if (statusRequest)
+                    return new DhgAuthorization(token, proof);
+
+                var role = JsonSerializer.Serialize(new
+                {
+                    system = configuration.UserRoleSystem,
+                    code = configuration.UserRoleCode
+                }, JsonOptions);
+                return new DhgAuthorization(
+                    token,
+                    proof,
+                    Uri.EscapeDataString(role),
+                    Uri.EscapeDataString(configuration.TreatmentFacilityName));
             }
             catch (PopulationDataException)
             {
@@ -160,6 +186,17 @@ public sealed class HelseIdTestTokenAuthorizationProvider(
                     exception);
             }
         }
+    }
+
+    private static bool IsStatusRequest(Uri destination, Uri baseUrl)
+    {
+        var statusEndpoint = new Uri(baseUrl, "status");
+        return Uri.Compare(
+            destination,
+            statusEndpoint,
+            UriComponents.SchemeAndServer | UriComponents.Path,
+            UriFormat.SafeUnescaped,
+            StringComparison.OrdinalIgnoreCase) == 0;
     }
 
     private static async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)

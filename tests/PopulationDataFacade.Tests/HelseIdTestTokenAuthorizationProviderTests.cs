@@ -39,6 +39,8 @@ public sealed class HelseIdTestTokenAuthorizationProviderTests
         Assert.Equal("proof-1", first.DPoPProof);
         Assert.Equal("access-token-2", second.AccessToken);
         Assert.Equal("proof-2", second.DPoPProof);
+        Assert.Null(first.UserRoleHeader);
+        Assert.Null(first.TreatmentFacilityNameHeader);
         Assert.Equal(2, handler.Requests.Count);
 
         var request = handler.Requests[0];
@@ -58,12 +60,46 @@ public sealed class HelseIdTestTokenAuthorizationProviderTests
         var claims = root.GetProperty("clientClaimsParameters");
         Assert.Equal("dhg-test-client", claims.GetProperty("clientId").GetString());
         Assert.Equal("123456789", claims.GetProperty("orgnrParent").GetString());
+        Assert.Equal("987654321", claims.GetProperty("orgnrChild").GetString());
         Assert.True(claims.GetProperty("clientTenancy").GetBoolean());
         Assert.Equal(1, claims.GetProperty("clientTenancyType").GetInt32());
         Assert.Equal("private_key_jwt", claims.GetProperty("clientAuthenticationMethodsReferences").GetString());
         var scopes = claims.GetProperty("scope");
         Assert.Equal(JsonValueKind.Array, scopes.ValueKind);
         Assert.Equal("nhn:maternity-record/api", Assert.Single(scopes.EnumerateArray()).GetString());
+        Assert.False(root.TryGetProperty("userClaimsParameters", out _));
+    }
+
+    [Fact]
+    public async Task Provider_requests_user_claims_and_DHG_audit_headers_for_record_calls()
+    {
+        var handler = new TestTokenHandler(_ => Json(HttpStatusCode.OK, """
+            {
+              "successResponse": {
+                "accessTokenJwt": "access-token",
+                "dPoPProof": "proof"
+              }
+            }
+            """));
+        var provider = Provider(handler);
+        var destination = new Uri(
+            "https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/record/3d2d76b2-7675-46ff-a4d7-2ed3e0cb80f8");
+
+        var authorization = await provider.AuthorizeAsync(
+            string.Empty, HttpMethod.Get, destination, null, CancellationToken.None);
+
+        using var payload = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
+        var userClaims = payload.RootElement.GetProperty("userClaimsParameters");
+        Assert.Equal("06828399789", userClaims.GetProperty("pid").GetString());
+        Assert.Equal("565505933", userClaims.GetProperty("hprNumber").GetString());
+        Assert.Equal("KVART GREVLING", userClaims.GetProperty("name").GetString());
+        Assert.Equal("4", userClaims.GetProperty("securityLevel").GetString());
+
+        var role = Uri.UnescapeDataString(authorization.UserRoleHeader!);
+        using var roleJson = JsonDocument.Parse(role);
+        Assert.Equal("urn:oid:2.16.578.1.12.4.1.1.9060", roleJson.RootElement.GetProperty("system").GetString());
+        Assert.Equal("LE", roleJson.RootElement.GetProperty("code").GetString());
+        Assert.Equal("Loddefjord legesenter", Uri.UnescapeDataString(authorization.TreatmentFacilityNameHeader!));
     }
 
     [Fact]
@@ -135,6 +171,12 @@ public sealed class HelseIdTestTokenAuthorizationProviderTests
             ["HelseIdTestToken:Enabled"] = "true",
             ["HelseIdTestToken:AuthKey"] = "test-auth-key",
             ["HelseIdTestToken:OrgnrParent"] = "123456789",
+            ["HelseIdTestToken:OrgnrChild"] = "987654321",
+            ["HelseIdTestToken:PractitionerNationalIdentityNumber"] = "06828399789",
+            ["HelseIdTestToken:PractitionerHprNumber"] = "565505933",
+            ["HelseIdTestToken:PractitionerName"] = "KVART GREVLING",
+            ["HelseIdTestToken:UserRoleCode"] = "LE",
+            ["HelseIdTestToken:TreatmentFacilityName"] = "Loddefjord legesenter",
             ["HelseId:ClientId"] = "dhg-test-client"
         };
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
@@ -154,14 +196,21 @@ public sealed class HelseIdTestTokenAuthorizationProviderTests
         string authKey = "test-auth-key") => new(
         new TestHttpClientFactory(handler),
         Options.Create(TestTokenOptions(authKey)),
-        Options.Create(new HelseIdOptions { ClientId = "dhg-test-client" }));
+        Options.Create(new HelseIdOptions { ClientId = "dhg-test-client" }),
+        Options.Create(new DhgOptions()));
 
     private static HelseIdTestTokenOptions TestTokenOptions(string authKey = "test-auth-key") => new()
     {
         Enabled = true,
         AuthKey = authKey,
         OrgnrParent = "123456789",
-        ClientTenancyType = 1
+        OrgnrChild = "987654321",
+        ClientTenancyType = 1,
+        PractitionerNationalIdentityNumber = "06828399789",
+        PractitionerHprNumber = "565505933",
+        PractitionerName = "KVART GREVLING",
+        UserRoleCode = "LE",
+        TreatmentFacilityName = "Loddefjord legesenter"
     };
 
     private static HttpResponseMessage Json(HttpStatusCode statusCode, string json) => new(statusCode)

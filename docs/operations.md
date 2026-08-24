@@ -6,7 +6,7 @@
 |---|---|
 | `Dhg` | `Environment`, `BaseUrl`, `SourceSystem`, timeouts, connection lifetime, retryantall |
 | `HelseId` | `Authority`, facade audience/scope, DHG audience/scope, client-ID og private JWK-er |
-| `HelseIdTestToken` | eksplisitt DHG Test-only tokenverktøy, secret auth key og godkjente syntetiske klient-/organisasjonsclaims |
+| `HelseIdTestToken` | eksplisitt DHG Test-only tokenverktøy, secret auth key og sammenhengende syntetiske klient-, HPR-, rolle- og organisasjonsclaims |
 | `AuthGateway` | `SharedSecret`; samme tilfeldige verdi på minst 32 byte som `AUTH_GATEWAY_SHARED_SECRET` |
 | `PatientContext` | headernavn, levetid, stabil Base64-kodet `PatientIdHmacKey` og ikke-produksjonsaliaser |
 | `DevelopmentTestMode` | eksplisitt lokal anonym Swagger/DHG Test-modus og fast test-subjekt |
@@ -14,7 +14,7 @@
 | `ReverseProxy` | `ForwardedHeadersEnabled`; bare bak godkjent proxy slik at FHIR-baser bruker opprinnelig HTTPS-skjema |
 | OpenTelemetry | standard `OTEL_*`-miljøvariabler |
 
-Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. Utenfor `DevelopmentTestMode` kreves `PatientContext:PatientIdHmacKey` som Base64-kodet secret på minst 32 byte; samme stabile key må leveres til alle instanser, og rotasjon endrer pseudonyme patient IDs. `DevelopmentTestMode:Enabled=true` krever lokal Development og DHG Test. `HelseIdTestToken:Enabled=true` krever i tillegg en HTTPS-endpoint under `.test.nhn.no`, auth key, registrert client-ID og godkjente testclaims. Det kreves loopback-only listeners og kjent loopback-peer; ikke plasser testmodusen bak proxy, tunnel eller port-forwarding. Testmodus avvises i Staging, QA og Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
+Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. Utenfor `DevelopmentTestMode` kreves `PatientContext:PatientIdHmacKey` som Base64-kodet secret på minst 32 byte; samme stabile key må leveres til alle instanser, og rotasjon endrer pseudonyme patient IDs. `DevelopmentTestMode:Enabled=true` krever lokal Development og DHG Test. `HelseIdTestToken:Enabled=true` krever i tillegg en HTTPS-endpoint under `.test.nhn.no`, auth key, registrert client-ID, `orgnr_parent`, `orgnr_child`, syntetisk practitioner NIN/HPR/name, Volven 9060 role code og treatment facility name. Verdiene må tilhøre samme godkjente syntetiske testkontekst. Det kreves loopback-only listeners og kjent loopback-peer; ikke plasser testmodusen bak proxy, tunnel eller port-forwarding. Testmodus avvises i Staging, QA og Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
 
 ### Auth-gateway
 
