@@ -41,7 +41,7 @@ Det finnes ingen fallback data source og ingen persistent clinical cache.
 | `Patient` | 1..* | mor fra logical patient context og 0..* minimale fetus Patients fra positive `fosterId` | mother search; mother/fetus read |
 | `Observation` | 0..* | eksplisitte og semantisk sikre DHG fields | Observation search |
 | `Encounter` | 0..* | daterte antenatal appointments uten error | Encounter search |
-| `CareTeam` | 0..1 | markert jordmor og maternity healthcare centre fra `pointsOfContact` | CareTeam search |
+| `CareTeam` | 0..1 | fastlege, jordmor og maternity healthcare centre fra `pointsOfContact` | CareTeam search |
 | `Bundle` | 1 | FHIR search wrapper | search endpoints |
 | `OperationOutcome` | 0..1 | kontrollert error translation | alle mapped endpoints |
 
@@ -104,11 +104,18 @@ Når minst ett av de markerte `pointsOfContact`-feltene finnes, opprettes ett pa
 |---|---|---|
 | `pointsOfContact.metadata` | `CareTeam.id`, `meta.lastUpdated` | `enteredInError=true` utelater hele resource |
 | logical patient ID | `CareTeam.subject` | `Patient/{id}`; aldri NIN |
-| `midwife.name` | contained `Practitioner.name.text` og `participant.member` | raw text trimmes; ingen directory identity konstrueres |
-| `midwife.organizationName` | contained `Organization.name` og `participant.onBehalfOf` | brukes med Practitioner; når personnavn mangler blir Organization participant |
-| `maternityHealthcareCentre` | contained `Organization.name` og `participant.member` med text role `Helsestasjon` | raw text trimmes; ingen organization identifier eller managing responsibility konstrueres |
+| `generalPractitioner.name` | contained `Practitioner.name.text` | raw text trimmes; ingen directory lookup utføres |
+| `generalPractitioner.hprNr` | contained `Practitioner.identifier` | direkte DHG-verdi med norsk HPR-system `urn:oid:2.16.578.1.12.4.1.4.4` |
+| `generalPractitioner.organizationName` | contained `Organization.name` | raw text trimmes; ingen directory lookup utføres |
+| `generalPractitioner.organizationId` | contained `Organization.identifier` | direkte DHG-organisasjonsnummer med ENH-system `urn:oid:2.16.578.1.12.4.1.4.101` |
+| `generalPractitioner` relationship | contained `PractitionerRole` med `code.text=Fastlege`, references til Practitioner/Organization og `CareTeam.participant.member` | rollen er eksplisitt i DHG-feltnavnet; period, specialty og services utledes ikke |
+| `midwife.name` | contained `Practitioner.name.text` | raw text trimmes; ingen directory lookup utføres |
+| `midwife.hprNr` | contained `Practitioner.identifier` | direkte DHG-verdi med norsk HPR-system `urn:oid:2.16.578.1.12.4.1.4.4` |
+| `midwife.organizationName` | contained `Organization.name` | raw text trimmes; DHG leverer ikke organisasjonsnummer for jordmor |
+| `midwife` relationship | contained `PractitionerRole` med `code.text=Jordmor`, references til Practitioner/Organization og `CareTeam.participant.member` | rollen er eksplisitt i DHG-feltnavnet; period, specialty og services utledes ikke |
+| `maternityHealthcareCentre` | contained `Organization.name`, `Organization.type.text=Helsestasjon` og direkte `participant.member` | raw text trimmes; ingen organization identifier eller managing responsibility konstrueres |
 
-Contained resources er valgt fordi DHG-navn alene ikke er nok til en selvstendig, autoritativ Practitioner- eller Organization-resource. `generalPractitioner`, `birthInstitute`, HPR number og organization ID eksponeres ikke i denne mappingen. FHIR R4 `CareTeam.status=active` uttrykker at kontaktene kommer fra den current active DHG record, ikke at en ekstern directory entry er verifisert.
+Contained resources er valgt fordi DHG-dataene ikke etablerer selvstendige lifecycle-managed Practitioner-, PractitionerRole- eller Organization-resources i fasaden. Fastlege og jordmor representeres med contained `PractitionerRole`, fordi DHG-feltnavnene uttrykker den aktuelle relationship eksplisitt; rollen peker lokalt til contained Practitioner og Organization, og CareTeam participant peker til rollen. Source-provided HPR number og organisasjonsnummer beholdes som FHIR identifiers med nasjonale norske identifier systems. Det utledes ingen period, specialty, service eller annen directory information, `birthInstitute` eksponeres ikke, og det utføres ingen ekstern GP- eller directory lookup. FHIR R4 `CareTeam.status=active` uttrykker at kontaktene kommer fra den current active DHG record, ikke at en ekstern directory entry er verifisert.
 
 ## Encounter
 

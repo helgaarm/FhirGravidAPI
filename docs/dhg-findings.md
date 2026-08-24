@@ -30,7 +30,7 @@ Denne loggen skiller verifiserte implementeringsbeslutninger fra uavklarte klini
 - DHG positivity/range constraints håndheves før FHIR mapping uten å introdusere egne clinical reference ranges.
 - Alle Observations bruker standard FHIR R4 `Observation` base resource. Fasaden deklarerer ingen draft Vital Signs canonical i `meta.profile` eller `CapabilityStatement.supportedProfile`.
 - Pre-pregnancy height, weight og BMI eksponeres med standard SNOMED CT/LOINC codings og UCUM units. Fordi DHG ikke leverer measurement time, er `effective[x]` fraværende og resources deklarerer ikke FHIR R4 Vital Signs profile conformance. DHG `metadata.lastUpdated` beholdes bare som `meta.lastUpdated`.
-- De markerte `pointsOfContact.midwife`- og `maternityHealthcareCentre`-feltene eksponeres i patient-scoped `CareTeam`. Jordmor og organization er contained resources fordi source-navn alene ikke er directory-identiteter; GP, birth institute og konstruerte identifiers utelates.
+- `pointsOfContact.generalPractitioner`, `midwife` og `maternityHealthcareCentre` eksponeres i patient-scoped `CareTeam`. Fastlege og jordmor bruker contained Practitioner + Organization + PractitionerRole, mens helsestasjon er en direkte contained Organization participant. Source-provided HPR number eksponeres for fastlege og jordmor; fastlegens source-provided organisasjonsnummer eksponeres med ENH identifier system. `birthInstitute` utelates, og ingen identifiers eller directory-data konstrueres eller slås opp eksternt.
 - Representative mapper-genererte Patient-, Encounter-, CareTeam- og Observation-varianter valideres i CI mot pinned `hl7.fhir.r4.core#4.0.1`.
 
 ## Åpne funn / release gates

@@ -20,8 +20,30 @@
       "name": "Sentrum jordmortjeneste"
     },
     {
+      "resourceType": "PractitionerRole",
+      "id": "midwife-role",
+      "practitioner": {
+        "reference": "#midwife",
+        "display": "Kari Jordmor"
+      },
+      "organization": {
+        "reference": "#midwife-organization",
+        "display": "Sentrum jordmortjeneste"
+      },
+      "code": [
+        {
+          "text": "Jordmor"
+        }
+      ]
+    },
+    {
       "resourceType": "Organization",
       "id": "maternity-healthcare-centre",
+      "type": [
+        {
+          "text": "Helsestasjon"
+        }
+      ],
       "name": "Sentrum helsestasjon"
     }
   ],
@@ -31,26 +53,12 @@
   },
   "participant": [
     {
-      "role": [
-        {
-          "text": "Jordmor"
-        }
-      ],
       "member": {
-        "reference": "#midwife",
+        "reference": "#midwife-role",
         "display": "Kari Jordmor"
-      },
-      "onBehalfOf": {
-        "reference": "#midwife-organization",
-        "display": "Sentrum jordmortjeneste"
       }
     },
     {
-      "role": [
-        {
-          "text": "Helsestasjon"
-        }
-      ],
       "member": {
         "reference": "#maternity-healthcare-centre",
         "display": "Sentrum helsestasjon"

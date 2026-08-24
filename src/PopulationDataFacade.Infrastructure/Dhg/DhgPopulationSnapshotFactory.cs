@@ -568,22 +568,48 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         if (source is null) return;
 
+        var generalPractitionerName = CleanText(source.GeneralPractitioner?.Name);
+        var generalPractitionerOrganizationName = CleanText(source.GeneralPractitioner?.OrganizationName);
+        var generalPractitionerHprNumber = CleanText(source.GeneralPractitioner?.HprNumber);
+        var generalPractitionerOrganizationId = CleanText(source.GeneralPractitioner?.OrganizationId);
         var midwifeName = CleanText(source.Midwife?.Name);
         var midwifeOrganizationName = CleanText(source.Midwife?.OrganizationName);
+        var midwifeHprNumber = CleanText(source.Midwife?.HprNumber);
         var maternityHealthcareCentre = CleanText(source.MaternityHealthcareCentre);
-        if (midwifeName is null &&
+        if (generalPractitionerName is null &&
+            generalPractitionerOrganizationName is null &&
+            generalPractitionerHprNumber is null &&
+            generalPractitionerOrganizationId is null &&
+            midwifeName is null &&
             midwifeOrganizationName is null &&
+            midwifeHprNumber is null &&
             maternityHealthcareCentre is null)
             return;
 
-        var midwife = midwifeName is null && midwifeOrganizationName is null
+        var generalPractitioner = generalPractitionerName is null &&
+                                  generalPractitionerOrganizationName is null &&
+                                  generalPractitionerHprNumber is null &&
+                                  generalPractitionerOrganizationId is null
             ? null
-            : new PopulationCareTeamMember(midwifeName, midwifeOrganizationName);
+            : new PopulationCareTeamMember(
+                generalPractitionerName,
+                generalPractitionerOrganizationName,
+                generalPractitionerHprNumber,
+                generalPractitionerOrganizationId);
+        var midwife = midwifeName is null &&
+                      midwifeOrganizationName is null &&
+                      midwifeHprNumber is null
+            ? null
+            : new PopulationCareTeamMember(
+                midwifeName,
+                midwifeOrganizationName,
+                midwifeHprNumber);
         output.Add(new PopulationCareTeam(
             Id(source.Metadata, "pregnancy-care-team"),
             midwife,
             maternityHealthcareCentre,
-            source.Metadata?.LastUpdated));
+            source.Metadata?.LastUpdated,
+            generalPractitioner));
     }
 
     private static void MapBloodPressure(DhgAntenatalAppointment source, List<PopulationObservation> output, EffectiveDate effective, string encounterId, int index)

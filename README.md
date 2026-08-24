@@ -191,12 +191,12 @@ Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [ark
 
 ## Bevisste avgrensninger
 
-- ingen demografikilde, fastlegekilde, Grunndata-adapter eller annen kilde enn DHG
+- ingen ekstern demografikilde, fastlegekilde, Grunndata-adapter eller annen kilde enn DHG; fastlege- og jordmorkontakt, inkludert source-provided HPR-/organisasjonsnummer, kan eksponeres fra DHG i `CareTeam`
 - ingen Questionnaire/QuestionnaireResponse eller linkId-avhengighet
 - ingen inferert provosert abort, diagnose, legemiddelnavn eller annen klinisk betydning fra fritekst
 - ingen historisk rekonstruksjon utover eksplisitte DHG-felter
 - ingen persistent caching av kliniske DHG-data
-- `birthStatus` og kontakt-/demografifelter eksponeres ikke i første FHIR-flate; begrunnelsen står i mappingmatrisen
+- `birthStatus`, `birthInstitute` og øvrige demografifelter eksponeres ikke i første FHIR-flate; begrunnelsen står i mappingmatrisen
 
 ## Lisens
 

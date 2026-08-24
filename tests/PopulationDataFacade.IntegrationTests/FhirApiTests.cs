@@ -129,8 +129,16 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"resourceType\":\"CareTeam\"", json);
+        Assert.Contains("\"resourceType\":\"PractitionerRole\"", json);
+        Assert.Contains("#general-practitioner-role", json);
+        Assert.Contains("Ola Fastlege", json);
         Assert.Contains("Kari Jordmor", json);
         Assert.Contains("Sentrum helsestasjon", json);
+        Assert.Contains(PopulationIdentifierSystems.HprNumber, json);
+        Assert.Contains(PopulationIdentifierSystems.OrganizationNumber, json);
+        Assert.Contains("1234567", json);
+        Assert.Contains("7654321", json);
+        Assert.Contains("994598759", json);
         Assert.DoesNotContain("01019012345", json);
     }
 
@@ -404,9 +412,17 @@ public sealed class FixedPopulationDataService : IPopulationDataService
             [
                 new PopulationCareTeam(
                     "care-team-1",
-                    new PopulationCareTeamMember("Kari Jordmor", "Sentrum jordmortjeneste"),
+                    new PopulationCareTeamMember(
+                        "Kari Jordmor",
+                        "Sentrum jordmortjeneste",
+                        "7654321"),
                     "Sentrum helsestasjon",
-                    updated)
+                    updated,
+                    new PopulationCareTeamMember(
+                        "Ola Fastlege",
+                        "Sentrum legekontor",
+                        "1234567",
+                        "994598759"))
             ],
             [new PopulationFetusPatient("fetus-1", updated)]));
     }

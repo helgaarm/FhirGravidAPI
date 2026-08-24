@@ -66,11 +66,14 @@ public sealed record PopulationCareTeam(
     string Id,
     PopulationCareTeamMember? Midwife,
     string? MaternityHealthcareCentre,
-    DateTimeOffset? LastUpdated);
+    DateTimeOffset? LastUpdated,
+    PopulationCareTeamMember? GeneralPractitioner = null);
 
 public sealed record PopulationCareTeamMember(
     string? Name,
-    string? OrganizationName);
+    string? OrganizationName,
+    string? HprNumber = null,
+    string? OrganizationId = null);
 
 public sealed record PopulationCode(string? System, string? Code, string Display)
 {

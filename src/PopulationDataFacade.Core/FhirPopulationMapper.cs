@@ -214,52 +214,23 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             Subject = new ResourceReference($"Patient/{patientId}")
         };
 
-        if (source.Midwife is not null)
-        {
-            var participant = new CareTeam.ParticipantComponent
-            {
-                Role = [new CodeableConcept { Text = "Jordmor" }]
-            };
-
-            if (!string.IsNullOrWhiteSpace(source.Midwife.Name))
-            {
-                careTeam.Contained.Add(new Practitioner
-                {
-                    Id = "midwife",
-                    Name = [new HumanName { Text = source.Midwife.Name }]
-                });
-                participant.Member = new ResourceReference("#midwife", source.Midwife.Name);
-            }
-
-            if (!string.IsNullOrWhiteSpace(source.Midwife.OrganizationName))
-            {
-                careTeam.Contained.Add(new Organization
-                {
-                    Id = "midwife-organization",
-                    Name = source.Midwife.OrganizationName
-                });
-                var organizationReference = new ResourceReference(
-                    "#midwife-organization",
-                    source.Midwife.OrganizationName);
-                if (participant.Member is null)
-                    participant.Member = organizationReference;
-                else
-                    participant.OnBehalfOf = organizationReference;
-            }
-
-            careTeam.Participant.Add(participant);
-        }
+        AddPractitionerParticipant(
+            careTeam,
+            source.GeneralPractitioner,
+            "Fastlege",
+            "general-practitioner");
+        AddPractitionerParticipant(careTeam, source.Midwife, "Jordmor", "midwife");
 
         if (!string.IsNullOrWhiteSpace(source.MaternityHealthcareCentre))
         {
             careTeam.Contained.Add(new Organization
             {
                 Id = "maternity-healthcare-centre",
+                Type = [new CodeableConcept { Text = "Helsestasjon" }],
                 Name = source.MaternityHealthcareCentre
             });
             careTeam.Participant.Add(new CareTeam.ParticipantComponent
             {
-                Role = [new CodeableConcept { Text = "Helsestasjon" }],
                 Member = new ResourceReference(
                     "#maternity-healthcare-centre",
                     source.MaternityHealthcareCentre)
@@ -267,6 +238,79 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
         }
 
         return careTeam;
+    }
+
+    private static void AddPractitionerParticipant(
+        CareTeam careTeam,
+        PopulationCareTeamMember? source,
+        string role,
+        string containedId)
+    {
+        if (source is null) return;
+
+        ResourceReference? practitionerReference = null;
+        if (!string.IsNullOrWhiteSpace(source.Name) ||
+            !string.IsNullOrWhiteSpace(source.HprNumber))
+        {
+            var practitioner = new Practitioner
+            {
+                Id = containedId
+            };
+            if (!string.IsNullOrWhiteSpace(source.Name))
+                practitioner.Name.Add(new HumanName { Text = source.Name });
+
+            if (!string.IsNullOrWhiteSpace(source.HprNumber))
+            {
+                practitioner.Identifier.Add(new Identifier
+                {
+                    System = PopulationIdentifierSystems.HprNumber,
+                    Value = source.HprNumber
+                });
+            }
+
+            careTeam.Contained.Add(practitioner);
+            practitionerReference = new ResourceReference($"#{containedId}", source.Name);
+        }
+
+        ResourceReference? organizationReference = null;
+        if (!string.IsNullOrWhiteSpace(source.OrganizationName) ||
+            !string.IsNullOrWhiteSpace(source.OrganizationId))
+        {
+            var organizationId = $"{containedId}-organization";
+            var organization = new Organization
+            {
+                Id = organizationId,
+                Name = source.OrganizationName
+            };
+            if (!string.IsNullOrWhiteSpace(source.OrganizationId))
+            {
+                organization.Identifier.Add(new Identifier
+                {
+                    System = PopulationIdentifierSystems.OrganizationNumber,
+                    Value = source.OrganizationId
+                });
+            }
+
+            careTeam.Contained.Add(organization);
+            organizationReference = new ResourceReference(
+                $"#{organizationId}",
+                source.OrganizationName);
+        }
+
+        var practitionerRoleId = $"{containedId}-role";
+        careTeam.Contained.Add(new PractitionerRole
+        {
+            Id = practitionerRoleId,
+            Practitioner = practitionerReference,
+            Organization = organizationReference,
+            Code = [new CodeableConcept { Text = role }]
+        });
+        careTeam.Participant.Add(new CareTeam.ParticipantComponent
+        {
+            Member = new ResourceReference(
+                $"#{practitionerRoleId}",
+                source.Name ?? source.OrganizationName)
+        });
     }
 
     private static CapabilityStatement.ResourceComponent ResourceCapability(

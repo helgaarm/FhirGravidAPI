@@ -5,7 +5,7 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTe
 ## Consumer contract
 
 - `Patient/{id}` returnerer enten den minimale mor-Patient eller en pregnancy-scoped fetus Patient. Ingen av dem inneholder NIN. Fetus Patient inneholder bare logical `id` og valgfri `meta.lastUpdated`; navn, gender, birthDate og identifier utledes ikke.
-- `CareTeam` eksponerer bare DHG `pointsOfContact.midwife` og `maternityHealthcareCentre`. Person og organization er contained resources fordi fasaden ikke gjør directory lookup; HPR-, organization- eller andre identifiers konstrueres ikke.
+- `CareTeam` eksponerer DHG `pointsOfContact.generalPractitioner`, `midwife` og `maternityHealthcareCentre`. Person, role og organization er contained resources. Source-provided HPR number beholdes på fastlege og jordmor; source-provided organisasjonsnummer beholdes på fastlegens organization. Fasaden gjør ingen directory lookup og konstruerer ingen identifiers.
 - GET Observation search krever `patient={logical-id}` og aksepterer valgfritt `code`, `category` og day-precision `date`. POST `_search` bruker `patient.identifier` i form body, støtter de samme filtrene og krever HelseID utenfor lokal `DevelopmentTestMode`.
 - En manglende eller `null` DHG-verdi produserer ingen Observation. Eksplisitt `false` beholdes; DHG laboratory results bruker kodeverk 8340 `T008 |Negativ|`, mens andre booleans bruker `valueBoolean=false`.
 - `currentPregnancy.hasPrenatalDiagnosticsTests` eksponeres source-preserving som «Gitt informasjon om fosterdiagnostikk». `true` og `false` beholdes, men verdien uttrykker ikke om en undersøkelse er utført, et prøveresultat eller et samtykke.
@@ -36,6 +36,8 @@ Fasaden publiserer ikke egne clinical codes under `urn:nhn:population-data`. `Ob
 | NLK | `urn:oid:2.16.578.1.12.4.1.1.7280` | nasjonalt laboratoriesystem med NPU- og NOR-koder dokumentert av DHG/Helsedirektoratet |
 | Volven | relevant `urn:oid:2.16.578.1.12.4.1.1.*` | national value sets for language, lifestyle og urine/laboratory result |
 | UCUM | `http://unitsofmeasure.org` | machine-readable quantity units |
+
+FHIR identifiers i `CareTeam.contained` bruker norsk HPR-system `urn:oid:2.16.578.1.12.4.1.4.4` og ENH-system for organisasjonsnummer `urn:oid:2.16.578.1.12.4.1.4.101`. Verdiene kommer direkte fra DHG og brukes ikke til ekstern lookup.
 
 `Patient.needsLanguageInterpreter` bruker HL7 extension `http://hl7.org/fhir/StructureDefinition/patient-interpreterRequired`.
 
@@ -72,7 +74,7 @@ Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481
 - Combined DHG fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke og får ingen misvisende standard code.
 - Consent eksponeres ikke som Observation. Fetal RhD result holdes tilbake fordi source-blokken mangler `fosterId` og derfor ikke kan bindes entydig til ett foster ved flerlinger.
 - Stimulus `dailyCount` eksponeres ikke før en semantic standard mapping er godkjent.
-- Øvrige contact/demographic data, inkludert GP og birth institute, samt birth-status er utenfor gjeldende API surface.
+- Fastlege, jordmor og maternity healthcare centre fra DHG eksponeres i `CareTeam`, inkludert de source identifiers som DHG-kontrakten tilbyr for fastlege og jordmor. Øvrige contact/demographic data, inkludert birth institute og birth-status, er utenfor gjeldende API surface.
 - Ukjente source fields, code systems og enum values tolereres i DTO, men eksponeres ikke automatisk.
 - Blood pressure eksponeres bare når dokumentert `systolic/diastolic` format kan parses sikkert.
 - Numeric values med DHG positivity constraint utelates når de er `0` eller negative. Dette innfører ingen clinical reference ranges.

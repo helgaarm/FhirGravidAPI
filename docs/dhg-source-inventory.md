@@ -16,7 +16,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `vitalMeasurementsBeforePregnancy` | Ja | Positive height (`cm`), pre-pregnancy weight (`kg`) og BMI eksponeres som base R4 Observations uten konstruert measurement time eller Vital Signs profile claim |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
 | `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings, source-preserving medication-svar/note og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |
-| `pointsOfContact` | Ja | Jordmor og maternity healthcare centre eksponeres konservativt i `CareTeam`; GP og birth institute utelates, og det gjøres ingen directory lookup |
+| `pointsOfContact` | Ja | Fastlege, jordmor og maternity healthcare centre eksponeres konservativt i `CareTeam`; source-provided HPR number og fastlegens organisasjonsnummer beholdes som FHIR identifiers, birth institute utelates, og det gjøres ingen ekstern GP- eller directory lookup |
 | `birthStatus` | Ja | Ikke eksponert i første release for active pregnancy |
 
 Hver resource DTO aksepterer ukjente JSON properties for forward compatibility. Eksakte property names er fortsatt case-sensitive, inkludert `bMI`. Resources merket `metadata.enteredInError=true` ekskluderes. Se [mappingmatrisen](mapping.md) for oppførsel på feltnivå.

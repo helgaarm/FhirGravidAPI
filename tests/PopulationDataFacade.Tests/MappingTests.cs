@@ -85,11 +85,18 @@ public sealed class MappingTests
             PointsOfContact = new DhgPointsOfContact
             {
                 Metadata = ResourceMetadata("contacts"),
-                GeneralPractitioner = new DhgPersonAndOrganization { Name = "Skal ikke eksponeres" },
+                GeneralPractitioner = new DhgPersonAndOrganization
+                {
+                    Name = "  Ola Fastlege  ",
+                    OrganizationName = "Sentrum legekontor",
+                    OrganizationId = "994598759",
+                    HprNumber = "1234567"
+                },
                 Midwife = new DhgPersonAndOrganization
                 {
                     Name = "  Kari Jordmor  ",
-                    OrganizationName = "Sentrum jordmortjeneste"
+                    OrganizationName = "Sentrum jordmortjeneste",
+                    HprNumber = "7654321"
                 },
                 BirthInstitute = "Skal ikke eksponeres",
                 MaternityHealthcareCentre = "  Sentrum helsestasjon  "
@@ -97,28 +104,84 @@ public sealed class MappingTests
         });
 
         var source = Assert.Single(snapshot.CareTeams!);
+        Assert.Equal("Ola Fastlege", source.GeneralPractitioner?.Name);
+        Assert.Equal("Sentrum legekontor", source.GeneralPractitioner?.OrganizationName);
+        Assert.Equal("1234567", source.GeneralPractitioner?.HprNumber);
+        Assert.Equal("994598759", source.GeneralPractitioner?.OrganizationId);
         Assert.Equal("Kari Jordmor", source.Midwife?.Name);
         Assert.Equal("Sentrum jordmortjeneste", source.Midwife?.OrganizationName);
+        Assert.Equal("7654321", source.Midwife?.HprNumber);
         Assert.Equal("Sentrum helsestasjon", source.MaternityHealthcareCentre);
 
         var careTeam = Assert.Single(new FhirPopulationMapper().MapCareTeams(snapshot));
         Assert.Equal(CareTeam.CareTeamStatus.Active, careTeam.Status);
         Assert.NotNull(careTeam.Subject);
         Assert.Equal("Patient/patient-1", careTeam.Subject.Reference);
-        Assert.Equal("Kari Jordmor", Assert.IsType<Practitioner>(careTeam.Contained[0]).Name[0].Text);
-        Assert.Equal("Sentrum jordmortjeneste", Assert.IsType<Organization>(careTeam.Contained[1]).Name);
-        Assert.Equal("Sentrum helsestasjon", Assert.IsType<Organization>(careTeam.Contained[2]).Name);
-        Assert.Equal(2, careTeam.Participant.Count);
-        var midwife = careTeam.Participant[0];
-        Assert.Equal("Jordmor", Assert.Single(midwife.Role).Text);
+        Assert.Equal(7, careTeam.Contained.Count);
+        Assert.Equal(3, careTeam.Participant.Count);
+        var generalPractitioner = Assert.Single(
+            careTeam.Participant,
+            participant => participant.Member?.Reference == "#general-practitioner-role");
+        Assert.NotNull(generalPractitioner.Member);
+        Assert.Empty(generalPractitioner.Role);
+        Assert.Null(generalPractitioner.OnBehalfOf);
+        Assert.Equal("Ola Fastlege", generalPractitioner.Member.Display);
+        var generalPractitionerRole = Assert.IsType<PractitionerRole>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "general-practitioner-role"));
+        Assert.NotNull(generalPractitionerRole.Practitioner);
+        Assert.NotNull(generalPractitionerRole.Organization);
+        Assert.Equal("#general-practitioner", generalPractitionerRole.Practitioner.Reference);
+        Assert.Equal(
+            "#general-practitioner-organization",
+            generalPractitionerRole.Organization.Reference);
+        Assert.Equal("Fastlege", Assert.Single(generalPractitionerRole.Code).Text);
+        var generalPractitionerResource = Assert.IsType<Practitioner>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "general-practitioner"));
+        Assert.Equal("Ola Fastlege", generalPractitionerResource.Name[0].Text);
+        var generalPractitionerIdentifier = Assert.Single(generalPractitionerResource.Identifier);
+        Assert.Equal(PopulationIdentifierSystems.HprNumber, generalPractitionerIdentifier.System);
+        Assert.Equal("1234567", generalPractitionerIdentifier.Value);
+        var generalPractitionerOrganization = Assert.IsType<Organization>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "general-practitioner-organization"));
+        Assert.Equal("Sentrum legekontor", generalPractitionerOrganization.Name);
+        var organizationIdentifier = Assert.Single(generalPractitionerOrganization.Identifier);
+        Assert.Equal(PopulationIdentifierSystems.OrganizationNumber, organizationIdentifier.System);
+        Assert.Equal("994598759", organizationIdentifier.Value);
+        var midwife = Assert.Single(
+            careTeam.Participant,
+            participant => participant.Member?.Reference == "#midwife-role");
         Assert.NotNull(midwife.Member);
-        Assert.NotNull(midwife.OnBehalfOf);
-        Assert.Equal("#midwife", midwife.Member.Reference);
-        Assert.Equal("#midwife-organization", midwife.OnBehalfOf.Reference);
-        var healthcareCentre = careTeam.Participant[1];
-        Assert.Equal("Helsestasjon", Assert.Single(healthcareCentre.Role).Text);
+        Assert.Empty(midwife.Role);
+        Assert.Null(midwife.OnBehalfOf);
+        Assert.Equal("Kari Jordmor", midwife.Member.Display);
+        var midwifeRole = Assert.IsType<PractitionerRole>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "midwife-role"));
+        Assert.NotNull(midwifeRole.Practitioner);
+        Assert.NotNull(midwifeRole.Organization);
+        Assert.Equal("#midwife", midwifeRole.Practitioner.Reference);
+        Assert.Equal("#midwife-organization", midwifeRole.Organization.Reference);
+        Assert.Equal("Jordmor", Assert.Single(midwifeRole.Code).Text);
+        var midwifeResource = Assert.IsType<Practitioner>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "midwife"));
+        var midwifeIdentifier = Assert.Single(midwifeResource.Identifier);
+        Assert.Equal(PopulationIdentifierSystems.HprNumber, midwifeIdentifier.System);
+        Assert.Equal("7654321", midwifeIdentifier.Value);
+        var healthcareCentre = Assert.Single(
+            careTeam.Participant,
+            participant => participant.Member?.Reference == "#maternity-healthcare-centre");
+        Assert.Empty(healthcareCentre.Role);
         Assert.NotNull(healthcareCentre.Member);
         Assert.Equal("#maternity-healthcare-centre", healthcareCentre.Member.Reference);
+        Assert.Equal("Sentrum helsestasjon", healthcareCentre.Member.Display);
+        var healthcareCentreOrganization = Assert.IsType<Organization>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "maternity-healthcare-centre"));
+        Assert.Equal("Helsestasjon", Assert.Single(healthcareCentreOrganization.Type).Text);
         Assert.Empty(careTeam.ManagingOrganization);
 
         var json = new FhirJsonSerializer().SerializeToString(careTeam);
@@ -126,7 +189,51 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Unmarked_or_entered_in_error_points_of_contact_are_not_exposed()
+    public void Points_of_contact_identifiers_are_exposed_without_names()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            PointsOfContact = new DhgPointsOfContact
+            {
+                Metadata = ResourceMetadata("contacts"),
+                GeneralPractitioner = new DhgPersonAndOrganization
+                {
+                    HprNumber = " 1234567 ",
+                    OrganizationId = " 994598759 "
+                },
+                Midwife = new DhgPersonAndOrganization
+                {
+                    HprNumber = " 7654321 "
+                }
+            }
+        });
+
+        var source = Assert.Single(snapshot.CareTeams!);
+        Assert.Equal("1234567", source.GeneralPractitioner?.HprNumber);
+        Assert.Equal("994598759", source.GeneralPractitioner?.OrganizationId);
+        Assert.Equal("7654321", source.Midwife?.HprNumber);
+
+        var careTeam = Assert.Single(new FhirPopulationMapper().MapCareTeams(snapshot));
+        var generalPractitioner = Assert.IsType<Practitioner>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "general-practitioner"));
+        Assert.Empty(generalPractitioner.Name);
+        Assert.Equal("1234567", Assert.Single(generalPractitioner.Identifier).Value);
+        var organization = Assert.IsType<Organization>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "general-practitioner-organization"));
+        Assert.Null(organization.Name);
+        Assert.Equal("994598759", Assert.Single(organization.Identifier).Value);
+        var midwife = Assert.IsType<Practitioner>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "midwife"));
+        Assert.Empty(midwife.Name);
+        Assert.Equal("7654321", Assert.Single(midwife.Identifier).Value);
+    }
+
+    [Fact]
+    public void Birth_institute_only_or_entered_in_error_points_of_contact_are_not_exposed()
     {
         var unmarkedOnly = Create(new DhgMaternityRecord
         {
@@ -134,7 +241,6 @@ public sealed class MappingTests
             PointsOfContact = new DhgPointsOfContact
             {
                 Metadata = ResourceMetadata("contacts"),
-                GeneralPractitioner = new DhgPersonAndOrganization { Name = "Fastlege" },
                 BirthInstitute = "Fødeinstitusjon"
             }
         });

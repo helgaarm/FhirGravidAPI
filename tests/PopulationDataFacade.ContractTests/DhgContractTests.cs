@@ -34,8 +34,13 @@ public sealed class DhgContractTests
         Assert.NotNull(record.Medication);
         Assert.NotNull(record.Mother);
         Assert.NotNull(record.PointsOfContact);
+        Assert.Equal("Ola Fastlege", record.PointsOfContact.GeneralPractitioner?.Name);
+        Assert.Equal("Test legekontor", record.PointsOfContact.GeneralPractitioner?.OrganizationName);
+        Assert.Equal("994598759", record.PointsOfContact.GeneralPractitioner?.OrganizationId);
+        Assert.Equal("1234567", record.PointsOfContact.GeneralPractitioner?.HprNumber);
         Assert.Equal("Kari Jordmor", record.PointsOfContact.Midwife?.Name);
         Assert.Equal("Sentrum jordmortjeneste", record.PointsOfContact.Midwife?.OrganizationName);
+        Assert.Equal("7654321", record.PointsOfContact.Midwife?.HprNumber);
         Assert.Equal("Sentrum helsestasjon", record.PointsOfContact.MaternityHealthcareCentre);
         Assert.NotNull(record.PreviousPregnancies);
         Assert.NotNull(record.RhesusDNegative);

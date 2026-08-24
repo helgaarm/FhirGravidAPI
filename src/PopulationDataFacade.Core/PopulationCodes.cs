@@ -1,5 +1,11 @@
 namespace PopulationDataFacade.Core;
 
+public static class PopulationIdentifierSystems
+{
+    public const string HprNumber = "urn:oid:2.16.578.1.12.4.1.4.4";
+    public const string OrganizationNumber = "urn:oid:2.16.578.1.12.4.1.4.101";
+}
+
 public static class PopulationCodes
 {
     public const string Ucum = "http://unitsofmeasure.org";

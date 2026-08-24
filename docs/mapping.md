@@ -84,10 +84,17 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `fetusesVitalSigns[].motherFeelsBabyMovements` | LOINC `57088-7`, `valueBoolean` | DIRECT | eksplisitt maternal report; `false` beholdes og `null` utelates. SNOMED CT `268470003` brukes ikke som tilleggskode fordi den betyr en positiv finding og derfor ikke er state-neutral ved `false` |
 | `fetusesVitalSigns[].note` | text-only `Observation.code`, `valueString` | DIRECT | trimmet source text beholdes ordrett og tolkes ikke til diagnosis eller finding |
 | fetus entry uten positivt `fosterId`, eller uten datert appointment | — | UNSUPPORTED | det opprettes verken fetus Patient eller fetus Observation uten entydig pregnancy-scoped identity og temporal context |
-| `pointsOfContact.midwife.name` | contained `Practitioner.name.text` i `CareTeam.participant.member` | DIRECT | source string trimmes; det konstrueres ingen directory-identitet |
-| `pointsOfContact.midwife.organizationName` | contained `Organization.name` i `CareTeam.participant.onBehalfOf` | DIRECT | publiseres bare sammen med jordmor-deltakeren eller som organization participant når personnavn mangler |
-| `pointsOfContact.maternityHealthcareCentre` | contained `Organization.name` i `CareTeam.participant.member` med text role `Helsestasjon` | DIRECT | free-text navn; det konstrueres ingen organization identifier eller managing responsibility |
-| `pointsOfContact.generalPractitioner`, `birthInstitute`, `birthStatus`, `lastUpdatedBy` | — | UNSUPPORTED | ikke grønnmerket og utenfor gjeldende population/FHIR scope; ingen GP- eller directory lookup |
+| `pointsOfContact.midwife.name` | contained `Practitioner.name.text`, referenced fra contained `PractitionerRole.practitioner` | DIRECT | source string trimmes; det gjøres ingen directory lookup |
+| `pointsOfContact.midwife.hprNr` | contained `Practitioner.identifier` | DIRECT | source string trimmes og publiseres med HPR-system `urn:oid:2.16.578.1.12.4.1.4.4`; identifier konstrueres ikke ved fravær |
+| `pointsOfContact.midwife.organizationName` | contained `Organization.name`, referenced fra contained `PractitionerRole.organization` | DIRECT | source string trimmes; DHG-kontrakten leverer ikke jordmorens organisasjonsnummer |
+| `pointsOfContact.midwife` relationship | contained `PractitionerRole.code.text=Jordmor` i `CareTeam.participant.member` | DIRECT | eksplisitt DHG relationship; period, specialty og services utledes ikke |
+| `pointsOfContact.generalPractitioner.name` | contained `Practitioner.name.text`, referenced fra contained `PractitionerRole.practitioner` | DIRECT | source string trimmes; det gjøres ingen ekstern GP lookup |
+| `pointsOfContact.generalPractitioner.hprNr` | contained `Practitioner.identifier` | DIRECT | source string trimmes og publiseres med HPR-system `urn:oid:2.16.578.1.12.4.1.4.4`; identifier konstrueres ikke ved fravær |
+| `pointsOfContact.generalPractitioner.organizationName` | contained `Organization.name`, referenced fra contained `PractitionerRole.organization` | DIRECT | source string trimmes; det gjøres ingen directory lookup |
+| `pointsOfContact.generalPractitioner.organizationId` | contained `Organization.identifier` | DIRECT | source organization number publiseres med ENH-system `urn:oid:2.16.578.1.12.4.1.4.101`; identifier konstrueres ikke ved fravær |
+| `pointsOfContact.generalPractitioner` relationship | contained `PractitionerRole.code.text=Fastlege` i `CareTeam.participant.member` | DIRECT | eksplisitt DHG relationship; period, specialty og services utledes ikke |
+| `pointsOfContact.maternityHealthcareCentre` | contained `Organization.name` og `Organization.type.text=Helsestasjon` i direkte `CareTeam.participant.member` | DIRECT | free-text navn; det konstrueres ingen organization identifier eller managing responsibility |
+| `pointsOfContact.birthInstitute`, `birthStatus`, `lastUpdatedBy` | — | UNSUPPORTED | feltene er utenfor gjeldende population/FHIR scope; ingen ekstern GP- eller directory lookup |
 
 ## Terminologiregler
 
