@@ -239,6 +239,21 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             });
         }
 
+        if (!string.IsNullOrWhiteSpace(source.BirthInstitute))
+        {
+            careTeam.Contained.Add(new Organization
+            {
+                Id = "birth-institute",
+                Type = [new CodeableConcept { Text = "Fødeinstitusjon" }],
+                Name = source.BirthInstitute
+            });
+            careTeam.Participant.Add(new CareTeam.ParticipantComponent
+            {
+                Role = [new CodeableConcept { Text = "Fødeinstitusjon" }],
+                Member = new ResourceReference("#birth-institute", source.BirthInstitute)
+            });
+        }
+
         return careTeam;
     }
 

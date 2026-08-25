@@ -196,7 +196,7 @@ Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [ark
 - ingen inferert provosert abort, diagnose, legemiddelnavn eller annen klinisk betydning fra fritekst
 - ingen historisk rekonstruksjon utover eksplisitte DHG-felter
 - ingen persistent caching av kliniske DHG-data
-- `birthStatus`, `birthInstitute` og øvrige demografifelter eksponeres ikke i første FHIR-flate; begrunnelsen står i mappingmatrisen
+- `birthInstitute` eksponeres source-preserving som en contained Organization-participant i `CareTeam`; `birthStatus` og øvrige demografifelter eksponeres ikke i første FHIR-flate
 
 ## Lisens
 

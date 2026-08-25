@@ -97,7 +97,8 @@ Alle resources med `metadata.enteredInError=true` filtreres. `null` betyr ukjent
 | `pointsOfContact.generalPractitioner.organizationId` | DIRECT | contained `Organization.identifier`<br>**Regel:** source organization number publiseres med ENH-system `urn:oid:2.16.578.1.12.4.1.4.101`; identifier konstrueres ikke ved fravær |
 | `pointsOfContact.generalPractitioner` relationship | DIRECT | contained `PractitionerRole.code.text=Fastlege` i `CareTeam.participant.member`<br>**Regel:** eksplisitt DHG relationship; period, specialty og services utledes ikke |
 | `pointsOfContact.maternityHealthcareCentre` | DIRECT | contained `Organization.name` og `Organization.type.text=Helsestasjon` i direkte `CareTeam.participant.member`<br>**Regel:** free-text navn; det konstrueres ingen organization identifier eller managing responsibility |
-| `pointsOfContact.birthInstitute`, `birthStatus`, `lastUpdatedBy` | UNSUPPORTED | —<br>**Regel:** feltene er utenfor gjeldende population/FHIR scope; ingen ekstern GP- eller directory lookup |
+| `pointsOfContact.birthInstitute` | DIRECT | contained `Organization.name`, `Organization.type.text=Fødeinstitusjon` og direkte `CareTeam.participant.member` med `role.text=Fødeinstitusjon`<br>**Regel:** free-text navn beholdes source-preserving; det konstrueres ingen organization identifier, directory identity eller managing responsibility |
+| `birthStatus`, `lastUpdatedBy` | UNSUPPORTED | —<br>**Regel:** feltene er utenfor gjeldende population/FHIR scope; ingen ekstern GP- eller directory lookup |
 
 ## Terminologiregler
 

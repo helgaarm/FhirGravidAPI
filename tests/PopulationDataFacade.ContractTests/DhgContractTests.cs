@@ -41,6 +41,7 @@ public sealed class DhgContractTests
         Assert.Equal("Kari Jordmor", record.PointsOfContact.Midwife?.Name);
         Assert.Equal("Sentrum jordmortjeneste", record.PointsOfContact.Midwife?.OrganizationName);
         Assert.Equal("7654321", record.PointsOfContact.Midwife?.HprNumber);
+        Assert.Equal("Testsykehus", record.PointsOfContact.BirthInstitute);
         Assert.Equal("Sentrum helsestasjon", record.PointsOfContact.MaternityHealthcareCentre);
         Assert.NotNull(record.PreviousPregnancies);
         Assert.NotNull(record.RhesusDNegative);

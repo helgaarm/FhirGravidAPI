@@ -67,7 +67,8 @@ public sealed record PopulationCareTeam(
     PopulationCareTeamMember? Midwife,
     string? MaternityHealthcareCentre,
     DateTimeOffset? LastUpdated,
-    PopulationCareTeamMember? GeneralPractitioner = null);
+    PopulationCareTeamMember? GeneralPractitioner = null,
+    string? BirthInstitute = null);
 
 public sealed record PopulationCareTeamMember(
     string? Name,

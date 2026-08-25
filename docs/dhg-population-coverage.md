@@ -5,7 +5,7 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTe
 ## Consumer contract
 
 - `Patient/{id}` returnerer enten den minimale mor-Patient eller en pregnancy-scoped fetus Patient. Ingen av dem inneholder NIN. Fetus Patient inneholder bare logical `id` og valgfri `meta.lastUpdated`; navn, gender, birthDate og identifier utledes ikke.
-- `CareTeam` eksponerer DHG `pointsOfContact.generalPractitioner`, `midwife` og `maternityHealthcareCentre`. Person, role og organization er contained resources. Source-provided HPR number beholdes på fastlege og jordmor; source-provided organisasjonsnummer beholdes på fastlegens organization. Fasaden gjør ingen directory lookup og konstruerer ingen identifiers.
+- `CareTeam` eksponerer DHG `pointsOfContact.generalPractitioner`, `midwife`, `maternityHealthcareCentre` og `birthInstitute`. Person, role og organization er contained resources. Source-provided HPR number beholdes på fastlege og jordmor; source-provided organisasjonsnummer beholdes på fastlegens organization. Helsestasjon og fødeinstitusjon beholdes som navngitte Organization-participants uten konstruerte identifiers eller directory lookup.
 - GET Observation search krever `patient={logical-id}` og aksepterer valgfritt `code`, `category` og day-precision `date`. POST `_search` bruker `patient.identifier` i form body, støtter de samme filtrene og krever HelseID utenfor lokal `DevelopmentTestMode`.
 - En manglende eller `null` DHG-verdi produserer ingen Observation. Eksplisitt `false` beholdes; DHG laboratory results bruker kodeverk 8340 `T008 |Negativ|`, mens andre booleans bruker `valueBoolean=false`.
 - `currentPregnancy.hasPrenatalDiagnosticsTests` eksponeres source-preserving som «Gitt informasjon om fosterdiagnostikk». `true` og `false` beholdes, men verdien uttrykker ikke om en undersøkelse er utført, et prøveresultat eller et samtykke.
@@ -74,7 +74,7 @@ Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481
 - Combined DHG fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke og får ingen misvisende standard code.
 - Consent eksponeres ikke som Observation. Aggregert fetal RhD result, resultatdato, prophylaxis og uparset note eksponeres source-preserving uten å binde resultatet til ett foster.
 - Stimulus `dailyCount` eksponeres ikke før en semantic standard mapping er godkjent.
-- Fastlege, jordmor og maternity healthcare centre fra DHG eksponeres i `CareTeam`, inkludert de source identifiers som DHG-kontrakten tilbyr for fastlege og jordmor. Øvrige contact/demographic data, inkludert birth institute og birth-status, er utenfor gjeldende API surface.
+- Fastlege, jordmor, maternity healthcare centre og birth institute fra DHG eksponeres i `CareTeam`, inkludert de source identifiers som DHG-kontrakten tilbyr for fastlege og jordmor. Birth-status og øvrige contact/demographic data er utenfor gjeldende API surface.
 - Ukjente source fields, code systems og enum values tolereres i DTO, men eksponeres ikke automatisk.
 - Blood pressure eksponeres bare når dokumentert `systolic/diastolic` format kan parses sikkert.
 - Numeric values med DHG positivity constraint utelates når de er `0` eller negative. Dette innfører ingen clinical reference ranges.

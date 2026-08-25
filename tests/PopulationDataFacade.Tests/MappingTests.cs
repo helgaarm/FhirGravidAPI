@@ -98,7 +98,7 @@ public sealed class MappingTests
                     OrganizationName = "Sentrum jordmortjeneste",
                     HprNumber = "7654321"
                 },
-                BirthInstitute = "Skal ikke eksponeres",
+                BirthInstitute = "  Sentrum fødeklinikk  ",
                 MaternityHealthcareCentre = "  Sentrum helsestasjon  "
             }
         });
@@ -111,14 +111,15 @@ public sealed class MappingTests
         Assert.Equal("Kari Jordmor", source.Midwife?.Name);
         Assert.Equal("Sentrum jordmortjeneste", source.Midwife?.OrganizationName);
         Assert.Equal("7654321", source.Midwife?.HprNumber);
+        Assert.Equal("Sentrum fødeklinikk", source.BirthInstitute);
         Assert.Equal("Sentrum helsestasjon", source.MaternityHealthcareCentre);
 
         var careTeam = Assert.Single(new FhirPopulationMapper().MapCareTeams(snapshot));
         Assert.Equal(CareTeam.CareTeamStatus.Active, careTeam.Status);
         Assert.NotNull(careTeam.Subject);
         Assert.Equal("Patient/patient-1", careTeam.Subject.Reference);
-        Assert.Equal(7, careTeam.Contained.Count);
-        Assert.Equal(3, careTeam.Participant.Count);
+        Assert.Equal(8, careTeam.Contained.Count);
+        Assert.Equal(4, careTeam.Participant.Count);
         var generalPractitioner = Assert.Single(
             careTeam.Participant,
             participant => participant.Member?.Reference == "#general-practitioner-role");
@@ -182,10 +183,22 @@ public sealed class MappingTests
             careTeam.Contained,
             resource => resource.Id == "maternity-healthcare-centre"));
         Assert.Equal("Helsestasjon", Assert.Single(healthcareCentreOrganization.Type).Text);
+        var birthInstitute = Assert.Single(
+            careTeam.Participant,
+            participant => participant.Member?.Reference == "#birth-institute");
+        Assert.NotNull(birthInstitute.Member);
+        Assert.Equal("Sentrum fødeklinikk", birthInstitute.Member.Display);
+        Assert.Equal("Fødeinstitusjon", Assert.Single(birthInstitute.Role).Text);
+        var birthInstituteOrganization = Assert.IsType<Organization>(Assert.Single(
+            careTeam.Contained,
+            resource => resource.Id == "birth-institute"));
+        Assert.Equal("Sentrum fødeklinikk", birthInstituteOrganization.Name);
+        Assert.Equal("Fødeinstitusjon", Assert.Single(birthInstituteOrganization.Type).Text);
+        Assert.Empty(birthInstituteOrganization.Identifier);
         Assert.Empty(careTeam.ManagingOrganization);
 
         var json = new FhirJsonSerializer().SerializeToString(careTeam);
-        Assert.DoesNotContain("Skal ikke eksponeres", json, StringComparison.Ordinal);
+        Assert.Contains("Sentrum fødeklinikk", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -233,9 +246,9 @@ public sealed class MappingTests
     }
 
     [Fact]
-    public void Birth_institute_only_or_entered_in_error_points_of_contact_are_not_exposed()
+    public void Birth_institute_only_creates_care_team_while_entered_in_error_is_omitted()
     {
-        var unmarkedOnly = Create(new DhgMaternityRecord
+        var birthInstituteOnly = Create(new DhgMaternityRecord
         {
             Metadata = Metadata(),
             PointsOfContact = new DhgPointsOfContact
@@ -255,7 +268,12 @@ public sealed class MappingTests
             }
         });
 
-        Assert.Empty(unmarkedOnly.CareTeams!);
+        var source = Assert.Single(birthInstituteOnly.CareTeams!);
+        Assert.Equal("Fødeinstitusjon", source.BirthInstitute);
+        var careTeam = Assert.Single(new FhirPopulationMapper().MapCareTeams(birthInstituteOnly));
+        Assert.Single(careTeam.Participant);
+        var organization = Assert.IsType<Organization>(Assert.Single(careTeam.Contained));
+        Assert.Equal("Fødeinstitusjon", organization.Name);
         Assert.Empty(enteredInError.CareTeams!);
     }
 

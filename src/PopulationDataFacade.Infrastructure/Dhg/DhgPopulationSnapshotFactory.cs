@@ -627,6 +627,7 @@ public sealed partial class DhgPopulationSnapshotFactory
         var midwifeName = CleanText(source.Midwife?.Name);
         var midwifeOrganizationName = CleanText(source.Midwife?.OrganizationName);
         var midwifeHprNumber = CleanText(source.Midwife?.HprNumber);
+        var birthInstitute = CleanText(source.BirthInstitute);
         var maternityHealthcareCentre = CleanText(source.MaternityHealthcareCentre);
         if (generalPractitionerName is null &&
             generalPractitionerOrganizationName is null &&
@@ -635,6 +636,7 @@ public sealed partial class DhgPopulationSnapshotFactory
             midwifeName is null &&
             midwifeOrganizationName is null &&
             midwifeHprNumber is null &&
+            birthInstitute is null &&
             maternityHealthcareCentre is null)
             return;
 
@@ -661,7 +663,8 @@ public sealed partial class DhgPopulationSnapshotFactory
             midwife,
             maternityHealthcareCentre,
             source.Metadata?.LastUpdated,
-            generalPractitioner));
+            generalPractitioner,
+            birthInstitute));
     }
 
     private static void MapBloodPressure(DhgAntenatalAppointment source, List<PopulationObservation> output, PopulationEffective? effective, string encounterId, int index)

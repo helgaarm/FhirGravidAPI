@@ -133,6 +133,7 @@ public sealed class FhirApiTests(FhirFacadeFactory factory) : IClassFixture<Fhir
         Assert.Contains("#general-practitioner-role", json);
         Assert.Contains("Ola Fastlege", json);
         Assert.Contains("Kari Jordmor", json);
+        Assert.Contains("Testsykehus", json);
         Assert.Contains("Sentrum helsestasjon", json);
         Assert.Contains(PopulationIdentifierSystems.HprNumber, json);
         Assert.Contains(PopulationIdentifierSystems.OrganizationNumber, json);
@@ -422,7 +423,8 @@ public sealed class FixedPopulationDataService : IPopulationDataService
                         "Ola Fastlege",
                         "Sentrum legekontor",
                         "1234567",
-                        "994598759"))
+                        "994598759"),
+                    "Testsykehus")
             ],
             [new PopulationFetusPatient("fetus-1", updated)]));
     }
