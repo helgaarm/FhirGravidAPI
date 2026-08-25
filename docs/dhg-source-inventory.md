@@ -15,7 +15,7 @@ Denne oversikten beskriver DHG read model som fasaden bruker. DHG er fortsatt en
 | `rhesusDNegative` | Ja | Aggregert foster-RhD-resultat med resultatdato, prophylaxis og uparset note; consent utelates inntil en eksplisitt FHIR `Consent`-arkitektur og policy mapping er besluttet |
 | `vitalMeasurementsBeforePregnancy` | Ja | Positive height (`cm`), pre-pregnancy weight (`kg`) og BMI eksponeres som base R4 Observations uten konstruert measurement time eller Vital Signs profile claim |
 | `symphysisFundalHeights` | Ja | Measurement, date og pregnancy week |
-| `antenatalAppointments` | Ja | Encounter-datoer, eksplisitte maternal measurements/findings, source-preserving medication-svar/note og fetus Patients/Observations for identifiserte `fetusesVitalSigns` |
+| `antenatalAppointments` | Ja | Ett Encounter per appointment uten error, med `period` bare når `appointmentDate` finnes; eksplisitte maternal measurements/findings og source-preserving medication-svar/note beholdes uten konstruert tid. Eksplisitte `fetusesVitalSigns` beholdes som Observations; fetus Patient og `focus` opprettes bare ved positivt `fosterId` |
 | `pointsOfContact` | Ja | Fastlege, jordmor og maternity healthcare centre eksponeres konservativt i `CareTeam`; source-provided HPR number og fastlegens organisasjonsnummer beholdes som FHIR identifiers, birth institute utelates, og det gjøres ingen ekstern GP- eller directory lookup |
 | `birthStatus` | Ja | Ikke eksponert i første release for active pregnancy |
 

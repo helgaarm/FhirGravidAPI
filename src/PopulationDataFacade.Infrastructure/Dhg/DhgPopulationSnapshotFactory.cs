@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using PopulationDataFacade.Core;
 
@@ -11,6 +13,12 @@ public sealed partial class DhgPopulationSnapshotFactory
         DhgStatusResponse status,
         DhgMaternityRecord record)
     {
+        if (!Guid.TryParse(record.Metadata?.RecordId, out var pregnancyRecordId))
+            throw new PopulationDataException(
+                PopulationErrorKind.SourceContractInvalid,
+                "DHG record identity is required to scope fetus resources.");
+
+        var pregnancyContextId = pregnancyRecordId.ToString("D");
         var observations = new List<PopulationObservation>();
         var encounters = new List<PopulationEncounter>();
         var careTeams = new List<PopulationCareTeam>();
@@ -40,6 +48,7 @@ public sealed partial class DhgPopulationSnapshotFactory
         MapSymphysisFundalHeights(record.SymphysisFundalHeights, observations);
         MapAntenatalAppointments(
             logicalPatientId,
+            pregnancyContextId,
             record.AntenatalAppointments,
             observations,
             encounters,
@@ -411,6 +420,7 @@ public sealed partial class DhgPopulationSnapshotFactory
 
     private static void MapAntenatalAppointments(
         string maternalPatientId,
+        string pregnancyContextId,
         IEnumerable<DhgAntenatalAppointment>? sources,
         List<PopulationObservation> output,
         List<PopulationEncounter> encounters,
@@ -490,6 +500,7 @@ public sealed partial class DhgPopulationSnapshotFactory
 
             MapFetalFindings(
                 maternalPatientId,
+                pregnancyContextId,
                 source,
                 output,
                 fetuses,
@@ -501,6 +512,7 @@ public sealed partial class DhgPopulationSnapshotFactory
 
     private static void MapFetalFindings(
         string maternalPatientId,
+        string pregnancyContextId,
         DhgAntenatalAppointment appointment,
         List<PopulationObservation> output,
         Dictionary<int, PopulationFetusPatient> fetuses,
@@ -526,7 +538,7 @@ public sealed partial class DhgPopulationSnapshotFactory
                 if (!fetuses.TryGetValue(sourceFetusId, out fetusPatient))
                 {
                     fetusPatient = new PopulationFetusPatient(
-                        FetalPatientId.Create(maternalPatientId, sourceFetusId),
+                        FetalPatientId.Create(maternalPatientId, pregnancyContextId, sourceFetusId),
                         appointment.Metadata?.LastUpdated);
                     fetuses.Add(sourceFetusId, fetusPatient);
                 }
@@ -787,7 +799,9 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         var raw = $"{metadata?.Id ?? "dhg"}-{suffix}";
         var cleaned = InvalidFhirIdCharacters().Replace(raw, "-").Trim('-');
-        return cleaned.Length <= 64 ? cleaned : cleaned[..64];
+        if (cleaned.Length <= 64) return cleaned;
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw))).ToLowerInvariant();
     }
 
     [GeneratedRegex("^\\s*(\\d{2,3})\\s*/\\s*(\\d{2,3})\\s*$", RegexOptions.CultureInvariant)]

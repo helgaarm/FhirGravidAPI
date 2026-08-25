@@ -40,7 +40,7 @@ Det finnes ingen fallback data source og ingen persistent clinical cache.
 | `CapabilityStatement` | 1 | statisk server capability | `GET /fhir/metadata` |
 | `Patient` | 1..* | mor fra logical patient context og 0..* minimale fetus Patients fra positive `fosterId` | mother search; mother/fetus read |
 | `Observation` | 0..* | eksplisitte og semantisk sikre DHG fields | Observation search |
-| `Encounter` | 0..* | daterte antenatal appointments uten error | Encounter search |
+| `Encounter` | 0..* | antenatal appointments uten error; `period` bare når `appointmentDate` finnes | Encounter search |
 | `CareTeam` | 0..1 | fastlege, jordmor og maternity healthcare centre fra `pointsOfContact` | CareTeam search |
 | `Bundle` | 1 | FHIR search wrapper | search endpoints |
 | `OperationOutcome` | 0..1 | kontrollert error translation | alle mapped endpoints |
@@ -53,7 +53,7 @@ POST `_search` med NIN i form body krever HelseID i autentisert drift og bruker 
 - Nullable boolean gir ingen Observation ved `null`; eksplisitt `false` beholdes.
 - Source timestamp blir `meta.lastUpdated` når den finnes.
 - Measurement date blir `effectiveDateTime` med day precision. FHIR R4 tillater ikke `date` i `Observation.effective[x]` eller `Observation.value[x]`.
-- Alle Observations har morens `Patient/{logical-id}` som `subject`. Fetus-spesifikke Observations har i tillegg det aktuelle fosterets `Patient/{fetus-id}` som `focus`. Appointment-derived Observations refererer også til Encounter.
+- Alle Observations har morens `Patient/{logical-id}` som `subject`. Fetus-spesifikke Observations har i tillegg det aktuelle fosterets `Patient/{fetus-id}` som `focus` bare når positivt `fosterId` etablerer en pregnancy-scoped fetus-identitet; ellers utelates `focus`. Appointment-derived Observations refererer alltid til source-Encounter, også når `appointmentDate` mangler.
 - Observation og Encounter status er `unknown`, fordi DHG ikke leverer en entydig FHIR status.
 - `Observation.code` bruker LOINC, SNOMED CT, NLK eller Volven når en exact mapping finnes. Et dokumentert broad DHG test result kan bruke presis source term i `CodeableConcept.text` uten `Coding`; facade-specific clinical codes publiseres ikke.
 - Quantities bruker UCUM.
@@ -84,7 +84,7 @@ flowchart LR
 | `mother.language` | `Patient.communication.language` | bare dokumentert Volven 3303 code system |
 | `mother.needsLanguageInterpreter` | extension `patient-interpreterRequired` | HL7 canonical URL og `valueBoolean` |
 | `mother.cohabitingCoparent` / note | separate text-only social-history Observations | nullable boolean og uparset `valueString`; ingen relasjons- eller husstandsinference |
-| positivt `fetusesVitalSigns[].fosterId` | separat fetus `Patient.id` | pregnancy-scoped SHA-256-derived logical ID basert på maternal logical ID og source `fosterId`; ingen NIN eller raw DHG identifier publiseres |
+| positivt `fetusesVitalSigns[].fosterId` | separat fetus `Patient.id` | pregnancy-scoped SHA-256-derived logical ID basert på maternal logical ID, aktivt DHG `recordId` og source `fosterId`; ingen NIN eller raw DHG identifier publiseres |
 | appointment source timestamp | fetus `Patient.meta.lastUpdated` | nyeste timestamp for samme `fosterId` beholdes |
 
 Mother Patient inneholder ikke NIN, name, address, birth date, country, employment, GP eller contact data. Fetus Patient er enda mer minimal og inneholder bare `id` og valgfri `meta.lastUpdated`; name, gender, birthDate, identifier og clinical status konstrueres ikke. Et fetus-ID kan leses med `GET /fhir/Patient/{fetus-id}` ved å bruke den samme maternal `X-Patient-Context` som ga Observation-resultatet. Bare foster i den aktuelle maternal snapshot kan løses.
@@ -92,7 +92,7 @@ Mother Patient inneholder ikke NIN, name, address, birth date, country, employme
 ```mermaid
 flowchart LR
     Mother["Patient: mor"] -->|"Observation.subject"| Finding["Observation: fosterfunn"]
-    Finding -->|"Observation.focus"| Fetus["Patient: foster"]
+    Finding -->|"Observation.focus når positivt fosterId finnes"| Fetus["Patient: foster"]
     Finding -->|"Observation.encounter"| Visit["Encounter: antenatal appointment"]
 ```
 

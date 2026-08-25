@@ -543,11 +543,13 @@ public sealed class MappingTests
         Assert.Equal(2, snapshot.Fetuses!.Count);
         Assert.Equal(6, snapshot.Observations.Count);
 
-        var firstFetusId = FetalPatientId.Create("patient-1", 1);
-        var secondFetusId = FetalPatientId.Create("patient-1", 2);
+        var pregnancyContextId = ActiveStatus.LatestRecordId!;
+        var firstFetusId = FetalPatientId.Create("patient-1", pregnancyContextId, 1);
+        var secondFetusId = FetalPatientId.Create("patient-1", pregnancyContextId, 2);
         Assert.Matches("^fetus-[a-f0-9]{40}$", firstFetusId);
         Assert.NotEqual(firstFetusId, secondFetusId);
-        Assert.NotEqual(firstFetusId, FetalPatientId.Create("patient-2", 1));
+        Assert.NotEqual(firstFetusId, FetalPatientId.Create("patient-2", pregnancyContextId, 1));
+        Assert.NotEqual(firstFetusId, FetalPatientId.Create("patient-1", "6a9fe8f1-944e-40a8-8483-c31f2b99df7e", 1));
         Assert.All(snapshot.Observations.Where(observation => observation.Id.Contains("-1-1", StringComparison.Ordinal)),
             observation => Assert.Equal(firstFetusId, observation.FocusPatientId));
         Assert.All(snapshot.Observations.Where(observation => observation.Id.Contains("-2-1", StringComparison.Ordinal)),
@@ -592,6 +594,47 @@ public sealed class MappingTests
             coding.System == PopulationCodes.SnomedCt && coding.Code == "364075005");
         Assert.Contains(fhirHeartRate.Code.Coding, coding =>
             coding.System == PopulationCodes.Loinc && coding.Code == "55283-6");
+    }
+
+    [Fact]
+    public void Same_source_fetus_id_in_different_maternity_records_gets_distinct_patient_ids()
+    {
+        var firstRecordMetadata = Metadata();
+        firstRecordMetadata.RecordId = "0f0b2f66-34f2-490b-a089-aaa6aa4c9825";
+        var sameRecordMetadata = Metadata();
+        sameRecordMetadata.RecordId = "0F0B2F66-34F2-490B-A089-AAA6AA4C9825";
+        var secondRecordMetadata = Metadata();
+        secondRecordMetadata.RecordId = "6a9fe8f1-944e-40a8-8483-c31f2b99df7e";
+
+        static DhgAntenatalAppointment Appointment() => new()
+        {
+            Metadata = ResourceMetadata("appointment"),
+            AppointmentDate = new DateOnly(2026, 1, 16),
+            FetusesVitalSigns = [new DhgFetusVitalSigns { FetusId = 1, FetalHeartRate = 145 }]
+        };
+
+        var firstSnapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = firstRecordMetadata,
+            AntenatalAppointments = [Appointment()]
+        });
+        var secondSnapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = secondRecordMetadata,
+            AntenatalAppointments = [Appointment()]
+        });
+
+        var firstFetusId = Assert.Single(firstSnapshot.Fetuses!).LogicalId;
+        var sameRecordSnapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = sameRecordMetadata,
+            AntenatalAppointments = [Appointment()]
+        });
+
+        Assert.Equal(firstFetusId, Assert.Single(sameRecordSnapshot.Fetuses!).LogicalId);
+        Assert.NotEqual(
+            firstFetusId,
+            Assert.Single(secondSnapshot.Fetuses!).LogicalId);
     }
 
     [Fact]
@@ -660,7 +703,7 @@ public sealed class MappingTests
             [
                 new DhgAntenatalAppointment
                 {
-                    Metadata = ResourceMetadata("appointment"),
+                    Metadata = ResourceMetadata("6a9fe8f1-944e-40a8-8483-c31f2b99df7e"),
                     AppointmentDate = new DateOnly(2026, 1, 16),
                     FetusesVitalSigns =
                     [
@@ -674,6 +717,11 @@ public sealed class MappingTests
         Assert.Empty(snapshot.Fetuses!);
         Assert.Equal(2, snapshot.Observations.Count);
         Assert.Equal(2, snapshot.Observations.Select(observation => observation.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(snapshot.Observations, observation =>
+        {
+            Assert.Matches("^[A-Za-z0-9\\-.]{1,64}$", observation.Id);
+            Assert.Equal(64, observation.Id.Length);
+        });
         Assert.Equal(
             [145m, 150m],
             snapshot.Observations

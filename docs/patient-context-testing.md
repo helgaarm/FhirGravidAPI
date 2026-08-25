@@ -11,7 +11,7 @@ Denne fasaden skiller bevisst den offentlige FHIR patient ID-en fra fødselsnumm
 | NIN | godkjent syntetisk verdi | Hemmelig identifier som bare sendes i DHGs obligatoriske outbound header |
 | Patient context | beskyttet opaque string | Short-lived binding mellom logical ID, NIN, subject og expiry |
 | Pseudonym patient ID | `patient-<FHIR-safe-HMAC>` | Stabil FHIR `Patient.id` for autentisert POST `_search`; bruker bare tegn tillatt av FHIR R4 og kan ikke reverseres uten secret key |
-| Fetus patient ID | `fetus-<digest>` | Pregnancy-scoped logical `Patient.id` avledet fra maternal logical ID og positivt DHG `fosterId`; inneholder verken NIN eller raw `fosterId` og skal leses fra `Observation.focus` |
+| Fetus patient ID | `fetus-<digest>` | Pregnancy-scoped logical `Patient.id` avledet fra maternal logical ID, aktivt DHG `recordId` og positivt `fosterId`; inneholder verken NIN eller raw source identifiers og skal leses fra `Observation.focus` |
 
 Alias og logical ID er ikke DHG identifiers. En operatør velger stabile, ikke-sensitive navn for dem. Bare konfigurert NIN identifiserer den syntetiske personen overfor DHG.
 
