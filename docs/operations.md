@@ -1,91 +1,74 @@
 # Drift og feilhåndtering
 
-## Konfigurasjonsområder
+## API-konfigurasjon
 
-| Område | Viktigste nøkler |
+| Område | Nøkler |
 |---|---|
-| `Dhg` | `Environment`, `BaseUrl`, `SourceSystem`, timeouts, connection lifetime, retryantall |
-| `HelseId` | `Authority`, facade audience/scope, DHG audience/scope, client-ID og private JWK-er |
-| `HelseIdTestToken` | eksplisitt DHG Test-only tokenverktøy, secret auth key og sammenhengende syntetiske klient-, HPR-, rolle- og organisasjonsclaims |
-| `AuthGateway` | `SharedSecret`; samme tilfeldige verdi på minst 32 byte som `AUTH_GATEWAY_SHARED_SECRET` |
-| `PatientContext` | headernavn, levetid, stabil Base64-kodet `PatientIdHmacKey` og ikke-produksjonsaliaser |
-| `DevelopmentTestMode` | eksplisitt lokal anonym Swagger/DHG Test-modus og fast test-subjekt |
-| `Swagger` | `EnabledInProduction`; standard `false`, og HelseID-policy håndheves når den er `true` i Production |
-| `ReverseProxy` | `ForwardedHeadersEnabled`; bare bak godkjent proxy slik at FHIR-baser bruker opprinnelig HTTPS-skjema |
-| OpenTelemetry | standard `OTEL_*`-miljøvariabler |
+| `Dhg` | `Environment`, `BaseUrl`, `SourceSystem`, tidsgrenser og antall nye forsøk |
+| `HelseId` | `Authority`, målgrupper, tilgangsomfang, klient-ID og private JWK-er |
+| `HelseIdTestToken` | Autentiseringsnøkkel og syntetisk HPR-, rolle- og organisasjonskontekst for DHG Test |
+| `AuthGateway` | `SharedSecret`, minst 32 byte og lik `AUTH_GATEWAY_SHARED_SECRET` |
+| `PatientContext` | Headernavn, levetid, `PatientIdHmacKey` og testaliaser |
+| `DevelopmentTestMode` | Lokal anonym testmodus og fast testsubjekt |
+| `Swagger` | `EnabledInProduction`; standardverdien er `false` |
+| `ReverseProxy` | `ForwardedHeadersEnabled` |
+| OpenTelemetry | Standardvariabler med prefikset `OTEL_` |
 
-Oppstart feiler ved manglende/ugyldig sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av Test og Production. Støttede DHG-miljøverdier er foreløpig bare `Test` og `Production`. Utenfor `DevelopmentTestMode` kreves `PatientContext:PatientIdHmacKey` som Base64-kodet secret på minst 32 byte; samme stabile key må leveres til alle instanser, og rotasjon endrer pseudonyme patient IDs. `DevelopmentTestMode:Enabled=true` krever lokal Development og DHG Test. `HelseIdTestToken:Enabled=true` krever i tillegg en HTTPS-endpoint under `.test.nhn.no`, auth key, registrert client-ID, `orgnr_parent`, `orgnr_child`, syntetisk practitioner NIN/HPR/name, Volven 9060 role code og treatment facility name. Verdiene må tilhøre samme godkjente syntetiske testkontekst. Det kreves loopback-only listeners og kjent loopback-peer; ikke plasser testmodusen bak proxy, tunnel eller port-forwarding. Testmodus avvises i Staging, QA og Production. DHG Test-standard er `https://maternity-record.hit.test.nhn.no/api/maternity-record/v1/`; HelseID Test-standard er `https://helseid-sts.test.nhn.no`.
+Oppstart avvises ved manglende sikkerhetskonfigurasjon, ukjent `Dhg:Environment` eller blanding av test- og produksjonsendepunkter. Gyldige DHG-miljøer er `Test` og `Production`.
 
-### Auth-gateway
+Utenfor `DevelopmentTestMode` kreves en Base64-kodet `PatientContext:PatientIdHmacKey` på minst 32 byte. `DevelopmentTestMode:Enabled=true` krever `Development`, DHG Test, en loopback-lytter og en kjent loopback-motpart. `HelseIdTestToken:Enabled=true` krever i tillegg en `.test.nhn.no`-URL, autentiseringsnøkkel, klient-ID og en fullstendig syntetisk testidentitet.
 
-Gatewayen konfigureres med miljøvariabler og feiler lukket ved ugyldig oppsett:
+## Auth-gateway
 
-| Variabel | Betydning |
+Gatewayen konfigureres med miljøvariabler:
+
+| Variabel | Implementert betydning |
 |---|---|
-| `AUTH_GATEWAY_LISTEN_ADDR` | Intern HTTP-listener; standard `:8080` |
-| `AUTH_GATEWAY_UPSTREAM_URL` | Privat API-origin; må være HTTP loopback uten path/query/credentials, standard `http://127.0.0.1:8081` |
-| `AUTH_GATEWAY_MODE` | `authenticate`, eller `passthrough` bare i den avgrensede testtopologien |
-| `AUTH_GATEWAY_EXTERNAL_SCHEME` | Kanonisk DPoP-skjema; må være `https` i autentisert modus og aktiverer ikke TLS |
-| `AUTH_GATEWAY_EXTERNAL_HOST` | Kanonisk offentlig host, eventuelt med port; innkommende `Host` må samsvare |
-| `AUTH_GATEWAY_SHARED_SECRET` | Tilfeldig intern credential på minst 32 byte; må samsvare med API-ets `AuthGateway__SharedSecret` |
-| `AUTH_GATEWAY_REPLAY_STORE` | Eksplisitt `memory` eller `redis` |
-| `AUTH_GATEWAY_SINGLE_REPLICA` | Må være `true` når replay-store er `memory` |
-| `AUTH_GATEWAY_REDIS_URL` | Påkrevd for `redis`; eksterne tjenester må bruke `rediss://` |
-| `HELSEID_AUTHORITY` | HelseID HTTPS-origin uten path, query eller credentials |
-| `HELSEID_AUDIENCE` / `HELSEID_SCOPE` | Eksakt fasade-audience og påkrevd read-scope |
+| `AUTH_GATEWAY_LISTEN_ADDR` | HTTP-lytter; standard `:8080` |
+| `AUTH_GATEWAY_UPSTREAM_URL` | HTTP-loopback uten sti, spørring eller legitimasjon; standard `http://127.0.0.1:8081` |
+| `AUTH_GATEWAY_MODE` | `authenticate` validerer HelseID og DPoP. `passthrough` videresender uten autentisering og har ingen miljøsperre |
+| `AUTH_GATEWAY_EXTERNAL_SCHEME` | Må være `https` i autentisert modus; aktiverer ikke TLS |
+| `AUTH_GATEWAY_EXTERNAL_HOST` | Offentlig vertsnavn som må samsvare med innkommende `Host` |
+| `AUTH_GATEWAY_SHARED_SECRET` | Intern hemmelighet på minst 32 byte |
+| `AUTH_GATEWAY_REPLAY_STORE` | `memory` i det dokumenterte enkeltprosessoppsettet |
+| `AUTH_GATEWAY_SINGLE_REPLICA` | `true` i det dokumenterte enkeltprosessoppsettet |
+| `HELSEID_AUTHORITY` | HelseID-URL med HTTPS uten sti, spørring eller legitimasjon |
+| `HELSEID_AUDIENCE` / `HELSEID_SCOPE` | Fasadens målgruppe og påkrevde lesetilgang |
 
-Gatewayen er en intern plaintext HTTP-tjeneste. Den må stå bak en betrodd TLS-terminator som videresender den kanoniske `Host`-verdien; port 8080 må ikke publiseres direkte til et ubeskyttet nett. API-port 8081 skal bare være tilgjengelig på loopback/pod-nettet. Alle caller-kontrollerte proxy-headere og interne gateway-credentials fjernes og bygges opp på nytt før videresending.
+Gatewayen terminerer ikke TLS. Den konfigurerte oppstrømsadressen må være loopback. Klientstyrte proxyheadere og den interne gatewayheaderen fjernes før videresending.
 
-Bare `GET`, `HEAD` og `POST` tillates. Forespørselskroppen er begrenset til 1 MiB. Serverens read- og write-timeout er henholdsvis 15 og 60 sekunder; langsommere klienter eller responser avbrytes. Redis-feil i autentisert flerreplikadrift feiler lukket som autentiseringsfeil og må alarmeres.
+Bare `GET`, `HEAD` og `POST` godtas. Forespørselskroppen er begrenset til 1 MiB. Lese- og skrivetidsgrensene er henholdsvis 15 og 60 sekunder.
 
-Swagger/OpenAPI er av som standard når host- eller DHG-miljøet er Production. Sett bare `Swagger:EnabledInProduction=true` når produksjonstilgang er nødvendig; `/swagger`, `/swagger/v1/swagger.json` og `/openapi/v1.json` krever da et autentisert HelseID-subjekt med konfigurert fasadescope. Standard nettleser-Swagger støtter ikke denne DPoP-flyten alene; produksjons-UI forutsetter en godkjent HelseID-aware backend/reverse proxy.
+## Endepunkttilgang
 
-## Health og telemetry
+| Tilgangsvei | Metadata | FHIR-data | Swagger/OpenAPI |
+|---|---|---|---|
+| Gateway i `authenticate`-modus | HelseID og DPoP | HelseID og DPoP | HelseID og DPoP |
+| Direkte API i lokal `DevelopmentTestMode` | Anonym | Anonym | Anonym |
+| Direkte API uten testmodus | Anonym | Krever gatewayvalidert HelseID-token | Anonymt utenfor produksjon; deaktivert som standard i produksjon |
 
-På auth-gatewayen bekrefter `/health/live` bare at gatewayprosessen svarer. Gatewayens `/health/ready` kaller det private API-ets `/health/ready`; nettverksfeil eller ikke-2xx blir `503`. API-ets readiness er foreløpig en grunn ASP.NET health-respons uten registrerte DHG/HelseID-sjekker. Readiness må derfor ikke tolkes som bevis på at HelseID eller DHG er tilgjengelig. Overvåk syntetiske, autoriserte ende-til-ende-kall i et separat kontrollert system dersom databehandleravtale og testmiljø tillater det.
+Gatewayens `/health/live` og `/health/ready` er anonyme. `/health/live` kontrollerer bare gatewayprosessen. `/health/ready` videresender API-ets readiness-sjekk. API-ets readiness-sjekk kontrollerer prosessen, men ikke HelseID eller DHG.
 
-Spor:
+## Telemetri
 
-- ASP.NET Core request
-- utgående HTTP, unntatt generisk DHG-span som filtreres for å unngå dynamisk record-ID i URL
-- `PopulationDataFacade.HelseId` token exchange eller Development-only client credentials
-- `PopulationDataFacade.HelseIdTestToken` HelseID TEST-tokenkall uten token, proof eller auth key i attributter
-- `PopulationDataFacade.Dhg` med normalisert `dhg.operation=status|record`
+Egne spor omfatter HelseID-tokenutveksling, HelseID TEST-tokenkall og DHG-kall. DHG-spor bruker den normaliserte verdien `dhg.operation=status|record`. Målingene er `dhg.request.duration` og `dhg.request.errors`.
 
-Målinger:
-
-- `dhg.request.duration`
-- `dhg.request.errors` med lavkardinalitetsårsak
-
-Ingen patient-ID, NIN, token, kodeverdi eller klinisk data brukes som telemetry-attributt.
+Token, DPoP-bevis, autentiseringsnøkkel og DHG-svar legges ikke i egendefinerte spor. Generisk HTTP-sporing mot DHG er filtrert bort for å unngå dynamisk post-ID i URL-attributter.
 
 ## Feiloversettelse
 
-| Hendelse | HTTP | FHIR issue |
+| Hendelse | HTTP | FHIR `issue.code` |
 |---|---:|---|
-| ugyldig/manglende pasientkontekst | 400 | `invalid` |
-| ugyldig POST search form eller NIN-format | 400 | `invalid` |
-| manglende/ugyldig token | 401 | `security` |
-| manglende samtykke/forbudt | 403 | `forbidden` |
-| ukjent pasient/ingen aktiv record | 404 | `not-found` |
-| DHG rate limit | 429 | `throttled` |
-| metode utenfor `GET`/`HEAD`/`POST` | 405 | `not-supported` |
-| gateway request body over 1 MiB | 413 | `too-costly` |
-| gateway upstream/API utilgjengelig | 502 | `exception` |
-| konfigurasjonsfeil | 500 | `exception` |
-| HelseID/DHG utilgjengelig eller kontraktbrudd | 503 | `transient`/`processing` |
+| Ugyldig eller manglende pasientkontekst | 400 | `invalid` |
+| Ugyldig POST-skjema eller fødselsnummerformat | 400 | `invalid` |
+| Manglende eller ugyldig token | 401 | `security` |
+| Manglende samtykke eller forbudt tilgang | 403 | `forbidden` |
+| Ukjent pasient eller manglende aktivt helsekort | 404 | `not-found` |
+| DHG-begrensning | 429 | `throttled` |
+| Metode utenfor `GET`, `HEAD` og `POST` | 405 | `not-supported` |
+| Forespørselskropp over 1 MiB | 413 | `too-costly` |
+| Gatewayen får ikke kontakt med API-et | 502 | `exception` |
+| Konfigurasjonsfeil | 500 | `exception` |
+| HelseID- eller DHG-feil | 503 | `transient` eller `processing` |
 
-Detaljer fra HelseID/DHG returneres ikke til klienten. `OperationOutcome.diagnostics` inneholder en kontrollert tekst og ved uventet 500 en korrelasjons-ID.
-
-## Oppgradering
-
-Løsningen er bevisst beholdt på .NET 9. .NET 9 er en STS-utgivelse med støtte til 10. november 2026; produkteier må ha en godkjent oppgraderingsplan før denne datoen. Denne endringen migrerer ikke løsningen til .NET 10.
-
-Før oppgradering av Firely, Duende, .NET eller DHG-kontrakten:
-
-1. les leverandørens release notes og NHN-endringslogg
-2. oppdater sentrale pakkeversjoner
-3. oppdater kontraktfixture med dokumentert DHG-eksempel uten persondata
-4. kjør alle kontrakt-, mapping- og integrasjonstester
-5. verifiser CapabilityStatement og OpenAPI-dokument
-6. test HelseID login, token exchange, DPoP nonce og begge DHG-kall i Test
+Rå feildetaljer fra HelseID og DHG returneres ikke. En uventet 500-feil inneholder en korrelasjons-ID.

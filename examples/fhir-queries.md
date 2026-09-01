@@ -1,6 +1,6 @@
-# Eksempler på FHIR queries
+# Eksempler på FHIR-spørringer
 
-Disse eksemplene bruker bare placeholders. Legg aldri NIN, access token, DPoP proof, private key eller patient-context value i source control eller shell history. I authenticated mode skal du bruke den canonical HTTPS address til trusted TLS ingress foran `auth-gateway`. Ikke kall den private API port eller eksponer gatewayens plaintext port 8080.
+Eksemplene bruker plassholdere. Ikke legg fødselsnummer, tilgangstoken, DPoP-bevis, private nøkler eller pasientkontekst i kildekontroll eller skallhistorikk. I autentisert modus brukes HTTPS-adressen foran `auth-gateway`.
 
 ```powershell
 $facadeBase = "https://facade.example.test"
@@ -10,13 +10,13 @@ $dpopProof = "<request-specific-dpop-proof>"
 $patientContext = "<short-lived-protected-context>"
 ```
 
-Hvert DPoP proof er request-specific: `htu` og `htm` må samsvare med den endelige `$facadeBase` URL-en og HTTP method. Canonical Host må samsvare med `AUTH_GATEWAY_EXTERNAL_HOST`.
+Hvert DPoP-bevis gjelder én forespørsel. `htu` og `htm` må samsvare med den endelige URL-en og HTTP-metoden. Vertsnavnet må samsvare med `AUTH_GATEWAY_EXTERNAL_HOST`.
 
-Bare for eksplisitt anonymous local Development-test mode setter du `$facadeBase` til API launch URL (normalt `https://localhost:7184`) og utelater `Authorization`- og `DPoP`-headers. Dette direct-API pattern er ikke gyldig for authenticated eller production operation.
+I lokal `DevelopmentTestMode` settes `$facadeBase` til API-adressen, normalt `https://localhost:7184`, og headerne `Authorization` og `DPoP` utelates.
 
-## Opprett lokal testpasient-selection
+## Velg en lokal testpasient
 
-Logical patient ID konfigureres av operatøren og er ikke NIN eller en verdi avledet fra DHG. Konfigurer aliaset `synthetic_1` som beskrevet i [Pasient-ID og protected context for testing](../docs/patient-context-testing.md), og hent deretter begge verdiene som brukes nedenfor:
+Den logiske pasient-ID-en konfigureres lokalt og er ikke et fødselsnummer eller en verdi fra DHG. Konfigurer aliaset `synthetic_1` som beskrevet i [pasient-ID og beskyttet pasientkontekst](../docs/patient-context-testing.md), og hent verdiene:
 
 ```powershell
 $selection = Invoke-RestMethod `
@@ -27,14 +27,14 @@ $logicalPatientId = $selection.patientId
 $patientContext = $selection.patientContext
 ```
 
-Context er short-lived. Erstatt aldri `$logicalPatientId` med NIN.
+Pasientkonteksten er kortlivet. Ikke erstatt `$logicalPatientId` med et fødselsnummer.
 
-## POST search med NIN
+## POST-søk med fødselsnummer
 
-Les NIN inn interaktivt slik at det ikke skrives på command line, og send det i en form body i stedet for en URL. Disse fire POST searches bruker ikke `X-Patient-Context`:
+Les fødselsnummeret interaktivt og send det i skjemaet, ikke i URL-en. Disse fire POST-søkene bruker ikke `X-Patient-Context`:
 
 ```powershell
-$patientNin = Read-Host "NIN"
+$patientNin = Read-Host "Fødselsnummer"
 
 Invoke-RestMethod `
   -Method Post `
@@ -65,9 +65,9 @@ Invoke-RestMethod `
   -Body @{ "patient.identifier" = $patientNin }
 ```
 
-I lokal `DevelopmentTestMode` utelates auth headers, NIN må samsvare med ett konfigurert alias, og returnerte resources bruker aliasets logical ID.
+I lokal `DevelopmentTestMode` utelates autentiseringsheaderne. Fødselsnummeret må samsvare med ett konfigurert alias, og returnerte ressurser bruker aliasets logiske ID.
 
-I autentisert drift og Production skal hvert kall i stedet ha HelseID-headerne nedenfor. `$dpopProof` må opprettes spesielt for den aktuelle POST-URL-en og kan ikke gjenbrukes mellom eksemplene:
+I autentisert drift må hvert kall ha HelseID-headerne nedenfor. `$dpopProof` opprettes for den aktuelle POST-URL-en og kan ikke gjenbrukes:
 
 ```powershell
 $authenticatedSearchHeaders = @{
@@ -84,17 +84,28 @@ Invoke-RestMethod `
   -Body @{ identifier = $patientNin }
 ```
 
-Det autentiserte tokenet må oppfylle fasadens `population.read`-policy. Responsen bruker en stabil HMAC-pseudonym patient ID og inneholder aldri NIN. Legg aldri NIN i en GET query string.
+Tokenet må oppfylle kravet `population.read`. Svaret bruker en stabil, pseudonym pasient-ID og inneholder ikke fødselsnummeret. Fødselsnummer skal ikke legges i en GET-spørring.
 
 ## CapabilityStatement
 
-`GET /fhir/metadata` er anonymous:
+Direkte kall til API-et er anonymt:
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/metadata" -Headers @{ Accept = "application/fhir+json" }
 ```
 
-## Minimal Patient
+Gjennom gatewayen i `authenticate`-modus kreves HelseID-token og DPoP-bevis også for metadata:
+
+```powershell
+$metadataHeaders = @{
+  Authorization = "DPoP $accessToken"
+  DPoP = $dpopProof
+  Accept = "application/fhir+json"
+}
+Invoke-RestMethod -Uri "$facadeBase/fhir/metadata" -Headers $metadataHeaders
+```
+
+## Minimal Patient-ressurs
 
 ```powershell
 $headers = @{
@@ -106,22 +117,22 @@ $headers = @{
 Invoke-RestMethod -Uri "$facadeBase/fhir/Patient/$logicalPatientId" -Headers $headers
 ```
 
-## Observation search
+## Søk etter observasjoner
 
-Alle populated observations:
+Alle observasjoner:
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId" -Headers $headers
 ```
 
-Datert body weight (`system|code` URI-encodes av `EscapeDataString`):
+Datert kroppsvekt (`system|code` URL-kodes med `EscapeDataString`):
 
 ```powershell
 $token = [Uri]::EscapeDataString("http://loinc.org|29463-7")
 Invoke-RestMethod -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token&category=vital-signs&date=ge2026-01-01" -Headers $headers
 ```
 
-Pre-pregnancy height, weight og BMI er base R4 Observations med `category=vital-signs`, men uten `effective[x]` fordi DHG ikke leverer measurement time. De vil derfor ikke finnes i et `date`-filtrert search. Eksempel for BMI:
+Høyde, vekt og BMI før svangerskapet er FHIR R4-observasjoner med `category=vital-signs`, men uten `effective[x]` fordi DHG ikke leverer måletidspunkt. De inngår derfor ikke i et datofiltrert søk. Eksempel for BMI:
 
 ```powershell
 $token = [Uri]::EscapeDataString("http://snomed.info/sct|60621009")
@@ -130,7 +141,7 @@ Invoke-RestMethod `
   -Headers $headers
 ```
 
-Gestational-age history bruker LOINC `18185-9`. Velg nyeste `effectiveDateTime` client-side; fasaden lager ikke en duplicate facade-specific «latest» Observation:
+Historikk for svangerskapsalder bruker LOINC `18185-9`. Klienten velger den nyeste `effectiveDateTime`; fasaden lager ikke en egen «siste»-observasjon:
 
 ```powershell
 $token = [Uri]::EscapeDataString("http://loinc.org|18185-9")
@@ -143,7 +154,7 @@ $latestGestationalAge = $gestationalAgeBundle.entry.resource |
   Select-Object -First 1
 ```
 
-Fetal heart rate returneres med mor som `subject` og fosteret som `focus`. Hent fetus Patient-ID fra referansen; den skal ikke konstrueres av client:
+Fosterets hjertefrekvens returneres med mor som `subject`. `focus` finnes bare når DHG leverer en positiv `fosterId`. Eksemplet filtrerer derfor bort observasjoner uten `focus`:
 
 ```powershell
 $token = [Uri]::EscapeDataString("http://snomed.info/sct|364075005")
@@ -151,25 +162,31 @@ $fetalBundle = Invoke-RestMethod `
   -Uri "$facadeBase/fhir/Observation?patient=$logicalPatientId&code=$token" `
   -Headers $headers
 
-$fetusReference = $fetalBundle.entry[0].resource.focus[0].reference
+$fetalObservation = $fetalBundle.entry.resource |
+  Where-Object { $_.focus -and $_.focus[0].reference } |
+  Select-Object -First 1
+
+if (-not $fetalObservation) { throw "Fant ingen fosterreferanse i svaret." }
+
+$fetusReference = $fetalObservation.focus[0].reference
 $fetusPatientId = $fetusReference -replace '^Patient/', ''
 Invoke-RestMethod -Uri "$facadeBase/fhir/Patient/$fetusPatientId" -Headers $headers
 ```
 
-I authenticated mode krever hvert av de to GET-kallene et request-specific DPoP proof med korrekt `htu`; oppdater derfor `DPoP`-headeren før hvert kall.
+I autentisert modus krever hvert GET-kall et eget DPoP-bevis med korrekt `htu`.
 
-## Encounter search
+## Søk etter konsultasjoner
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/Encounter?patient=$logicalPatientId" -Headers $headers
 ```
 
-## CareTeam search
+## Søk etter behandlingsteam
 
-Jordmor og maternity healthcare centre returneres bare når de finnes i active DHG record. Practitioner og Organization ligger contained i `CareTeam`; fasaden gjør ingen directory lookup:
+Jordmor og helsestasjon returneres bare når de finnes i det aktive DHG-kortet. `Practitioner` og `Organization` ligger som inneholdte ressurser i `CareTeam`; fasaden gjør ingen katalogoppslag:
 
 ```powershell
 Invoke-RestMethod -Uri "$facadeBase/fhir/CareTeam?patient=$logicalPatientId" -Headers $headers
 ```
 
-Et tomt, støttet search returnerer en `searchset` Bundle med `total=0`. Feil knyttet til authentication, patient-context, source eller contract returnerer et FHIR `OperationOutcome` med passende HTTP status.
+Et søk uten treff returnerer en `searchset`-`Bundle` med `total=0`. Feil ved autentisering, pasientkontekst, DHG eller kontrakt returneres som `OperationOutcome` med passende HTTP-status.

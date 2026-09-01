@@ -1,61 +1,61 @@
 # Arkitektur
 
-## Flyt
+## Forespørselsflyt
 
 ```mermaid
 flowchart LR
-    Client["FHIR client"]
+    Client["FHIR-klient"]
     Gateway["auth-gateway"]
     Api["PopulationDataFacade.Api"]
-    Core["IPopulationDataService<br/>Core model"]
     Infrastructure["PopulationDataFacade.Infrastructure"]
     HelseID["HelseID"]
     DHG["DHG API"]
     Snapshot["PopulationSnapshot"]
-    Mapper["Firely FHIR R4 mapping"]
-    Resources["Patient / Observation / Encounter / Bundle"]
+    Mapper["FHIR R4-mapping"]
+    Resources["Patient / Observation / Encounter / CareTeam / Bundle"]
 
-    Client -->|"HelseID DPoP access token<br/>+ protected context eller POST form body"| Gateway
-    Gateway -->|"Validated request<br/>+ internal credential"| Api
-    Api --> Core
-    Core --> Infrastructure
-    Infrastructure -->|"Token exchange + DPoP"| HelseID
-    Infrastructure -->|"GET /status<br/>GET /record/{latestRecordId}"| DHG
+    Client -->|"HelseID-token og DPoP-bevis"| Gateway
+    Gateway -->|"Validert forespørsel og intern hemmelighet"| Api
+    Api --> Infrastructure
+    Infrastructure -->|"Tokenutveksling og DPoP"| HelseID
+    Infrastructure -->|"GET /status og GET /record/{latestRecordId}"| DHG
     Infrastructure --> Snapshot
     Snapshot --> Mapper
     Mapper --> Resources
 ```
 
-I eksplisitt `DevelopmentTestMode` er Swagger/FHIR-siden anonym. Den innkommende token-exchange-flyten erstattes da normalt av en server-side HelseID `client_credentials`-forespørsel med DHG resource/scope og DPoP. En separat Test-only konfigurasjon kan i stedet hente et nytt request-bound `accessTokenJwt`/`dPoPProof`-par fra HelseID TEST-tokenverktøyet for hvert DHG-kall, etter samme mønster som smartOppgave. Modusen er sperret til lokal `Development` sammen med `Dhg:Environment=Test`. Resten av DHG-status/record- og FHIR-flyten er uendret, og testmodusen avvises i alle andre environments og mot Production.
+I autentisert modus validerer gatewayen HelseID-token, DPoP-bevis og påkrevd tilgangsomfang for alle ruter unntatt helsesjekkene. Det private API-et validerer tokenet på nytt og krever gatewayens interne hemmelighet.
 
-FHIR POST `_search` velger pasient med fødselsnummer i en `application/x-www-form-urlencoded` form body og bruker aldri `X-Patient-Context`. I autentisert drift, inkludert Production, håndheves HelseID `population.read`, og API-laget lager en stabil pseudonym FHIR-ID som `HMAC-SHA-256(PatientIdHmacKey, NIN)`. Nøkkelen er en separat driftshemmelighet; fødselsnummeret eller rå hash eksponeres ikke i FHIR. I lokal `DevelopmentTestMode` er bare allerede konfigurerte syntetiske aliaser tillatt, og aliasets logiske pasient-ID brukes i stedet. GET-query med fødselsnummer støttes ikke i noen environment.
+`POST /fhir/*/_search` mottar fødselsnummeret i en `application/x-www-form-urlencoded`-kropp. Utenfor `DevelopmentTestMode` kreves HelseID-tilgangsomfanget `population.read`, og API-et lager en pseudonym FHIR-ID med `HMAC-SHA-256`. I lokal `DevelopmentTestMode` godtas bare konfigurerte syntetiske aliaser. Fødselsnummer i URL støttes ikke.
 
-API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og wire-kontrakter finnes i Infrastructure. Det gjør at FHIR-kontrakten kan testes uten runtime-mock eller alternativ datakilde.
+I lokal `DevelopmentTestMode` er API-ets Swagger- og FHIR-ruter anonyme. Modusen godtas bare i `Development` mot DHG Test og med en loopback-lytter. Utgående DHG-kall bruker fortsatt HelseID og DPoP.
+
+API-laget arbeider bare med `PopulationSnapshot`. DHG JSON-stier, headernavn og transportkontrakter finnes i Infrastructure.
+
+Fasaden implementerer ikke `Questionnaire`, `QuestionnaireResponse`, `$populate`, `item.definition` eller `linkId`. Det finnes ingen spørreskjemaspesifikk mapping i kildekoden.
 
 ## Prosjekter og ansvar
 
 | Prosjekt | Ansvar |
 |---|---|
-| auth-gateway | HelseID access-token, DPoP, scope, replay og privat reverse proxy-grense |
-| Core | Kildeuavhengige kliniske verdityper, koder og Firely FHIR-mapping |
-| Infrastructure | DHG-kontrakt, status/record-orkestrering, HelseID, DPoP, HTTP-resiliens og kilde-mapping |
-| Api | Uavhengig JWT-/gateway-validering, autorisasjon, beskyttet pasientkontekst, FHIR-endepunkter, feilformat og observability |
-| Tests | Wire-kontrakt, semantiske mappingregler og in-process HTTP-kontrakt |
+| `auth-gateway` | Validerer HelseID-token, DPoP-bevis, tilgangsomfang og gjenbruk av bevis før videresending til det private API-et |
+| Core | Kildeuavhengige kliniske verdityper, koder og FHIR-mapping |
+| Infrastructure | DHG-kontrakt, valg av aktivt helsekort, HelseID, DPoP, HTTP-feilhåndtering og kildemapping |
+| Api | JWT- og gatewayvalidering, autorisasjon, pasientkontekst, FHIR-endepunkter og feilformat |
+| Tests | Transportkontrakt, mappingregler og HTTP-kontrakt |
 
-## Konsistens og levetid
+## Konsistens og feilhåndtering
 
-Hver forespørsel leser `/status` og deretter det oppgitte `latestRecordId`. Record-ID og status `ACTIVE` verifiseres før mapping. Det finnes ingen tverrforespørselscache av pasient- eller tokendata i fasaden. Status og record kan i teorien endres mellom de to kallene; mismatch eller inaktiv record blir en kontrollert feil, ikke et delvis datasett.
+Hver forespørsel leser `/status` og deretter posten angitt av `latestRecordId`. Post-ID-en og statusen `ACTIVE` kontrolleres før mapping. Fasaden mellomlagrer ikke pasient- eller tokendata mellom forespørsler. Avvik gir en kontrollert feil og aldri et delvis datasett.
 
-## Resiliens
-
-Retries gjelder kun DHG GET og kun nettverksfeil, timeout, 408, 429, 502, 503 og 504. Backoff har jitter og respekterer `Retry-After`. Et `DPoP-Nonce`-challenge kan retries én gang med nytt proof. Andre 401/403 retries ikke. Token exchange gjøres per DHG-kall for å unngå en delt token-cache med brukerbundet materiale.
+DHG GET-kall prøves på nytt ved nettverksfeil, tidsavbrudd, 408, 429, 502, 503 og 504. Ventetiden har jitter og følger `Retry-After`. En `DPoP-Nonce`-utfordring prøves på nytt én gang med et nytt bevis. Andre 401- og 403-svar prøves ikke på nytt. Tokenutveksling utføres for hvert DHG-kall.
 
 ## FHIR-valg
 
-- `Patient` er minimal og inneholder ikke navn, adresse, fødselsnummer eller annen demografi.
-- eksplisitte DHG-fakta blir hovedsakelig `Observation` med korrekt FHIR datatype.
-- kontrollbesøk blir `Encounter`; målinger kan referere til besøket.
-- nullable boolean mappes bare når verdien finnes. `false` beholdes eksplisitt; vanlige clinical facts bruker `valueBoolean: false`, mens DHG laboratory booleans bruker nasjonal coded result `T008 |Negativ|` fra kodeverk 8340.
-- source `lastUpdated` går til `meta.lastUpdated`; måledato går til `effective[x]`.
-- clinical codes bruker bare verifisert SNOMED CT, NLK, Volven eller HL7-recommended LOINC; quantities bruker UCUM. NLK er det norske laboratoriesystemet og inneholder NPU- og NOR-koder.
-- ukjente kodesystemer, enum values og free text tolereres i DHG DTO, men eksponeres ikke automatisk i FHIR.
+- `Patient` inneholder ikke navn, adresse eller fødselsnummer.
+- Eksplisitte DHG-opplysninger mappes til `Observation` når betydningen er entydig.
+- Kontrollbesøk mappes til `Encounter`.
+- `null` utelates, mens eksplisitt `false` beholdes.
+- Kildens `lastUpdated` mappes til `meta.lastUpdated`; måledato mappes til `effective[x]`.
+- Kliniske koder kommer fra SNOMED CT, NLK, Volven eller LOINC. Måleenheter bruker UCUM.
+- Ukjente kodesystemer, enumverdier og fritekst eksponeres ikke automatisk.

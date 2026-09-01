@@ -315,7 +315,7 @@ var patientContextEndpoint = app.MapPost("/test/patient-context/{alias}", (
     })
     .WithTags("Test support")
     .WithDescription(
-        "Slår opp et konfigurert syntetisk DHG Test-alias og returnerer logical FHIR patientId samt en short-lived protected patientContext. patientId er ikke NIN. Deaktivert i production.");
+        "Slår opp et konfigurert alias for en syntetisk testpasient i DHG Test og returnerer en logisk FHIR-pasient-ID og en kortlivet, beskyttet pasientkontekst. Pasient-ID-en er ikke et fødselsnummer. Endepunktet er deaktivert i produksjon.");
 
 if (!developmentTestMode.Enabled)
     patientContextEndpoint.RequireAuthorization("population.read");

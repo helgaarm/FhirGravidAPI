@@ -2,68 +2,56 @@
 
 ## Tillitsgrenser
 
-FHIR-klienten autentiseres med et HelseID access-token og DPoP-bevis mot auth-gatewayen. Gatewayen validerer issuer, audience, levetid, fasadescope og DPoP sender-constraining før forespørselen sendes til det private API-et. Access-tokenet brukes som `subject_token` i HelseID token exchange. Det nye DPoP-bundne tokenet har DHG audience `nhn:maternity-record` og scope `nhn:maternity-record/api`.
+FHIR-klienten sender et HelseID-tilgangstoken og et DPoP-bevis til `auth-gateway`. Gatewayen validerer utsteder, målgruppe, levetid, tilgangsomfang, DPoP-signatur, `htm`, `htu`, `ath`, `cnf.jkt` og unik `jti`. Gjenbruk av samme DPoP-bevis avvises. Nøkkelen i gjenbruksregisteret er en SHA-256-verdi og inneholder ikke token eller kliniske data.
 
-Gatewayen bruker `golang-jwt`, `keyfunc` og HelseIDs anbefalte `AxisCommunications/go-dpop`-bibliotek. Den håndhever `DPoP`-skjema, `at+jwt`, offentlig asymmetrisk JWK uten privat nøkkelmateriale, signatur og algoritme, `htm`/`htu`, 10-sekunders `iat`-vindu, unik `jti`, `ath` og bindingen mot access-tokenets `cnf.jkt`. Det private API-et validerer JWT-et på nytt med Microsofts JWT bearer-handler og krever en delt gateway-hemmelighet som sammenlignes i konstant tid. Innkommende kopier av den interne headeren fjernes alltid av gatewayen.
+Gatewayen fjerner innkommende kopier av den interne gatewayheaderen. Det private API-et validerer JWT-et på nytt og sammenligner gatewayens delte hemmelighet i konstant tid.
 
-Replay-registeret kan være atomisk Redis med kort TTL eller prosesslokalt minne. Redis er obligatorisk ved flere replikaer. Minnevarianten nekter å starte med mindre `AUTH_GATEWAY_SINGLE_REPLICA=true` er satt eksplisitt. Replay-nøkler hashes og inneholder verken access-token eller kliniske data.
+Det innkommende tilgangstokenet brukes som `subject_token` i HelseID-tokenutvekslingen. Det utvekslede, DPoP-bundne tokenet har DHG-målgruppen `nhn:maternity-record` og tilgangsomfanget `nhn:maternity-record/api`.
 
-Unntak: eksplisitt `DevelopmentTestMode` gjør Swagger/FHIR-flaten anonym. DHG tillater server-side HelseID `client_credentials` bare for `/status`; journaloppslag krever en user identity. En separat `HelseIdTestToken:Enabled`-bryter bruker derfor HelseID TEST-tokenverktøyet med en server-side auth key, slik smartOppgave gjør. Verktøyet lager machine token for `/status` og user token med syntetisk HPR-/organisasjonskontekst for `/record`. Det kalles på nytt for hvert DHG-kall og returnerer et access-token og DPoP-bevis bundet til eksakt metode og URL; verdiene caches, persisteres og logges aldri. Testmodusen krever lokal Development, loopback-only listener og kjent loopback-peer, må ikke ligge bak proxy/tunnel/port-forwarding og er deaktivert som standard. Den feiler i alle andre environments og mot annet enn DHG Test, og endrer ikke DHGs krav til HelseID, DPoP, audience eller scope.
-
-Swagger/OpenAPI er deaktivert som standard når enten host-miljøet eller DHG-miljøet er Production. Hvis `Swagger:EnabledInProduction=true`, håndheves den ordinære HelseID `population.read`-policyen for Swagger UI, Swashbuckle-dokumentet og ASP.NET OpenAPI-dokumentet. Anonyme kall får `401`, og autentiserte kall uten korrekt fasadescope får `403`. Fordi HelseID krever DPoP og webklientintegrasjon i backend, krever praktisk bruk av produksjons-UI en godkjent HelseID-aware backend/reverse proxy; token skal ikke eksponeres eller limes inn i nettleseren.
-
-HelseID-kall bruker `private_key_jwt` med:
+HelseID-kall med `private_key_jwt` bruker:
 
 - `typ=client-authentication+jwt`
-- `iss` og `sub` lik klient-ID
-- audience lik HelseID authority, ikke token-endepunktet
+- klient-ID som `iss` og `sub`
+- HelseID-utstederen som `aud`
 - unik `jti`
 - maksimalt åtte sekunders levetid
-- nytt assertion ved nonce-retry
+- en ny klientpåstand ved ny forespørsel etter DPoP-nonce
 
-DPoP-nøkler og assertion-nøkler er separate driftshemmeligheter. Nøkkelrotasjon må koordineres med HelseID-registreringen.
+Nøkkelen for klientpåstanden og DPoP-nøkkelen er separate hemmeligheter.
 
-## Pasientkontekst og POST search
+## Lokal utviklingstest
 
-Fødselsnummer tas aldri fra URL, query eller FHIR-logisk ID. De kontekstbaserte GET-operasjonene bruker en formålsbundet ASP.NET Data Protection-token med logisk pasient-ID, fødselsnummer, autentisert HelseID-`sub` og utløp. Tokenet sendes i konfigurert pasientkontekst-header; route-/search-ID og innlogget subjekt må matche innholdet. Standard levetid er ti minutter, og svar er merket `Cache-Control: no-store`.
+`DevelopmentTestMode` gjør API-ets Swagger- og FHIR-ruter anonyme. Modusen godtas bare i `Development` mot DHG Test, med loopback-lytter og en kjent loopback-motpart.
 
-Alias-endepunktet er kun støtte for konfigurerte syntetiske DHG Test-personer og finnes ikke i Production. Det krever normalt samme autorisasjon som FHIR-flaten; i eksplisitt Development-testmodus er det anonymt og binder konteksten til det faste konfigurerte test-subjektet. Det returnerer aldri fødselsnummeret.
+`HelseIdTestToken:Enabled` henter et nytt token og DPoP-bevis for hvert DHG-kall. `/status` bruker et maskintoken. `/record` bruker et brukertoken med konfigurert syntetisk HPR- og organisasjonskontekst. Token og DPoP-bevis mellomlagres, lagres permanent eller logges ikke.
 
-FHIR POST `_search` er tilgjengelig i autentisert drift og Production uten `X-Patient-Context`. Fødselsnummeret må ligge i en liten `application/x-www-form-urlencoded` body og returneres aldri. Gatewayen og API-et håndhever HelseID `population.read`; det innkommende subject-tokenet brukes fortsatt i token exchange mot DHG. Fasaden lager en stabil pseudonym FHIR-ID med `HMAC-SHA-256(PatientIdHmacKey, NIN)`. Den separate HMAC key-en må være minst 32 tilfeldige byte, lagres i en godkjent secret store og deles mellom instanser. Rotasjon endrer pseudonyme patient IDs og må koordineres. GET-query med fødselsnummer støttes ikke, og request body tas ikke inn i applikasjonens logger eller telemetry.
+## Pasientvalg
 
-I lokal `DevelopmentTestMode` er POST-ruten anonym, men fødselsnummeret må matche nøyaktig ett konfigurert syntetisk alias. Aliasets `LogicalId` brukes da i stedet for HMAC-ID.
+GET-operasjonene bruker en kortlivet ASP.NET Data Protection-verdi med logisk pasient-ID, fødselsnummer, HelseID-`sub` og utløpstid. Pasient-ID-en i ruten eller søket, innlogget subjekt og innholdet i pasientkonteksten må samsvare. Standard levetid er ti minutter.
 
-Det finnes foreløpig ingen godkjent produksjonsutsteder for `X-Patient-Context`. De kontekstbaserte GET-operasjonene skal derfor ikke åpnes før tillitsprotokoll, autorisasjonsgrunnlag, nøkkelstyring, rotasjon og replay-kontroll er arkitekturgodkjent og testet. Dette gjelder ikke den separate HelseID-beskyttede POST `_search`-flyten.
+`POST /test/patient-context/{alias}` finnes bare utenfor produksjon. Endepunktet bruker konfigurerte syntetiske DHG Test-aliaser og returnerer aldri fødselsnummeret.
 
-For flere instanser må Data Protection-nøkkelringen lagres i en godkjent, delt og kryptert nøkkeltjeneste. Standard lokal nøkkelring er bare egnet for lokal utvikling eller én instans.
+FHIR POST `_search` mottar fødselsnummeret i en `application/x-www-form-urlencoded`-kropp og bruker ikke `X-Patient-Context`. I autentisert drift kreves HelseID-tilgangsomfanget `population.read`. Fasaden lager en pseudonym FHIR-ID med `HMAC-SHA-256`. I lokal `DevelopmentTestMode` må fødselsnummeret samsvare med et konfigurert syntetisk alias.
+
+Fødselsnummer i URL støttes ikke. Fødselsnummeret returneres ikke i FHIR, og forespørselskroppen logges ikke av applikasjonen.
+
+Det finnes ingen produksjonsutsteder for `X-Patient-Context` i repositoriet. De kontekstbaserte GET-operasjonene har derfor ingen komplett produksjonsflyt. Den HelseID-beskyttede POST `_search`-flyten er implementert separat.
 
 ## Hemmeligheter og logging
 
-Følgende skal aldri ligge i kildekode, container-image, telemetry eller logger:
+Følgende skal ikke ligge i kildekode, containerbilder eller logger:
 
-- access-/refresh-token og DPoP proof
-- HelseID TEST-tokenverktøyets auth key
+- tilgangstoken, oppfriskningstoken og DPoP-bevis
+- autentiseringsnøkkelen til HelseID TEST-tokenverktøyet
 - private JWK-er
 - `PatientContext:PatientIdHmacKey`
 - fødselsnummer
-- DHG response body eller klinisk FHIR payload
+- DHG-svar og kliniske FHIR-data
 
-Logger og egne spans bruker bare feilklasse, status, destinasjonens host, normalisert operasjon (`status`/`record`), retrynummer og tilfeldig korrelasjons-ID. Generisk HTTP-tracing er deaktivert for DHG-verten for å hindre at dynamisk record-ID kommer inn i URL-attributter. Korrelasjons-ID fra klient aksepteres bare hvis den er en GUID.
+Egne DHG-spor inneholder feilklasse, status, vertsnavn, normalisert operasjon (`status` eller `record`), forsøksnummer og korrelasjons-ID. Generisk HTTP-sporing er deaktivert for DHG-verten. En innkommende korrelasjons-ID godtas bare når den er en GUID.
 
-## Nettverk
+## Nettverk og svar
 
-Alle eksterne URL-er må være HTTPS. Test og produksjon valideres som sammenhørende miljø. Utgående nettverk bør begrenses til valgt HelseID authority, DHG-host og OTLP-endepunkt. TLS-terminering/proxy må bevare original scheme/host på en kontrollert måte dersom absolutte Bundle-URL-er skal være korrekte.
+Konfigurerte eksterne URL-er må bruke HTTPS. Test- og produksjonsendepunkter kan ikke blandes. Gatewayen godtar bare den konfigurerte offentlige `Host`-verdien og et loopback-basert oppstrøms-API.
 
-## Produksjonssjekkliste
-
-- registrer korrekt facade audience/scope og token-exchange-relasjon i HelseID
-- lagre og roter JWK-er i HSM eller en godkjent secret-management-tjeneste
-- konfigurer persistent kryptert Data Protection key ring
-- bruk Redis replay-register med TLS før flere replikaer tas i bruk; minnevarianten er kun tillatt ved eksplisitt én-replika-drift
-- eksponer bare gateway-porten, hold API-port 8081 privat, og roter den delte gateway-hemmeligheten som en driftshemmelighet
-- lagre en separat stabil `PatientContext:PatientIdHmacKey` på minst 32 tilfeldige byte i godkjent secret store, og planlegg eventuell rotasjon som en ID-endring
-- fjern alle testaliaser og sett `ASPNETCORE_ENVIRONMENT=Production`
-- behold Swagger/OpenAPI deaktivert i Production, eller dokumenter behovet, aktiver eksplisitt og verifiser HelseID-beskyttelsen
-- implementer og godkjenn produksjonsutsteder før de subjektbundne GET-operasjonene tas i bruk
-- verifiser klokkesynkronisering, egress, sertifikatkjede og OTLP-redigering
-- kjør penetrasjonstest og personvern-/risikovurdering før klinisk bruk
+FHIR-svar bruker `Cache-Control: no-store`. Swagger og OpenAPI er deaktivert som standard når applikasjons- eller DHG-miljøet er produksjon. Når `Swagger:EnabledInProduction=true`, krever rutene HelseID-tilgangsomfanget `population.read`.

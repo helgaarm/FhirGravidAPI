@@ -1,83 +1,50 @@
-# DHG-kontrakt for population coverage
+# Dekning av DHG-data
 
-Fasaden eksponerer `Patient`, `Observation`, `Encounter` og et avgrenset `CareTeam`. Den implementerer ikke `$populate`, Questionnaire processing, demographics lookup, GP lookup, Grunndata eller andre clinical data sources.
+Fasaden eksponerer `Patient`, `Observation`, `Encounter` og `CareTeam`. Den implementerer ikke `$populate`, spørreskjemabehandling, demografioppslag, fastlegeoppslag, Grunndata eller andre kliniske datakilder.
 
-## Consumer contract
+## Implementert dekning
 
-- `Patient/{id}` returnerer enten den minimale mor-Patient eller en pregnancy-scoped fetus Patient. Ingen av dem inneholder NIN. Fetus Patient inneholder bare logical `id` og valgfri `meta.lastUpdated`; navn, gender, birthDate og identifier utledes ikke.
-- `CareTeam` eksponerer DHG `pointsOfContact.generalPractitioner`, `midwife`, `maternityHealthcareCentre` og `birthInstitute`. Person, role og organization er contained resources. Source-provided HPR number beholdes på fastlege og jordmor; source-provided organisasjonsnummer beholdes på fastlegens organization. Helsestasjon og fødeinstitusjon beholdes som navngitte Organization-participants uten konstruerte identifiers eller directory lookup.
-- GET Observation search krever `patient={logical-id}` og aksepterer valgfritt `code`, `category` og day-precision `date`. POST `_search` bruker `patient.identifier` i form body, støtter de samme filtrene og krever HelseID utenfor lokal `DevelopmentTestMode`.
-- En manglende eller `null` DHG-verdi produserer ingen Observation. Eksplisitt `false` beholdes; DHG laboratory results bruker kodeverk 8340 `T008 |Negativ|`, mens andre booleans bruker `valueBoolean=false`.
-- `currentPregnancy.hasPrenatalDiagnosticsTests` eksponeres source-preserving som «Gitt informasjon om fosterdiagnostikk». `true` og `false` beholdes, men verdien uttrykker ikke om en undersøkelse er utført, et prøveresultat eller et samtykke.
-- De markerte genetic-disorder-feltene `noneKnown`, `parentsAreRelatives`, `other` og `note` eksponeres. Broad booleans bruker source-faithful value, og note beholdes som trimmet `valueString`; fasaden utleder ikke diagnose, berørt person eller slektskap fra teksten.
-- `hipDysplasia` eksponeres som et source-preserving familiehistorisk boolean-svar. Berørt person og klinisk diagnose utledes ikke.
-- `previousPregnancies.note` eksponeres som trimmet, uparset `valueString`; det gjøres ingen residualberegning eller inference av svangerskapsutfall eller prosedyre.
-- Korrigert termindato eksponeres som en separat text-only datofact. Den overskriver ikke andre termindatoer, og fasaden velger ikke clinical precedence eller utleder korreksjonsgrunn.
-- Samboerskap med medforelder og tilhørende note eksponeres som source-preserving social history. Appointment medication-svar og note er encounter-scoped; relasjon, husstand, legemiddel, dose, diagnose og vurdering utledes ikke.
-- Medication frequency/note og clinical-tests note eksponeres som trimmet, uparset `valueString`. De blir ikke tolket som legemiddel, dose, instruksjon, analytt, prøveresultat eller clinical assessment.
-- Broad testfelt for MRSA/VRE/ESBL, gonoré, cytomegalovirus, asymptomatisk bakteriuri og gruppe B-streptokokker eksponeres med text-only test concept og eksplisitt positivt/negativt kodeverk 8340-resultat; ingen assay- eller analyttkode konstrueres.
-- Ikke-negativ lifestyle `dailyCount` beholdes som en integer component på den aktuelle coded stimulus/frequency Observation uten konstruert unit. Edema beholdes som raw encounter-scoped integer `0..3` uten tolkning av scale-trinnene.
-- Sammensatte/andre `medicalConditions`-booleans eksponeres med presis DHG-term og `valueBoolean`; `null` utelates. De splittes ikke til separate diagnoser eller prosedyrer, og hver Observation forklarer begrensningen i `Observation.note`. Medical note beholdes som trimmet `valueString` uten semantic parsing.
-- `metadata.enteredInError=true` produserer ingen FHIR resource.
-- `meta.lastUpdated` kommer fra DHG source metadata når de er tilgjengelige.
-- Gestational age bruker LOINC `18185-9` og ett UCUM-day Quantity per appointment med gyldig week/day. Fasaden oppretter ikke en ekstra facade-specific «latest» Observation; consumer kan velge nyeste `effectiveDateTime` blant daterte appointments, mens `effective[x]` utelates når dato mangler.
-- Et positivt `fetusesVitalSigns[].fosterId` oppretter en separat fetus Patient. Fetal heart rate, presentation/lie, maternal report of movements og uparset fetus note blir Observations med mor som `subject` og antenatal appointment som `encounter`. Fetus Patient brukes som `focus` bare når positivt `fosterId` finnes; ellers beholdes funnet uten konstruert identitet. Manglende appointment date gir Encounter uten `period` og Observations uten `effective[x]`.
-- Pre-pregnancy height, weight og BMI eksponeres som standard FHIR R4 base Observations med SNOMED CT/LOINC og UCUM. DHG leverer ingen measurement time, så `effective[x]` utelates; `meta.lastUpdated` må ikke tolkes som measurement time, og Vital Signs profile conformance deklareres ikke.
-- Etter vellykket patient selection returnerer search uten clinical treff en FHIR `searchset` Bundle med `total=0`.
+- `Patient/{id}` returnerer mor eller en minimal fosterressurs. Ingen av dem inneholder fødselsnummer.
+- `CareTeam` bruker fastlege, jordmor, helsestasjon og fødeinstitusjon fra DHG `pointsOfContact`.
+- Observation GET-søk krever `patient` og støtter `code`, `category` og dagspresis `date`.
+- Observation POST `_search` bruker `patient.identifier` i forespørselskroppen og støtter de samme filtrene.
+- Manglende eller `null` DHG-verdi gir ingen observasjon. Eksplisitt `false` beholdes.
+- `metadata.enteredInError=true` utelater hele ressursen.
+- `metadata.lastUpdated` mappes til `meta.lastUpdated`.
+- Svangerskapsalder mappes med LOINC `18185-9` og UCUM `d` per konsultasjon.
+- Høyde, vekt og BMI før svangerskapet eksponeres uten `effective[x]`, fordi DHG ikke leverer måletidspunkt.
+- En positiv `fosterId` oppretter en fosterressurs og brukes i `Observation.focus`. Uten positiv `fosterId` beholdes fosterfunnet uten `focus`.
+- En konsultasjon uten dato gir `Encounter` uten `period` og observasjoner uten `effective[x]`.
+- En ikke-negativ `dailyCount` eksponeres som heltallskomponent uten konstruert enhet.
+- Ødemgrad eksponeres som heltall fra 0 til 3 uten klinisk fortolkning.
+- Korrigert termindato beholdes som en separat dato og overstyrer ikke andre termindatoer.
+- Fritekst beholdes bare i uttrykkelig støttede tekstfelt og tolkes ikke som diagnose, legemiddel, dose, prosedyre eller prøveresultat.
+- Et søk uten treff returnerer en `searchset`-`Bundle` med `total=0`.
 
-## Publiserte terminology systems
+## Kodeverk
 
-Fasaden publiserer ikke egne clinical codes under `urn:nhn:population-data`. `Observation.code` og coded values bruker mappings som er verifisert mot en autoritativ source. Når DHG dokumenterer et entydig broad test result uten en verifisert standard analyttkode, brukes den presise source-termen i `CodeableConcept.text` uten `Coding`:
-
-| System | Canonical URI i FHIR | Bruk |
+| System | FHIR-URI | Bruk |
 |---|---|---|
-| LOINC | `http://loinc.org` | HL7-recommended interoperability coding; norsk tilleggskode publiseres når den er entydig |
-| SNOMED CT | `http://snomed.info/sct` | clinical findings, observable entities og procedures med exact semantic match |
-| NLK | `urn:oid:2.16.578.1.12.4.1.1.7280` | nasjonalt laboratoriesystem med NPU- og NOR-koder dokumentert av DHG/Helsedirektoratet |
-| Volven | relevant `urn:oid:2.16.578.1.12.4.1.1.*` | national value sets for language, lifestyle og urine/laboratory result |
-| UCUM | `http://unitsofmeasure.org` | machine-readable quantity units |
+| LOINC | `http://loinc.org` | Internasjonale observasjonskoder |
+| SNOMED CT | `http://snomed.info/sct` | Kliniske funn og begreper med entydig mapping |
+| NLK | `urn:oid:2.16.578.1.12.4.1.1.7280` | Norske laboratoriekoder |
+| Volven | `urn:oid:2.16.578.1.12.4.1.1.*` | Nasjonale kodeverk |
+| UCUM | `http://unitsofmeasure.org` | Måleenheter |
 
-FHIR identifiers i `CareTeam.contained` bruker norsk HPR-system `urn:oid:2.16.578.1.12.4.1.4.4` og ENH-system for organisasjonsnummer `urn:oid:2.16.578.1.12.4.1.4.101`. Verdiene kommer direkte fra DHG og brukes ikke til ekstern lookup.
+`CareTeam` bruker HPR-systemet `urn:oid:2.16.578.1.12.4.1.4.4` og organisasjonsnummersystemet `urn:oid:2.16.578.1.12.4.1.4.101` når verdiene kommer fra DHG.
 
-`Patient.needsLanguageInterpreter` bruker HL7 extension `http://hl7.org/fhir/StructureDefinition/patient-interpreterRequired`.
+## Sentrale søkekoder
 
-Noen facts har flere standard `Coding`-verdier:
-
-- due date from last period: SNOMED CT `289206005` og LOINC `11778-8`
-- due date from antenatal ultrasound: SNOMED CT `738070007` og LOINC `11778-8`
-- body weight fra datert appointment: SNOMED CT `27113001` og LOINC `29463-7`
-
-Det finnes ikke et eget «NorLOINC»-system. Norske laboratory concepts publiseres fra NLK. `CodeableConcept.coding` har ingen prioritetsrekkefølge; alle codings skal være sanne samtidig.
-
-`code` search matcher alle publiserte `Observation.code.coding` entries. Text-only test concepts returneres uten `code`-filter eller med `category=laboratory`, men kan ikke treffes med `code=system|code` før en standard coding er godkjent.
-
-## Viktige query concepts
-
-| Fact | `system|code` |
+| Opplysning | `system|code` |
 |---|---|
-| last menstrual period | `http://loinc.org|8665-2` |
-| gestational age | `http://loinc.org|18185-9` |
-| body weight | `http://snomed.info/sct|27113001` eller `http://loinc.org|29463-7` |
-| body height | `http://snomed.info/sct|50373000` eller `http://loinc.org|8302-2` |
-| body mass index | `http://snomed.info/sct|60621009` eller `http://loinc.org|39156-5` |
-| blood pressure panel | `http://loinc.org|85354-9` |
-| estimated delivery date | `http://loinc.org|11778-8` |
-| pregnancy resulting from assisted conception | `http://snomed.info/sct|813541000000100` |
-| fetal heart rate | `http://snomed.info/sct|364075005` eller `http://loinc.org|55283-6` |
-| fetal movements reported | `http://loinc.org|57088-7` |
+| Siste menstruasjon | `http://loinc.org|8665-2` |
+| Svangerskapsalder | `http://loinc.org|18185-9` |
+| Kroppsvekt | `http://snomed.info/sct|27113001` eller `http://loinc.org|29463-7` |
+| Kroppshøyde | `http://snomed.info/sct|50373000` eller `http://loinc.org|8302-2` |
+| BMI | `http://snomed.info/sct|60621009` eller `http://loinc.org|39156-5` |
+| Blodtrykkspanel | `http://loinc.org|85354-9` |
+| Termin | `http://loinc.org|11778-8` |
+| Fosterets hjertefrekvens | `http://snomed.info/sct|364075005` eller `http://loinc.org|55283-6` |
+| Rapporterte fosterbevegelser | `http://loinc.org|57088-7` |
 
-Blood pressure components bruker norske SNOMED CT-koder `4471000202106` og `4481000202108` sammen med LOINC `8480-6` og `8462-4`. Panelkoden forblir LOINC `85354-9` fordi det ikke er verifisert en entydig norsk SNOMED CT panelkode.
-
-## Eksplisitt unsupported eller partial
-
-- Medication name/dose, diagnosis og andre clinical facts trekkes ikke ut fra free text.
-- Combined DHG fields som `allergiesAsthma` og `mrsaVreEsbl` splittes ikke og får ingen misvisende standard code.
-- Consent eksponeres ikke som Observation. Aggregert fetal RhD result, resultatdato, prophylaxis og uparset note eksponeres source-preserving uten å binde resultatet til ett foster.
-- Stimulus `dailyCount` eksponeres ikke før en semantic standard mapping er godkjent.
-- Fastlege, jordmor, maternity healthcare centre og birth institute fra DHG eksponeres i `CareTeam`, inkludert de source identifiers som DHG-kontrakten tilbyr for fastlege og jordmor. Birth-status og øvrige contact/demographic data er utenfor gjeldende API surface.
-- Ukjente source fields, code systems og enum values tolereres i DTO, men eksponeres ikke automatisk.
-- Blood pressure eksponeres bare når dokumentert `systolic/diastolic` format kan parses sikkert.
-- Numeric values med DHG positivity constraint utelates når de er `0` eller negative. Dette innfører ingen clinical reference ranges.
-- Edema grade beholdes som raw `0..3` uten å navngi scale-trinnene. Fetus-spesifikke appointment facts kan eksponeres uten appointment date eller positivt `fosterId`; de manglende `period`-, `effective[x]`- og `focus`-elementene konstrueres ikke.
-
-Full field classification finnes i [mapping.md](mapping.md). Query-eksempler finnes i [examples/fhir-queries.md](../examples/fhir-queries.md). Terminology og units krever fortsatt godkjenning fra clinical terminology owner før DHG Test/Production.
+Full feltklassifisering står i [mappingmatrisen](mapping.md).

@@ -46,7 +46,7 @@ public static class FhirEndpoints
         group.MapPost("/Patient/_search", SearchPatientByIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchPatientByIdentifier")
-            .WithDescription("FHIR POST search med NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .WithDescription("FHIR POST-søk med fødselsnummer i forespørselskroppen. Krever HelseID utenfor lokal utviklingstestmodus. Fødselsnummeret returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
@@ -54,7 +54,7 @@ public static class FhirEndpoints
         group.MapPost("/Observation/_search", SearchObservationsByPatientIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchObservationsByPatientIdentifier")
-            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .WithDescription("FHIR POST-søk med fødselsnummer i forespørselskroppen. Krever HelseID utenfor lokal utviklingstestmodus. Fødselsnummeret returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
@@ -62,7 +62,7 @@ public static class FhirEndpoints
         group.MapPost("/Encounter/_search", SearchEncountersByPatientIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchEncountersByPatientIdentifier")
-            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .WithDescription("FHIR POST-søk med fødselsnummer i forespørselskroppen. Krever HelseID utenfor lokal utviklingstestmodus. Fødselsnummeret returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
@@ -70,7 +70,7 @@ public static class FhirEndpoints
         group.MapPost("/CareTeam/_search", SearchCareTeamsByPatientIdentifierAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaximumSearchFormBytes))
             .WithName("SearchCareTeamsByPatientIdentifier")
-            .WithDescription("FHIR POST search med patient NIN i form body. Krever HelseID utenfor lokal DevelopmentTestMode. NIN returneres aldri.")
+            .WithDescription("FHIR POST-søk med fødselsnummer i forespørselskroppen. Krever HelseID utenfor lokal utviklingstestmodus. Fødselsnummeret returneres aldri.")
             .Produces(StatusCodes.Status200OK, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status400BadRequest, contentType: "application/fhir+json")
             .Produces(StatusCodes.Status404NotFound, contentType: "application/fhir+json");
