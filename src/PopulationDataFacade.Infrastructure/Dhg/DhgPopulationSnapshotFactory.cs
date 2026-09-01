@@ -27,11 +27,16 @@ public sealed partial class DhgPopulationSnapshotFactory
         var mother = Active(record.Mother);
         var language = ToCodedValue(mother?.Language);
         if (language?.System != PopulationCodes.Volven3303) language = null;
+        var countryOfBirth = ToCodedValue(mother?.CountryOfBirth);
+        if (countryOfBirth?.System != PopulationCodes.Volven9043) countryOfBirth = null;
         var patient = new PopulationPatient(
             logicalPatientId,
             language,
             mother?.NeedsLanguageInterpreter,
-            mother?.Metadata?.LastUpdated ?? record.Metadata?.RecordLastUpdated);
+            mother?.Metadata?.LastUpdated ?? record.Metadata?.RecordLastUpdated,
+            CleanText(mother?.Name),
+            ToPopulationAddress(mother),
+            countryOfBirth);
 
         MapMotherFindings(mother, observations);
         MapCurrentPregnancy(Active(record.CurrentPregnancy), observations);
@@ -52,6 +57,12 @@ public sealed partial class DhgPopulationSnapshotFactory
             record.AntenatalAppointments,
             observations,
             encounters,
+            fetuses);
+        MapBirthStatus(
+            logicalPatientId,
+            pregnancyContextId,
+            Active(record.BirthStatus),
+            observations,
             fetuses);
         MapPointsOfContact(Active(record.PointsOfContact), careTeams);
 
@@ -104,6 +115,30 @@ public sealed partial class DhgPopulationSnapshotFactory
     {
         if (source is null) return;
         var updated = source.Metadata?.LastUpdated;
+        AddBoolean(
+            output,
+            Id(source.Metadata, "employed-last-six-months"),
+            PopulationCodes.EmployedLastSixMonths,
+            source.EmployedLastSixMonths,
+            updated,
+            category: "social-history");
+        if (source.EmploymentPercentage is >= 0 and <= 100)
+        {
+            output.Add(Observation(
+                Id(source.Metadata, "employment-percentage"),
+                PopulationCodes.EmploymentPercentage,
+                new QuantityValue(source.EmploymentPercentage.Value, "%", PopulationCodes.Ucum, "%"),
+                "social-history",
+                updated));
+        }
+        AddText(
+            output,
+            Id(source.Metadata, "occupation-and-industry"),
+            PopulationCodes.OccupationAndIndustry,
+            source.OccupationAndIndustry,
+            updated,
+            note: "Kildeteksten beholdes uten å tolke yrke eller bransje.",
+            category: "social-history");
         AddBoolean(
             output,
             Id(source.Metadata, "cohabiting-coparent"),
@@ -535,19 +570,12 @@ public sealed partial class DhgPopulationSnapshotFactory
                 var sourceFetusId = fetus.FetusId.Value;
                 identitySegment = sourceFetusId.ToString(CultureInfo.InvariantCulture);
                 identityNote = null;
-                if (!fetuses.TryGetValue(sourceFetusId, out fetusPatient))
-                {
-                    fetusPatient = new PopulationFetusPatient(
-                        FetalPatientId.Create(maternalPatientId, pregnancyContextId, sourceFetusId),
-                        appointment.Metadata?.LastUpdated);
-                    fetuses.Add(sourceFetusId, fetusPatient);
-                }
-                else if (appointment.Metadata?.LastUpdated is { } candidateLastUpdated &&
-                         (fetusPatient.LastUpdated is null || candidateLastUpdated > fetusPatient.LastUpdated))
-                {
-                    fetusPatient = fetusPatient with { LastUpdated = candidateLastUpdated };
-                    fetuses[sourceFetusId] = fetusPatient;
-                }
+                fetusPatient = AddOrUpdateFetus(
+                    maternalPatientId,
+                    pregnancyContextId,
+                    sourceFetusId,
+                    appointment.Metadata?.LastUpdated,
+                    fetuses);
             }
 
             if (fetus.FetalHeartRate is > 0)
@@ -612,6 +640,76 @@ public sealed partial class DhgPopulationSnapshotFactory
                     focusPatientId: fetusPatient?.LogicalId));
             }
         }
+    }
+
+    private static void MapBirthStatus(
+        string maternalPatientId,
+        string pregnancyContextId,
+        DhgBirthStatusResource? source,
+        List<PopulationObservation> output,
+        Dictionary<int, PopulationFetusPatient> fetuses)
+    {
+        if (source?.BirthStatus is null) return;
+
+        var entryIndex = 0;
+        foreach (var entry in source.BirthStatus.OfType<DhgBirthStatusEntry>())
+        {
+            entryIndex++;
+            PopulationFetusPatient? fetusPatient = null;
+            var identitySegment = $"unidentified-{entryIndex}";
+            string? identityNote = "Fødselsstatus mangler et positivt fosterId og er derfor ikke knyttet til en bestemt fetus Patient.";
+
+            if (entry.FetusId is > 0)
+            {
+                var sourceFetusId = entry.FetusId.Value;
+                identitySegment = sourceFetusId.ToString(CultureInfo.InvariantCulture);
+                identityNote = null;
+                fetusPatient = AddOrUpdateFetus(
+                    maternalPatientId,
+                    pregnancyContextId,
+                    sourceFetusId,
+                    source.Metadata?.LastUpdated,
+                    fetuses);
+            }
+
+            var status = ToCodedValue(entry.Status);
+            if (status?.System != PopulationCodes.Volven8522) status = null;
+            if (status is null && entry.DateTime is null) continue;
+
+            output.Add(Observation(
+                Id(source.Metadata, $"birth-status-{identitySegment}-{entryIndex}"),
+                PopulationCodes.BirthStatus,
+                status,
+                "social-history",
+                source.Metadata?.LastUpdated,
+                entry.DateTime is null ? null : new EffectiveDateTime(entry.DateTime.Value),
+                note: identityNote,
+                focusPatientId: fetusPatient?.LogicalId));
+        }
+    }
+
+    private static PopulationFetusPatient AddOrUpdateFetus(
+        string maternalPatientId,
+        string pregnancyContextId,
+        int sourceFetusId,
+        DateTimeOffset? lastUpdated,
+        Dictionary<int, PopulationFetusPatient> fetuses)
+    {
+        if (!fetuses.TryGetValue(sourceFetusId, out var fetusPatient))
+        {
+            fetusPatient = new PopulationFetusPatient(
+                FetalPatientId.Create(maternalPatientId, pregnancyContextId, sourceFetusId),
+                lastUpdated);
+            fetuses.Add(sourceFetusId, fetusPatient);
+        }
+        else if (lastUpdated is { } candidateLastUpdated &&
+                 (fetusPatient.LastUpdated is null || candidateLastUpdated > fetusPatient.LastUpdated))
+        {
+            fetusPatient = fetusPatient with { LastUpdated = candidateLastUpdated };
+            fetuses[sourceFetusId] = fetusPatient;
+        }
+
+        return fetusPatient;
     }
 
     private static void MapPointsOfContact(
@@ -741,9 +839,22 @@ public sealed partial class DhgPopulationSnapshotFactory
 
     private static CodedValue? ToCodedValue(DhgCodeAndSystem? source)
     {
-        if (source?.Code is null) return null;
+        if (source is null) return null;
+        var code = CleanText(source.Code);
+        if (code is null) return null;
         var system = NormalizeCodeSystem(source.CodeSystem);
-        return system is null ? null : new CodedValue(system, source.Code, source.Display);
+        return system is null ? null : new CodedValue(system, code, CleanText(source.Display));
+    }
+
+    private static PopulationAddress? ToPopulationAddress(DhgMother? source)
+    {
+        if (source is null) return null;
+        var line = CleanText(source.Address);
+        var postalCode = CleanText(source.PostNumber);
+        var city = CleanText(source.PostName);
+        return line is null && postalCode is null && city is null
+            ? null
+            : new PopulationAddress(line, postalCode, city);
     }
 
     private static string? CleanText(string? value) =>
@@ -756,9 +867,11 @@ public sealed partial class DhgPopulationSnapshotFactory
         {
             "VOLVEN_3303" => PopulationCodes.Volven3303,
             "VOLVEN_8340" => PopulationCodes.Volven8340,
+            "VOLVEN_8522" => PopulationCodes.Volven8522,
             "VOLVEN_8534" => PopulationCodes.Volven8534,
             "VOLVEN_8536" => PopulationCodes.Volven8536,
             "VOLVEN_8537" => PopulationCodes.Volven8537,
+            "VOLVEN_9043" => PopulationCodes.Volven9043,
             _ when OidPattern().IsMatch(codeSystem) => $"urn:oid:{codeSystem}",
             _ when Uri.TryCreate(codeSystem, UriKind.Absolute, out _) => codeSystem,
             _ => null

@@ -2,14 +2,19 @@
 
 Fasaden skiller FHIR-pasient-ID fra fødselsnummer. Fødselsnummer returneres ikke som `Patient.id` eller `Patient.identifier`.
 
-| Verdi | Bruk |
-|---|---|
-| Alias, for eksempel `synthetic_1` | Lokalt navn på en konfigurert syntetisk testpasient |
-| `LogicalId`, for eksempel `patient-test-1` | FHIR `Patient.id` i lokal testmodus |
-| Fødselsnummer | Sendes bare til DHG i påkrevd header eller mottas i POST `_search`-kroppen |
-| `patientContext` | Kortlivet, beskyttet binding mellom logisk ID, fødselsnummer, subjekt og utløp |
-| Pseudonym pasient-ID | FHIR `Patient.id` fra HMAC ved autentisert POST `_search` |
-| Foster-ID | Pseudonym FHIR-ID fra morens logiske ID, aktiv DHG-post og positiv `fosterId` |
+<table>
+  <thead>
+    <tr><th width="50%" scope="col">Verdi</th><th width="50%" scope="col">Bruk</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Alias, for eksempel <code>synthetic_1</code></td><td>Lokalt navn på en konfigurert syntetisk testpasient</td></tr>
+    <tr><td><code>LogicalId</code>, for eksempel <code>patient-test-1</code></td><td>FHIR <code>Patient.<wbr>id</code> i lokal testmodus</td></tr>
+    <tr><td>Fødselsnummer</td><td>Sendes bare til DHG i påkrevd header eller mottas i POST <code>_search</code>-kroppen</td></tr>
+    <tr><td><code>patientContext</code></td><td>Kortlivet, beskyttet binding mellom logisk ID, fødselsnummer, subjekt og utløp</td></tr>
+    <tr><td>Pseudonym pasient-ID</td><td>FHIR <code>Patient.<wbr>id</code> fra HMAC ved autentisert POST <code>_search</code></td></tr>
+    <tr><td>Foster-ID</td><td>Pseudonym FHIR-ID fra morens logiske ID, aktiv DHG-post og positiv <code>fosterId</code></td></tr>
+  </tbody>
+</table>
 
 ## Lokal test med alias
 
@@ -101,14 +106,19 @@ Fødselsnummer skal ikke legges i en GET-URL.
 
 ## Vanlige svar
 
-| Respons | Betydning |
-|---:|---|
-| `400` | Pasientkonteksten, skjemaet eller fødselsnummerformatet er ugyldig |
-| `401` | HelseID-token eller DPoP-bevis mangler eller er ugyldig |
-| `403` | Tilgangsomfang eller DHG-samtykke mangler |
-| `404` | Alias, pasient, aktivt helsekort eller samsvarende pasient-ID finnes ikke |
-| `500` | Lokal konfigurasjonsfeil |
-| `503` | HelseID eller DHG er utilgjengelig, eller DHG-kontrakten brytes |
+<table>
+  <thead>
+    <tr><th width="50%" scope="col">Respons</th><th width="50%" scope="col">Betydning</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>400</code></td><td>Pasientkonteksten, skjemaet eller fødselsnummerformatet er ugyldig</td></tr>
+    <tr><td><code>401</code></td><td>HelseID-token eller DPoP-bevis mangler eller er ugyldig</td></tr>
+    <tr><td><code>403</code></td><td>Tilgangsomfang eller DHG-samtykke mangler</td></tr>
+    <tr><td><code>404</code></td><td>Alias, pasient, aktivt helsekort eller samsvarende pasient-ID finnes ikke</td></tr>
+    <tr><td><code>500</code></td><td>Lokal konfigurasjonsfeil</td></tr>
+    <tr><td><code>503</code></td><td>HelseID eller DHG er utilgjengelig, eller DHG-kontrakten brytes</td></tr>
+  </tbody>
+</table>
 
 Pasientkonteksten skal behandles som sensitiv og ikke legges i kildekontroll, logger, saker eller chat.
 

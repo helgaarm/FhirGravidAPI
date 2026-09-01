@@ -4,30 +4,40 @@ Dette dokumentet beskriver ressursene som fasaden oppretter. Feltklassifisering 
 
 ## Valg av DHG-post
 
-| DHG-verdi | Kontroll | Feil |
-|---|---|---:|
-| `GET /status` | Henter samtykke, personstatus og `latestRecordId` | `OperationOutcome` |
-| `hasGivenConsent` | Må være `true` | 403 |
-| `deceased` | Må ikke være `true` | 403 |
-| `hasActiveMaternityRecord` | Må være `true` | 404 |
-| `latestRecordId` | Må være en gyldig, ikke-tom UUID | 503 |
-| `GET /record/{latestRecordId}` | Eneste kliniske datakilde | 503 |
-| `metadata.recordId` | Må samsvare med `latestRecordId` | 503 |
-| `recordStatus.status` | Må være `ACTIVE` | 404 |
+<table>
+  <thead>
+    <tr><th width="33.33%" scope="col">DHG-verdi</th><th width="33.33%" scope="col">Kontroll</th><th width="33.33%" scope="col">Feil</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>GET /<wbr>status</code></td><td>Henter samtykke, personstatus og <code>latestRecordId</code></td><td><code>OperationOutcome</code></td></tr>
+    <tr><td><code>hasGivenConsent</code></td><td>Må være <code>true</code></td><td>403</td></tr>
+    <tr><td><code>deceased</code></td><td>Må ikke være <code>true</code></td><td>403</td></tr>
+    <tr><td><code>hasActiveMaternityRecord</code></td><td>Må være <code>true</code></td><td>404</td></tr>
+    <tr><td><code>latestRecordId</code></td><td>Må være en gyldig, ikke-tom UUID</td><td>503</td></tr>
+    <tr><td><code>GET /<wbr>record/<wbr>{latestRecordId}</code></td><td>Eneste kliniske datakilde</td><td>503</td></tr>
+    <tr><td><code>metadata.<wbr>recordId</code></td><td>Må samsvare med <code>latestRecordId</code></td><td>503</td></tr>
+    <tr><td><code>recordStatus.<wbr>status</code></td><td>Må være <code>ACTIVE</code></td><td>404</td></tr>
+  </tbody>
+</table>
 
 Fasaden bruker ingen alternativ datakilde og har ikke varig klinisk mellomlagring.
 
 ## Ressurser
 
-| Ressurs | Antall | Kilde |
-|---|---:|---|
-| `CapabilityStatement` | 1 | Statisk beskrivelse av FHIR-flaten |
-| `Patient` | 1..* | Morens logiske ID og eventuelle foster-ID-er fra positiv `fosterId` |
-| `Observation` | 0..* | Eksplisitte DHG-felt med sikker betydning |
-| `Encounter` | 0..* | Konsultasjoner som ikke er markert som feil |
-| `CareTeam` | 0..1 | Fastlege, jordmor, helsestasjon og fødeinstitusjon fra `pointsOfContact` |
-| `Bundle` | 1 | Resultat fra FHIR-søk |
-| `OperationOutcome` | 0..1 | Kontrollert feil |
+<table>
+  <thead>
+    <tr><th width="33.33%" scope="col">Ressurs</th><th width="33.33%" scope="col">Antall</th><th width="33.33%" scope="col">Kilde</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>CapabilityStatement</code></td><td>1</td><td>Statisk beskrivelse av FHIR-flaten</td></tr>
+    <tr><td><code>Patient</code></td><td>1..*</td><td>Morens logiske ID og eventuelle foster-ID-er fra positiv <code>fosterId</code></td></tr>
+    <tr><td><code>Observation</code></td><td>0..*</td><td>Eksplisitte DHG-felt med sikker betydning</td></tr>
+    <tr><td><code>Encounter</code></td><td>0..*</td><td>Konsultasjoner som ikke er markert som feil</td></tr>
+    <tr><td><code>CareTeam</code></td><td>0..1</td><td>Fastlege, jordmor, helsestasjon og fødeinstitusjon fra <code>pointsOfContact</code></td></tr>
+    <tr><td><code>Bundle</code></td><td>1</td><td>Resultat fra FHIR-søk</td></tr>
+    <tr><td><code>OperationOutcome</code></td><td>0..1</td><td>Kontrollert feil</td></tr>
+  </tbody>
+</table>
 
 ## Felles regler
 
@@ -45,9 +55,15 @@ Fasaden bruker ingen alternativ datakilde og har ikke varig klinisk mellomlagrin
 
 ## Patient og foster
 
-Morens `Patient.id` kommer fra pasientkonteksten eller HMAC-pseudonymiseringen. Den er aldri et fødselsnummer. `mother.language` mappes til `Patient.communication.language`, og `mother.needsLanguageInterpreter` bruker HL7-utvidelsen `patient-interpreterRequired`.
+Morens `Patient.id` kommer fra pasientkonteksten eller HMAC-pseudonymiseringen. Den er aldri et fødselsnummer. Navn og bostedsadresse fra `mother` mappes til `Patient.name` og `Patient.address`. Fødeland fra Volven 9043 bruker HL7-utvidelsen `patient-birthPlace`. `mother.language` mappes til `Patient.communication.language`, og `mother.needsLanguageInterpreter` bruker HL7-utvidelsen `patient-interpreterRequired`.
+
+Yrkesaktivitet siste seks måneder, stillingsprosent fra 0 til 100 og uparset tekst for yrke og bransje mappes til `Observation` med kategorien `social-history`.
 
 En positiv `fetusesVitalSigns[].fosterId` gir en pseudonym foster-ID basert på morens logiske ID, aktiv DHG-post og `fosterId`. Fosterressursen inneholder bare `id` og eventuell `meta.lastUpdated`.
+
+## Fødselsstatus
+
+Hver `birthStatus.birthStatus[]` med Volven 8522-status eller eksplisitt leveringstid gir en `Observation` med kategorien `social-history`. Status blir `valueCodeableConcept`, og tidspunktet blir `effectiveDateTime`. En positiv `fosterId` oppretter eller gjenbruker samme pseudonyme fosterressurs som konsultasjonsfunn og settes som `Observation.focus`. Uten positiv ID beholdes opplysningen med mor som `subject` og uten `focus`.
 
 ## CareTeam
 

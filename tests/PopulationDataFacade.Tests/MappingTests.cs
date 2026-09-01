@@ -615,6 +615,187 @@ public sealed class MappingTests
     }
 
     [Fact]
+    public void Birth_status_maps_volven_outcomes_delivery_times_and_existing_fetus_focus()
+    {
+        var birthUpdated = DateTimeOffset.Parse("2026-05-01T09:00:00+02:00");
+        var firstDelivery = DateTimeOffset.Parse("2026-05-01T08:00:00+02:00");
+        var secondDelivery = DateTimeOffset.Parse("2026-05-01T08:15:00+02:00");
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            AntenatalAppointments =
+            [
+                new DhgAntenatalAppointment
+                {
+                    Metadata = ResourceMetadata("appointment"),
+                    FetusesVitalSigns =
+                    [
+                        new DhgFetusVitalSigns { FetusId = 1, FetalHeartRate = 145 }
+                    ]
+                }
+            ],
+            BirthStatus = new DhgBirthStatusResource
+            {
+                Metadata = new DhgResourceMetadata
+                {
+                    Id = "birth",
+                    LastUpdated = birthUpdated,
+                    EnteredInError = false
+                },
+                BirthStatus =
+                [
+                    new DhgBirthStatusEntry
+                    {
+                        FetusId = 1,
+                        Status = new DhgCodeAndSystem
+                        {
+                            Code = "1",
+                            Display = "Født levende",
+                            CodeSystem = "VOLVEN_8522"
+                        },
+                        DateTime = firstDelivery
+                    },
+                    new DhgBirthStatusEntry
+                    {
+                        FetusId = 2,
+                        Status = new DhgCodeAndSystem
+                        {
+                            Code = "2",
+                            Display = "Dødfødt",
+                            CodeSystem = "2.16.578.1.12.4.1.1.8522"
+                        },
+                        DateTime = secondDelivery
+                    }
+                ]
+            }
+        });
+
+        var firstFetusId = FetalPatientId.Create("patient-1", ActiveStatus.LatestRecordId!, 1);
+        var secondFetusId = FetalPatientId.Create("patient-1", ActiveStatus.LatestRecordId!, 2);
+        Assert.Equal(2, snapshot.Fetuses!.Count);
+        Assert.Equal(
+            birthUpdated,
+            Assert.Single(snapshot.Fetuses, fetus => fetus.LogicalId == firstFetusId).LastUpdated);
+        Assert.Contains(snapshot.Fetuses, fetus => fetus.LogicalId == secondFetusId);
+
+        var outcomes = snapshot.Observations
+            .Where(observation => observation.Code == PopulationCodes.BirthStatus)
+            .OrderBy(observation => Assert.IsType<EffectiveDateTime>(observation.Effective).Value)
+            .ToArray();
+        Assert.Equal(2, outcomes.Length);
+
+        var firstOutcome = outcomes[0];
+        Assert.Equal("social-history", firstOutcome.Category);
+        Assert.Equal(firstFetusId, firstOutcome.FocusPatientId);
+        Assert.Equal(firstDelivery, Assert.IsType<EffectiveDateTime>(firstOutcome.Effective).Value);
+        var firstStatus = Assert.IsType<CodedValue>(firstOutcome.Value);
+        Assert.Equal(PopulationCodes.Volven8522, firstStatus.System);
+        Assert.Equal("1", firstStatus.Code);
+        Assert.Equal("Født levende", firstStatus.Display);
+
+        var secondOutcome = outcomes[1];
+        Assert.Equal(secondFetusId, secondOutcome.FocusPatientId);
+        Assert.Equal(secondDelivery, Assert.IsType<EffectiveDateTime>(secondOutcome.Effective).Value);
+        Assert.Equal("2", Assert.IsType<CodedValue>(secondOutcome.Value).Code);
+
+        var mappedOutcome = Assert.Single(
+            new FhirPopulationMapper().MapObservations(snapshot),
+            observation => observation.Id == firstOutcome.Id);
+        Assert.Equal(PopulationCodes.BirthStatus.Display, mappedOutcome.Code.Text);
+        Assert.Equal($"Patient/{firstFetusId}", Assert.Single(mappedOutcome.Focus).Reference);
+        var mappedStatus = Assert.Single(Assert.IsType<CodeableConcept>(mappedOutcome.Value).Coding);
+        Assert.Equal(PopulationCodes.Volven8522, mappedStatus.System);
+        Assert.Equal("1", mappedStatus.Code);
+        Assert.IsType<FhirDateTime>(mappedOutcome.Effective);
+    }
+
+    [Fact]
+    public void Birth_status_without_positive_fetus_id_keeps_explicit_data_without_inventing_focus()
+    {
+        var delivery = DateTimeOffset.Parse("2026-05-01T08:00:00+02:00");
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            BirthStatus = new DhgBirthStatusResource
+            {
+                Metadata = ResourceMetadata("birth"),
+                BirthStatus =
+                [
+                    new DhgBirthStatusEntry
+                    {
+                        Status = new DhgCodeAndSystem
+                        {
+                            Code = "1",
+                            Display = "Født levende",
+                            CodeSystem = "VOLVEN_8522"
+                        },
+                        DateTime = delivery
+                    },
+                    new DhgBirthStatusEntry
+                    {
+                        FetusId = 0,
+                        Status = new DhgCodeAndSystem
+                        {
+                            Code = "foreign",
+                            Display = "Ukjent",
+                            CodeSystem = "urn:test"
+                        },
+                        DateTime = delivery.AddMinutes(5)
+                    }
+                ]
+            }
+        });
+
+        Assert.Empty(snapshot.Fetuses!);
+        var outcomes = snapshot.Observations
+            .Where(observation => observation.Code == PopulationCodes.BirthStatus)
+            .ToArray();
+        Assert.Equal(2, outcomes.Length);
+        Assert.All(outcomes, outcome =>
+        {
+            Assert.Null(outcome.FocusPatientId);
+            Assert.Contains("fosterId", outcome.Note, StringComparison.Ordinal);
+        });
+        Assert.IsType<CodedValue>(outcomes[0].Value);
+        Assert.Null(outcomes[1].Value);
+        Assert.Equal(delivery.AddMinutes(5), Assert.IsType<EffectiveDateTime>(outcomes[1].Effective).Value);
+
+        var mapped = new FhirPopulationMapper().MapObservations(snapshot);
+        Assert.All(mapped, observation => Assert.Empty(observation.Focus));
+        Assert.Null(mapped[1].Value);
+    }
+
+    [Fact]
+    public void Entered_in_error_birth_status_is_excluded_with_its_fetus_identity()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            BirthStatus = new DhgBirthStatusResource
+            {
+                Metadata = ResourceMetadata("birth", enteredInError: true),
+                BirthStatus =
+                [
+                    new DhgBirthStatusEntry
+                    {
+                        FetusId = 1,
+                        Status = new DhgCodeAndSystem
+                        {
+                            Code = "1",
+                            Display = "Født levende",
+                            CodeSystem = "VOLVEN_8522"
+                        },
+                        DateTime = DateTimeOffset.Parse("2026-05-01T08:00:00+02:00")
+                    }
+                ]
+            }
+        });
+
+        Assert.Empty(snapshot.Observations);
+        Assert.Empty(snapshot.Fetuses!);
+    }
+
+    [Fact]
     public void Same_source_fetus_id_in_different_maternity_records_gets_distinct_patient_ids()
     {
         var firstRecordMetadata = Metadata();
@@ -1024,6 +1205,84 @@ public sealed class MappingTests
         var note = Assert.Single(snapshot.Observations, x => x.Code == PopulationCodes.CohabitingCoparentNote);
         Assert.Equal("Delt bosted er omtalt i kilden", Assert.IsType<TextValue>(note.Value).Value);
         Assert.Equal("social-history", note.Category);
+    }
+
+    [Fact]
+    public void Maternal_demographics_and_employment_are_mapped_without_inference()
+    {
+        var snapshot = Create(new DhgMaternityRecord
+        {
+            Metadata = Metadata(),
+            Mother = new DhgMother
+            {
+                Metadata = ResourceMetadata("mother"),
+                Name = "  Kari Nordmann  ",
+                Address = "  Storgata 1  ",
+                PostNumber = "  0155  ",
+                PostName = "  Oslo  ",
+                EmployedLastSixMonths = false,
+                EmploymentPercentage = 0,
+                OccupationAndIndustry = "  Sykepleier, sykehus  ",
+                CountryOfBirth = new DhgCodeAndSystem
+                {
+                    Code = "NO",
+                    Display = "Norge",
+                    CodeSystem = "VOLVEN_9043"
+                }
+            }
+        });
+
+        Assert.Equal("Kari Nordmann", snapshot.Patient.Name);
+        Assert.Equal(
+            new PopulationAddress("Storgata 1", "0155", "Oslo"),
+            snapshot.Patient.Address);
+        Assert.Equal(
+            new CodedValue(PopulationCodes.Volven9043, "NO", "Norge"),
+            snapshot.Patient.CountryOfBirth);
+
+        var employed = Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.EmployedLastSixMonths);
+        Assert.False(Assert.IsType<BooleanValue>(employed.Value).Value);
+        Assert.Equal("social-history", employed.Category);
+
+        var percentage = Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.EmploymentPercentage);
+        var percentageValue = Assert.IsType<QuantityValue>(percentage.Value);
+        Assert.Equal(0m, percentageValue.Value);
+        Assert.Equal("%", percentageValue.Unit);
+        Assert.Equal(PopulationCodes.Ucum, percentageValue.System);
+        Assert.Equal("%", percentageValue.Code);
+        Assert.Equal("social-history", percentage.Category);
+
+        var occupation = Assert.Single(
+            snapshot.Observations,
+            observation => observation.Code == PopulationCodes.OccupationAndIndustry);
+        Assert.Equal("Sykepleier, sykehus", Assert.IsType<TextValue>(occupation.Value).Value);
+        Assert.Equal("social-history", occupation.Category);
+        Assert.Contains("uten å tolke", occupation.Note, StringComparison.Ordinal);
+
+        var mapper = new FhirPopulationMapper();
+        var patient = mapper.MapPatient(snapshot.Patient);
+        Assert.Equal("Kari Nordmann", Assert.Single(patient.Name).Text);
+        var address = Assert.Single(patient.Address);
+        Assert.Equal("Storgata 1", Assert.Single(address.Line));
+        Assert.Equal("0155", address.PostalCode);
+        Assert.Equal("Oslo", address.City);
+        var birthPlaceExtension = Assert.Single(
+            patient.Extension,
+            extension => extension.Url == "http://hl7.org/fhir/StructureDefinition/patient-birthPlace");
+        var birthPlace = Assert.IsType<Address>(birthPlaceExtension.Value);
+        Assert.Equal("NO", birthPlace.Country);
+        Assert.Equal("Norge", birthPlace.Text);
+
+        var mappedPercentage = Assert.Single(
+            mapper.MapObservations(snapshot),
+            observation => observation.Code.Text == PopulationCodes.EmploymentPercentage.Display);
+        var mappedPercentageValue = Assert.IsType<Quantity>(mappedPercentage.Value);
+        Assert.Equal(0m, mappedPercentageValue.Value);
+        Assert.Equal("%", mappedPercentageValue.Code);
     }
 
     [Fact]
@@ -1655,9 +1914,11 @@ public sealed class MappingTests
             PopulationCodes.Nlk,
             PopulationCodes.Volven3303,
             PopulationCodes.Volven8340,
+            PopulationCodes.Volven8522,
             PopulationCodes.Volven8534,
             PopulationCodes.Volven8536,
-            PopulationCodes.Volven8537
+            PopulationCodes.Volven8537,
+            PopulationCodes.Volven9043
         };
         var publishedCodes = typeof(PopulationCodes)
             .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)

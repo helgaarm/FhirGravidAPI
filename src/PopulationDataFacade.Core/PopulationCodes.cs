@@ -12,10 +12,12 @@ public static class PopulationCodes
     public const string Loinc = "http://loinc.org";
     public const string SnomedCt = "http://snomed.info/sct";
     public const string Volven3303 = "urn:oid:2.16.578.1.12.4.1.1.3303";
+    public const string Volven8522 = "urn:oid:2.16.578.1.12.4.1.1.8522";
     public const string Volven8534 = "urn:oid:2.16.578.1.12.4.1.1.8534";
     public const string Volven8536 = "urn:oid:2.16.578.1.12.4.1.1.8536";
     public const string Volven8537 = "urn:oid:2.16.578.1.12.4.1.1.8537";
     public const string Volven8340 = "urn:oid:2.16.578.1.12.4.1.1.8340";
+    public const string Volven9043 = "urn:oid:2.16.578.1.12.4.1.1.9043";
     public const string Nlk = "urn:oid:2.16.578.1.12.4.1.1.7280";
 
     public static readonly PopulationCode DateLastPeriod = LoincCode("8665-2", "Last menstrual period start date");
@@ -105,6 +107,10 @@ public static class PopulationCodes
 
     public static readonly PopulationCode CohabitingCoparent = TextOnly("Bor sammen med medforelder");
     public static readonly PopulationCode CohabitingCoparentNote = TextOnly("Merknad om boforhold med medforelder");
+    public static readonly PopulationCode EmployedLastSixMonths = TextOnly("Yrkesaktiv siste 6 måneder");
+    public static readonly PopulationCode EmploymentPercentage = TextOnly("Stillingsprosent");
+    public static readonly PopulationCode OccupationAndIndustry = TextOnly("Yrke og bransje");
+    public static readonly PopulationCode BirthStatus = TextOnly("Fødselsstatus");
 
     public static readonly PopulationCode FetalHeartRate = Snomed("364075005", "Heart rate");
     public static readonly PopulationCode FetalPresentationLie = TextOnly("Fosterleie og -presentasjon");

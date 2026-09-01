@@ -14,6 +14,7 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og `CareTeam`. Den impl
 - Svangerskapsalder mappes med LOINC `18185-9` og UCUM `d` per konsultasjon.
 - Høyde, vekt og BMI før svangerskapet eksponeres uten `effective[x]`, fordi DHG ikke leverer måletidspunkt.
 - En positiv `fosterId` oppretter en fosterressurs og brukes i `Observation.focus`. Uten positiv `fosterId` beholdes fosterfunnet uten `focus`.
+- `birthStatus` eksponerer Volven 8522-status og leveringstid. Positiv `fosterId` korreleres med samme fosterressurs som konsultasjonsfunn.
 - En konsultasjon uten dato gir `Encounter` uten `period` og observasjoner uten `effective[x]`.
 - En ikke-negativ `dailyCount` eksponeres som heltallskomponent uten konstruert enhet.
 - Ødemgrad eksponeres som heltall fra 0 til 3 uten klinisk fortolkning.
@@ -23,28 +24,38 @@ Fasaden eksponerer `Patient`, `Observation`, `Encounter` og `CareTeam`. Den impl
 
 ## Kodeverk
 
-| System | FHIR-URI | Bruk |
-|---|---|---|
-| LOINC | `http://loinc.org` | Internasjonale observasjonskoder |
-| SNOMED CT | `http://snomed.info/sct` | Kliniske funn og begreper med entydig mapping |
-| NLK | `urn:oid:2.16.578.1.12.4.1.1.7280` | Norske laboratoriekoder |
-| Volven | `urn:oid:2.16.578.1.12.4.1.1.*` | Nasjonale kodeverk |
-| UCUM | `http://unitsofmeasure.org` | Måleenheter |
+<table>
+  <thead>
+    <tr><th width="33.33%" scope="col">System</th><th width="33.33%" scope="col">FHIR-URI</th><th width="33.33%" scope="col">Bruk</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>LOINC</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org</code></td><td>Internasjonale observasjonskoder</td></tr>
+    <tr><td>SNOMED CT</td><td><code>http:/<wbr>/<wbr>snomed.<wbr>info/<wbr>sct</code></td><td>Kliniske funn og begreper med entydig mapping</td></tr>
+    <tr><td>NLK</td><td><code>urn:oid:2.<wbr>16.<wbr>578.<wbr>1.<wbr>12.<wbr>4.<wbr>1.<wbr>1.<wbr>7280</code></td><td>Norske laboratoriekoder</td></tr>
+    <tr><td>Volven</td><td><code>urn:oid:2.<wbr>16.<wbr>578.<wbr>1.<wbr>12.<wbr>4.<wbr>1.<wbr>1.<wbr>*</code></td><td>Nasjonale kodeverk</td></tr>
+    <tr><td>UCUM</td><td><code>http:/<wbr>/<wbr>unitsofmeasure.<wbr>org</code></td><td>Måleenheter</td></tr>
+  </tbody>
+</table>
 
 `CareTeam` bruker HPR-systemet `urn:oid:2.16.578.1.12.4.1.4.4` og organisasjonsnummersystemet `urn:oid:2.16.578.1.12.4.1.4.101` når verdiene kommer fra DHG.
 
 ## Sentrale søkekoder
 
-| Opplysning | `system|code` |
-|---|---|
-| Siste menstruasjon | `http://loinc.org|8665-2` |
-| Svangerskapsalder | `http://loinc.org|18185-9` |
-| Kroppsvekt | `http://snomed.info/sct|27113001` eller `http://loinc.org|29463-7` |
-| Kroppshøyde | `http://snomed.info/sct|50373000` eller `http://loinc.org|8302-2` |
-| BMI | `http://snomed.info/sct|60621009` eller `http://loinc.org|39156-5` |
-| Blodtrykkspanel | `http://loinc.org|85354-9` |
-| Termin | `http://loinc.org|11778-8` |
-| Fosterets hjertefrekvens | `http://snomed.info/sct|364075005` eller `http://loinc.org|55283-6` |
-| Rapporterte fosterbevegelser | `http://loinc.org|57088-7` |
+<table>
+  <thead>
+    <tr><th width="50%" scope="col">Opplysning</th><th width="50%" scope="col"><code>system|code</code></th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Siste menstruasjon</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org|8665-2</code></td></tr>
+    <tr><td>Svangerskapsalder</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org|18185-9</code></td></tr>
+    <tr><td>Kroppsvekt</td><td><code>http:/<wbr>/<wbr>snomed.<wbr>info/<wbr>sct|27113001</code> eller <code>http:/<wbr>/<wbr>loinc.<wbr>org|29463-7</code></td></tr>
+    <tr><td>Kroppshøyde</td><td><code>http:/<wbr>/<wbr>snomed.<wbr>info/<wbr>sct|50373000</code> eller <code>http:/<wbr>/<wbr>loinc.<wbr>org|8302-2</code></td></tr>
+    <tr><td>BMI</td><td><code>http:/<wbr>/<wbr>snomed.<wbr>info/<wbr>sct|60621009</code> eller <code>http:/<wbr>/<wbr>loinc.<wbr>org|39156-5</code></td></tr>
+    <tr><td>Blodtrykkspanel</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org|85354-9</code></td></tr>
+    <tr><td>Termin</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org|11778-8</code></td></tr>
+    <tr><td>Fosterets hjertefrekvens</td><td><code>http:/<wbr>/<wbr>snomed.<wbr>info/<wbr>sct|364075005</code> eller <code>http:/<wbr>/<wbr>loinc.<wbr>org|55283-6</code></td></tr>
+    <tr><td>Rapporterte fosterbevegelser</td><td><code>http:/<wbr>/<wbr>loinc.<wbr>org|57088-7</code></td></tr>
+  </tbody>
+</table>
 
 Full feltklassifisering står i [mappingmatrisen](mapping.md).

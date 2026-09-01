@@ -19,7 +19,15 @@ public sealed record PopulationPatient(
     string LogicalId,
     CodedValue? PreferredLanguage,
     bool? NeedsInterpreter,
-    DateTimeOffset? LastUpdated);
+    DateTimeOffset? LastUpdated,
+    string? Name = null,
+    PopulationAddress? Address = null,
+    CodedValue? CountryOfBirth = null);
+
+public sealed record PopulationAddress(
+    string? Line,
+    string? PostalCode,
+    string? City);
 
 public sealed record PopulationFetusPatient(
     string LogicalId,

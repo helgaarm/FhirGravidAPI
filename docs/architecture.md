@@ -36,13 +36,18 @@ Fasaden implementerer ikke `Questionnaire`, `QuestionnaireResponse`, `$populate`
 
 ## Prosjekter og ansvar
 
-| Prosjekt | Ansvar |
-|---|---|
-| `auth-gateway` | Validerer HelseID-token, DPoP-bevis, tilgangsomfang og gjenbruk av bevis før videresending til det private API-et |
-| Core | Kildeuavhengige kliniske verdityper, koder og FHIR-mapping |
-| Infrastructure | DHG-kontrakt, valg av aktivt helsekort, HelseID, DPoP, HTTP-feilhåndtering og kildemapping |
-| Api | JWT- og gatewayvalidering, autorisasjon, pasientkontekst, FHIR-endepunkter og feilformat |
-| Tests | Transportkontrakt, mappingregler og HTTP-kontrakt |
+<table>
+  <thead>
+    <tr><th width="50%" scope="col">Prosjekt</th><th width="50%" scope="col">Ansvar</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>auth-gateway</code></td><td>Validerer HelseID-token, DPoP-bevis, tilgangsomfang og gjenbruk av bevis før videresending til det private API-et</td></tr>
+    <tr><td>Core</td><td>Kildeuavhengige kliniske verdityper, koder og FHIR-mapping</td></tr>
+    <tr><td>Infrastructure</td><td>DHG-kontrakt, valg av aktivt helsekort, HelseID, DPoP, HTTP-feilhåndtering og kildemapping</td></tr>
+    <tr><td>Api</td><td>JWT- og gatewayvalidering, autorisasjon, pasientkontekst, FHIR-endepunkter og feilformat</td></tr>
+    <tr><td>Tests</td><td>Transportkontrakt, mappingregler og HTTP-kontrakt</td></tr>
+  </tbody>
+</table>
 
 ## Konsistens og feilhåndtering
 

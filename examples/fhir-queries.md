@@ -105,7 +105,7 @@ $metadataHeaders = @{
 Invoke-RestMethod -Uri "$facadeBase/fhir/metadata" -Headers $metadataHeaders
 ```
 
-## Minimal Patient-ressurs
+## Patient-ressurs
 
 ```powershell
 $headers = @{

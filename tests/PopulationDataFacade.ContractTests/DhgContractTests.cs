@@ -26,6 +26,14 @@ public sealed class DhgContractTests
         Assert.True(fetus.MotherFeelsBabyMovements);
         Assert.Equal("Normale funn", fetus.Note);
         Assert.NotNull(record.BirthStatus);
+        var birthStatus = Assert.Single(record.BirthStatus.BirthStatus!);
+        Assert.Equal(1, birthStatus.FetusId);
+        Assert.Equal("1", birthStatus.Status?.Code);
+        Assert.Equal("Født levende", birthStatus.Status?.Display);
+        Assert.Equal("VOLVEN_8522", birthStatus.Status?.CodeSystem);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-05-01T08:00:00+02:00"),
+            birthStatus.DateTime);
         Assert.NotNull(record.ClinicalTests);
         Assert.NotNull(record.CurrentPregnancy);
         Assert.NotNull(record.GeneticDisorders);
@@ -33,6 +41,18 @@ public sealed class DhgContractTests
         Assert.NotNull(record.MedicalConditions);
         Assert.NotNull(record.Medication);
         Assert.NotNull(record.Mother);
+        Assert.Equal("Mamma Ku", record.Mother.Name);
+        Assert.Equal("Gate Gatesen 12", record.Mother.Address);
+        Assert.Equal("0500", record.Mother.PostNumber);
+        Assert.Equal("Oslo", record.Mother.PostName);
+        Assert.True(record.Mother.EmployedLastSixMonths);
+        Assert.Equal(100, record.Mother.EmploymentPercentage);
+        Assert.Equal("Snekker", record.Mother.OccupationAndIndustry);
+        Assert.Equal("NOB", record.Mother.Language?.Code);
+        Assert.Equal("NO", record.Mother.CountryOfBirth?.Code);
+        Assert.False(record.Mother.NeedsLanguageInterpreter);
+        Assert.False(record.Mother.CohabitingCoparent);
+        Assert.Equal("Bor med storfamilie", record.Mother.CohabitingCoparentNote);
         Assert.NotNull(record.PointsOfContact);
         Assert.Equal("Ola Fastlege", record.PointsOfContact.GeneralPractitioner?.Name);
         Assert.Equal("Test legekontor", record.PointsOfContact.GeneralPractitioner?.OrganizationName);

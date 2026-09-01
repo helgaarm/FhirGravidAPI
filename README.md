@@ -196,7 +196,7 @@ Se [pasient-ID og beskyttet testkontekst](docs/patient-context-testing.md), [ark
 - ingen inferert provosert abort, diagnose, legemiddelnavn eller annen klinisk betydning fra fritekst
 - ingen historisk rekonstruksjon utover eksplisitte DHG-felter
 - ingen persistent caching av kliniske DHG-data
-- `birthInstitute` eksponeres som en inneholdt `Organization`-deltaker i `CareTeam`; `birthStatus` og øvrige demografifelt eksponeres ikke
+- `birthInstitute` eksponeres som en inneholdt `Organization`-deltaker i `CareTeam`; `lastUpdatedBy` eksponeres ikke
 
 ## Lisens
 

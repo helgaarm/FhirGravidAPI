@@ -24,6 +24,33 @@ public sealed class FhirPopulationMapper : IFhirPopulationMapper
             Meta = Meta(source.LastUpdated)
         };
 
+        if (source.Name is not null)
+        {
+            patient.Name.Add(new HumanName { Text = source.Name });
+        }
+
+        if (source.Address is not null)
+        {
+            var address = new Address
+            {
+                PostalCode = source.Address.PostalCode,
+                City = source.Address.City
+            };
+            if (source.Address.Line is not null) address.Line = [source.Address.Line];
+            patient.Address.Add(address);
+        }
+
+        if (source.CountryOfBirth is not null)
+        {
+            patient.Extension.Add(new Extension(
+                "http://hl7.org/fhir/StructureDefinition/patient-birthPlace",
+                new Address
+                {
+                    Country = source.CountryOfBirth.Code,
+                    Text = source.CountryOfBirth.Display
+                }));
+        }
+
         if (source.PreferredLanguage is not null)
         {
             patient.Communication.Add(new Patient.CommunicationComponent

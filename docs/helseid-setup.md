@@ -101,11 +101,16 @@ DPoP-bevisets `htu` må peke på `https://<AUTH_GATEWAY_EXTERNAL_HOST>/<sti-og-s
 
 ## Implementert tilgang
 
-| Tilgangsvei | Resultat |
-|---|---|
-| Gateway i `authenticate`-modus | Alle ruter unntatt helsesjekkene krever HelseID-token og DPoP-bevis |
-| Direkte API i lokal `DevelopmentTestMode` | Swagger, OpenAPI og FHIR-rutene er anonyme |
-| Direkte API uten testmodus | `GET /fhir/metadata` er anonymt; kliniske FHIR-ruter krever et gatewayvalidert token |
+<table>
+  <thead>
+    <tr><th width="50%" scope="col">Tilgangsvei</th><th width="50%" scope="col">Resultat</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Gateway i <code>authenticate</code>-modus</td><td>Alle ruter unntatt helsesjekkene krever HelseID-token og DPoP-bevis</td></tr>
+    <tr><td>Direkte API i lokal <code>DevelopmentTestMode</code></td><td>Swagger, OpenAPI og FHIR-rutene er anonyme</td></tr>
+    <tr><td>Direkte API uten testmodus</td><td><code>GET /<wbr>fhir/<wbr>metadata</code> er anonymt; kliniske FHIR-ruter krever et gatewayvalidert token</td></tr>
+  </tbody>
+</table>
 
 `POST /test/patient-context/{alias}` finnes bare utenfor produksjon. Uten `DevelopmentTestMode` krever det samme lesetilgang som FHIR-rutene. Se [pasient-ID og beskyttet pasientkontekst](patient-context-testing.md).
 
