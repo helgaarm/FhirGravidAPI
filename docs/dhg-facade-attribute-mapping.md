@@ -61,21 +61,96 @@ by `DhgPopulationSnapshotFactory.cs`, and the population-to-FHIR transformation 
 `antenatalAppointments[]`, or `pointsOfContact`. The ignored `birthStatus` resource is
 listed separately later.
 
-| DHG JSON path | Facade handoff | FHIR output | Status and exact rule |
-|---|---|---|---|
-| `<resource>.metadata` | `DhgResourceMetadata` | None independently | `CONTAINER`: child attributes below apply. |
-| `<resource>.metadata.id` | Input to normalized resource ID | `Resource.id` for generated Observations, Encounters, and CareTeams | `PARTIAL`: combined with a stable field suffix, invalid FHIR ID characters become `-`, and values longer than 64 characters become a lowercase SHA-256 hex digest. Missing IDs use the internal `dhg-<suffix>` fallback. |
-| `<resource>.metadata.version` | DTO only | None | `UNSUPPORTED`: the facade is read-only and does not expose DHG optimistic-concurrency versions. |
-| `<resource>.metadata.lastUpdated` | `Population*.LastUpdated` | `Resource.meta.lastUpdated` | `DIRECT`: copied to every FHIR resource derived from that DHG resource. For a fetus observed more than once, the newest appointment timestamp wins. |
-| `<resource>.metadata.enteredInError` | Active-resource filter | Entire derived FHIR resource set is absent | `CONTROL`: only explicit `true` filters the DHG resource; `false` and `null` do not. |
-| `<resource>.metadata.lastUpdatedBy` | DTO only | None | `UNSUPPORTED`: provenance identity is not published by the current facade. |
-| `<resource>.metadata.lastUpdatedBy.userType` | DTO only | None | `UNSUPPORTED`. |
-| `<resource>.metadata.lastUpdatedBy.orgNr` | DTO only | None | `UNSUPPORTED`; it is not substituted for a point-of-contact organization identifier. |
-| `<resource>.metadata.lastUpdatedBy.orgName` | DTO only | None | `UNSUPPORTED`. |
-| `<resource>.metadata.lastUpdatedBy.treatmentFacilityName` | DTO only | None | `UNSUPPORTED`. |
-| `<resource>.metadata.lastUpdatedBy.hprNr` | DTO only | None | `UNSUPPORTED`; it is not substituted for a point-of-contact HPR number. |
-| `<resource>.metadata.lastUpdatedBy.hprRole` | DTO only | None | `UNSUPPORTED`. |
-| `<resource>.metadata.lastUpdatedBy.name` | DTO only | None | `UNSUPPORTED`. |
+<table>
+  <thead>
+    <tr>
+      <th width="25%" scope="col">DHG JSON path</th>
+      <th width="25%" scope="col">Facade handoff</th>
+      <th width="25%" scope="col">FHIR output</th>
+      <th width="25%" scope="col">Status and exact rule</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata</code></td>
+      <td><code>DhgResourceMetadata</code></td>
+      <td>None independently</td>
+      <td><code>CONTAINER</code>: child attributes below apply.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>id</code></td>
+      <td>Input to normalized resource ID</td>
+      <td><code>Resource.id</code> for generated Observations, Encounters, and CareTeams</td>
+      <td><code>PARTIAL</code>: combined with a stable field suffix, invalid FHIR ID characters become <code>-</code>, and values longer than 64 characters become a lowercase SHA-256 hex digest. Missing IDs use the internal <code>dhg-&lt;suffix&gt;</code> fallback.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>version</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>: the facade is read-only and does not expose DHG optimistic-concurrency versions.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdated</code></td>
+      <td><code>Population*.<wbr>LastUpdated</code></td>
+      <td><code>Resource.<wbr>meta.<wbr>lastUpdated</code></td>
+      <td><code>DIRECT</code>: copied to every FHIR resource derived from that DHG resource. For a fetus observed more than once, the newest appointment timestamp wins.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>enteredInError</code></td>
+      <td>Active-resource filter</td>
+      <td>Entire derived FHIR resource set is absent</td>
+      <td><code>CONTROL</code>: only explicit <code>true</code> filters the DHG resource; <code>false</code> and <code>null</code> do not.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>: provenance identity is not published by the current facade.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>userType</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>orgNr</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>; it is not substituted for a point-of-contact organization identifier.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>orgName</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>treatmentFacilityName</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>hprNr</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>; it is not substituted for a point-of-contact HPR number.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>hprRole</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>.</td>
+    </tr>
+    <tr>
+      <td><code>&lt;resource&gt;.<wbr>metadata.<wbr>lastUpdatedBy.<wbr>name</code></td>
+      <td>DTO only</td>
+      <td>None</td>
+      <td><code>UNSUPPORTED</code>.</td>
+    </tr>
+  </tbody>
+</table>
 
 ### Record metadata
 
